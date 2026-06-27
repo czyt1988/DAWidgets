@@ -1,0 +1,9 @@
+<RCC>
+    <qresource prefix="/DAWidgetsIcons">
+        <file>resources/arrow-down.svg</file>
+        <file>resources/arrow-left.svg</file>
+        <file>resources/arrow-right.svg</file>
+        <file>resources/arrow-up.svg</file>
+        <file>resources/error.svg</file>
+    </qresource>
+</RCC>

@@ -1,0 +1,10 @@
+********* Start testing of DaChipsEditTest *********
+Config: Using QtTest library 6.7.3, Qt 6.7.3 (x86_64-little_endian-llp64 shared (dynamic) release build; by MSVC 2019), windows 11
+PASS   : DaChipsEditTest::initTestCase()
+PASS   : DaChipsEditTest::testDedupAndMaxCount()
+PASS   : DaChipsEditTest::testInsertRemove()
+PASS   : DaChipsEditTest::testKeyboardCommit()
+PASS   : DaChipsEditTest::testBackspaceRemove()
+PASS   : DaChipsEditTest::cleanupTestCase()
+Totals: 6 passed, 0 failed, 0 skipped, 0 blacklisted, 194ms
+********* Finished testing of DaChipsEditTest *********

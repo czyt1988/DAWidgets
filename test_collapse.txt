@@ -1,0 +1,17 @@
+********* Start testing of DACollapseTest *********
+Config: Using QtTest library 6.7.3, Qt 6.7.3 (x86_64-little_endian-llp64 shared (dynamic) release build; by MSVC 2019), windows 11
+PASS   : DACollapseTest::initTestCase()
+PASS   : DACollapseTest::testBasicExpand()
+PASS   : DACollapseTest::testActiveNames()
+PASS   : DACollapseTest::testAccordionMutualExclusion()
+PASS   : DACollapseTest::testAccordionSetActiveNamesTakesFirst()
+PASS   : DACollapseTest::testDisabledProperty()
+PASS   : DACollapseTest::testDisabledNotActivatable()
+PASS   : DACollapseTest::testArrowIconCachedAndDisabled()
+PASS   : DACollapseTest::testDisabledVisualState()
+PASS   : DACollapseTest::testRemoveAndClear()
+PASS   : DACollapseTest::testNameTitle()
+PASS   : DACollapseTest::testContentWidget()
+PASS   : DACollapseTest::cleanupTestCase()
+Totals: 13 passed, 0 failed, 0 skipped, 0 blacklisted, 8ms
+********* Finished testing of DACollapseTest *********

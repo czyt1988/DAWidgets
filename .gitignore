@@ -1,0 +1,9 @@
+﻿.qwen/
+build/
+build_qt5/
+build_shared/
+.qtcreator/
+
+# 自动生成的资源文件（由 tools/generate_resources.py 生成）
+src/dawidgets_resources.h
+src/dawidgets_resources.cpp
