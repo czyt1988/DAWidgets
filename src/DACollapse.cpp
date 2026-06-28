@@ -1,4 +1,4 @@
-#include "DACollapse.h"
+﻿#include "DACollapse.h"
 
 #include "DACollapseItem.h"
 
@@ -10,13 +10,15 @@ namespace DA
 class DACollapse::PrivateData
 {
 public:
-    PrivateData(DACollapse *) {}
-    QVBoxLayout *layout { nullptr };
-    QList<DACollapseItem *> items;
+    PrivateData(DACollapse*)
+    {
+    }
+    QVBoxLayout* layout { nullptr };
+    QList< DACollapseItem* > items;
     bool accordion { false };
 };
 
-DACollapse::DACollapse(QWidget *parent) : QWidget(parent), DA_PIMPL_CONSTRUCT
+DACollapse::DACollapse(QWidget* parent) : QWidget(parent), DA_PIMPL_CONSTRUCT
 {
     init();
 }
@@ -52,7 +54,7 @@ void DACollapse::setAccordion(bool on)
         if (act.size() > 1) {
             // 仅保留第一个
             for (int i = 1; i < act.size(); ++i) {
-                if (auto *it = item(act[ i ]))
+                if (auto* it = item(act[ i ]))
                     activate(it, false);
             }
         }
@@ -64,36 +66,41 @@ QStringList DACollapse::activeNames() const
 {
     DA_DC(d);
     QStringList names;
-    for (auto *it : d->items) {
+    for (auto* it : std::as_const(d->items)) {
         if (it->expanded())
             names << it->name();
     }
     return names;
 }
 
-void DACollapse::setActiveNames(const QStringList &names)
+void DACollapse::setActiveNames(const QStringList& names)
 {
     DA_D(d);
     const QSet< QString > set(names.begin(), names.end());
     if (d->accordion) {
         // 手风琴:仅展开 names 中第一个实际存在的面板,其余折叠
-        DACollapseItem *firstMatch = nullptr;
-        for (const auto &n : names) {
+        DACollapseItem* firstMatch = nullptr;
+        for (const auto& n : names) {
             firstMatch = item(n);
             if (firstMatch)
                 break;
         }
-        for (auto *it : d->items)
+        for (auto* it : std::as_const(d->items)) {
             activate(it, it == firstMatch);
+        }
     } else {
-        for (auto *it : d->items)
+        for (auto* it : std::as_const(d->items)) {
             activate(it, set.contains(it->name()));
+        }
     }
     Q_EMIT activeNamesChanged(activeNames());
 }
 
-void DACollapse::activate(DACollapseItem *item, bool on)
+void DACollapse::activate(DACollapseItem* item, bool on)
 {
+    if (!item) {
+        return;
+    }
     // 禁用面板不可激活(对标 Element UI disabled),折叠则不受限
     if (on && item->disabled())
         return;
@@ -103,7 +110,7 @@ void DACollapse::activate(DACollapseItem *item, bool on)
     item->blockSignals(false);
 }
 
-void DACollapse::addItem(DACollapseItem *item)
+void DACollapse::addItem(DACollapseItem* item)
 {
     DA_D(d);
     if (!item)
@@ -113,34 +120,34 @@ void DACollapse::addItem(DACollapseItem *item)
     const int idx = d->layout->count() - 1;  // 弹簧索引
     d->layout->insertWidget(idx, item);
     d->items.append(item);
-    connect(item, &DACollapseItem::expandChanged, this, [this](bool) { onItemExpandChanged(); });
+    connect(item, &DACollapseItem::expandChanged, this, [ this ](bool) { onItemExpandChanged(); });
 }
 
-DACollapseItem *DACollapse::addItem(const QString &title, const QString &name)
+DACollapseItem* DACollapse::addItem(const QString& title, const QString& name)
 {
-    auto *it = new DACollapseItem(title, this);
+    auto* it = new DACollapseItem(title, this);
     it->setName(name.isEmpty() ? title : name);
     addItem(it);
     return it;
 }
 
-DACollapseItem *DACollapse::item(const QString &name) const
+DACollapseItem* DACollapse::item(const QString& name) const
 {
     DA_DC(d);
-    for (auto *it : d->items) {
+    for (auto* it : d->items) {
         if (it->name() == name)
             return it;
     }
     return nullptr;
 }
 
-QList<DACollapseItem *> DACollapse::items() const
+QList< DACollapseItem* > DACollapse::items() const
 {
     DA_DC(d);
     return d->items;
 }
 
-void DACollapse::removeItem(DACollapseItem *item)
+void DACollapse::removeItem(DACollapseItem* item)
 {
     DA_D(d);
     if (!item)
@@ -157,7 +164,7 @@ void DACollapse::removeItem(DACollapseItem *item)
 void DACollapse::clear()
 {
     DA_D(d);
-    for (auto *it : d->items) {
+    for (auto* it : std::as_const(d->items)) {
         d->layout->removeWidget(it);
         delete it;
     }
@@ -168,13 +175,13 @@ void DACollapse::clear()
 void DACollapse::onItemExpandChanged()
 {
     DA_D(d);
-    auto *src = qobject_cast< DACollapseItem * >(sender());
+    auto* src = qobject_cast< DACollapseItem* >(sender());
     if (!src)
         return;
 
     if (src->expanded() && d->accordion) {
         // 手风琴:折叠其它所有已展开面板
-        for (auto *it : d->items) {
+        for (auto* it : std::as_const(d->items)) {
             if (it != src && it->expanded()) {
                 // 阻断信号避免递归
                 it->blockSignals(true);

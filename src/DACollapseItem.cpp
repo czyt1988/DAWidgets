@@ -115,6 +115,7 @@ void DACollapseItem::init()
     d->content->setFrameShape(QFrame::NoFrame);
     d->content->setMaximumHeight(0);  // 初始折叠
     d->content->hide();
+    d->content->installEventFilter(this);  // 监听 LayoutRequest 适配动态内容/宽度变化
 
     d->contentLayout = new QVBoxLayout(d->content);
     d->contentLayout->setContentsMargins(12, 8, 12, 12);
@@ -163,9 +164,15 @@ void DACollapseItem::updateHeaderVisualState()
 int DACollapseItem::contentNaturalHeight() const
 {
     DA_DC(d);
-    // 直接取布局 sizeHint,不修改 widget 状态,避免触发 QLayoutRequest 导致跳动
-    if (auto* lay = d->content->layout())
-        return lay->sizeHint().height();
+    if (auto* lay = d->content->layout()) {
+        // 用 item 当前宽度计算 heightForWidth,而非 layout->sizeHint().height()。
+        // sizeHint 基于 idealWidth,对 wordWrap(heightForWidth) 的 content 严重偏小,
+        // 导致动画 target 错误、结束后高度跳变。outer layout margins=0 且 content
+        // 为 NoFrame,故 content 宽度 == item 宽度。
+        const int w = width();
+        const int h = lay->heightForWidth(w);
+        return h > 0 ? h : lay->sizeHint().height();
+    }
     return d->content->sizeHint().height();
 }
 
@@ -174,6 +181,7 @@ void DACollapseItem::doExpand(bool on)
     DA_D(d);
     if (d->animationEnabled) {
         if (on) {
+            d->content->setMinimumHeight(0);  // 解除下限,允许从 0 增长
             d->content->setMaximumHeight(0);
             d->content->show();
             const int target = contentNaturalHeight();
@@ -182,18 +190,28 @@ void DACollapseItem::doExpand(bool on)
             d->animation->setEndValue(target);
             d->animation->start();
         } else {
-            const int start = d->content->maximumHeight();
+            // 解除下限允许动画收缩到 0;用当前实际高度作为起始值。
+            // onAnimationFinished 已把 min/max 锁定在自然高度(== height()),
+            // 此处解除 minimumHeight 并显式固定 maximumHeight 确保动画全程有效。
+            d->content->setMinimumHeight(0);
+            const int start = d->content->height();
+            d->content->setMaximumHeight(start);
             d->animation->stop();
-            d->animation->setStartValue(start > 0 ? start : contentNaturalHeight());
+            d->animation->setStartValue(start);
             d->animation->setEndValue(0);
             d->animation->start();
         }
     } else {
         // 无动画:直接显示/隐藏
         if (on) {
-            d->content->setMaximumHeight(QWIDGETSIZE_MAX);
             d->content->show();
+            // 双向锁定自然高度(与动画路径的 onAnimationFinished 一致),
+            // 避免 QWIDGETSIZE_MAX 或 Preferred sizePolicy 导致布局挤压
+            const int h = contentNaturalHeight();
+            d->content->setMaximumHeight(h);
+            d->content->setMinimumHeight(h);
         } else {
+            d->content->setMinimumHeight(0);
             d->content->setMaximumHeight(0);
             d->content->hide();
         }
@@ -213,9 +231,16 @@ void DACollapseItem::onAnimationFinished()
 {
     DA_D(d);
     if (d->expanded) {
-        // 展开完成:解除高度上限,内容按自然高度显示(支持后续动态添加内容)
-        d->content->setMaximumHeight(QWIDGETSIZE_MAX);
+        // 双向锁定高度:maximumHeight 防拉伸,minimumHeight 防压缩。
+        // 仅锁 maximumHeight 不够——content sizePolicy=Preferred,父布局空间
+        // 临时不足时仍会被压缩到 minimumHeight(默认0),导致已展开的兄弟面板
+        // 内容区"收缩又伸长"闪烁。双向锁定后 content 高度不受布局挤压;
+        // 内容/宽度变化由 LayoutRequest 适配。
+        const int h = d->content->height();
+        d->content->setMaximumHeight(h);
+        d->content->setMinimumHeight(h);
     } else {
+        d->content->setMinimumHeight(0);
         d->content->hide();
     }
 }
@@ -228,6 +253,15 @@ bool DACollapseItem::eventFilter(QObject* watched, QEvent* event)
         if (me->button() == Qt::LeftButton)
             onHeaderClicked();
         return true;
+    }
+    if (watched == d->content && event->type() == QEvent::LayoutRequest) {
+        // 展开态(非动画中)下内容或宽度变化时,更新高度上下限以适应新的自然高度。
+        // 动画进行中不处理,避免与动画值冲突。
+        if (d->expanded && d->animation->state() != QAbstractAnimation::Running) {
+            const int h = contentNaturalHeight();
+            d->content->setMaximumHeight(h);
+            d->content->setMinimumHeight(h);
+        }
     }
     return QFrame::eventFilter(watched, event);
 }
