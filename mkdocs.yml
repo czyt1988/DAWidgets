@@ -1,0 +1,176 @@
+site_name: DAWidgets - Qt Widget Supplement Library
+site_author: 'Chen ZongYan'
+site_url: https://czyt1988.github.io/DAWidgets
+repo_url: https://github.com/czyt1988/DAWidgets
+
+# 多语言站点信息
+extra:
+  site_name:
+    zh: DAWidgets - Qt 控件补充库
+    en: DAWidgets - Qt Widget Supplement Library
+  site_description:
+    zh: DAWidgets 是一个受 Element UI 启发的 Qt QWidget 补充控件库，为桌面应用带来 Web 风格的组件交互
+    en: DAWidgets is a Qt QWidget supplement library inspired by Element UI, bringing Web-style component interactions to desktop applications
+  alternate:
+    - name: 中文
+      link: /DAWidgets/
+      lang: zh
+    - name: English
+      link: /DAWidgets/en/
+      lang: en
+
+# 主题
+theme:
+  name: material
+  language: zh
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/brightness-4
+        name: 切换至深色模式
+    - scheme: slate
+      toggle:
+        icon: material/brightness-7
+        name: 切换至浅色模式
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.path
+    - navigation.expand
+    - navigation.indexes
+    - navigation.footer
+    - content.code.copy
+    - content.code.annotate
+    - search.suggest
+    - search.highlight
+    - search.share
+    - toc.follow
+
+# 插件
+plugins:
+  - search
+  - i18n:
+      docs_structure: folder
+      languages:
+        - locale: zh
+          name: 中文
+          default: true
+          build: true
+          nav:
+            - 首页: index.md
+            - 入门指南:
+                - 概述:
+                    - DAWidgets 简介: introduction.md
+                - 构建指南:
+                    - 构建说明: build-guide/build-instructions.md
+                - 开发指引:
+                    - 开发指引首页: dev-guide/index.md
+                    - 编码规范: dev-guide/coding-standards.md
+                    - 注释规范: dev-guide/comment-standards.md
+                    - PIMPL 模式: dev-guide/pimpl-pattern.md
+                    - Qt5/Qt6 兼容: dev-guide/qt5-qt6-compat.md
+                    - 文档编写指南: doc-writing-guide.md
+            - 使用指南:
+                - Selector 选择器家族:
+                    - DASelectComboBox 下拉多选: use-guide/select-combobox.md
+                    - DAChipsEdit 标签输入框: use-guide/chips-edit.md
+                    - DAChip 标签胶囊: use-guide/chip.md
+                    - DAFlowLayout 流式布局: use-guide/flow-layout.md
+                - Collapse 折叠面板:
+                    - DACollapse 折叠容器: use-guide/collapse.md
+                    - DACollapseItem 折叠条目: use-guide/collapse-item.md
+                - 光标工具:
+                    - 光标守卫类: use-guide/cursor-scoped.md
+                - 属性编辑家族:
+                    - DAPropertyItemWidget 属性项: use-guide/property-item.md
+                    - 对齐编辑器: use-guide/alignment-edit.md
+                    - 文件路径编辑器: use-guide/file-path-edit.md
+                    - 时间格式编辑器: use-guide/time-format-edit.md
+                    - 最近文件管理器: use-guide/recent-files.md
+                - 样式编辑家族:
+                    - 颜色网格与调色板: use-guide/color-grid.md
+                    - 颜色菜单与拾取按钮: use-guide/color-menu.md
+                    - 画笔样式编辑: use-guide/pen-edit.md
+                    - 画刷样式编辑: use-guide/brush-edit.md
+                    - 字体编辑面板: use-guide/font-edit.md
+                    - 形状编辑面板: use-guide/shape-edit.md
+        - locale: en
+          name: English
+          build: true
+          nav:
+            - Home: index.md
+            - Getting Started:
+                - Overview:
+                    - Introduction: introduction.md
+                - Build Guide:
+                    - Build Instructions: build-guide/build-instructions.md
+                - Development Guide:
+                    - Dev Guide Home: dev-guide/index.md
+                    - Coding Standards: dev-guide/coding-standards.md
+                    - Comment Standards: dev-guide/comment-standards.md
+                    - PIMPL Pattern: dev-guide/pimpl-pattern.md
+                    - Qt5/Qt6 Compatibility: dev-guide/qt5-qt6-compat.md
+                    - Doc Writing Guide: doc-writing-guide.md
+            - User Guide:
+                - Selector Family:
+                    - DASelectComboBox: use-guide/select-combobox.md
+                    - DAChipsEdit: use-guide/chips-edit.md
+                    - DAChip: use-guide/chip.md
+                    - DAFlowLayout: use-guide/flow-layout.md
+                - Collapse:
+                    - DACollapse: use-guide/collapse.md
+                    - DACollapseItem: use-guide/collapse-item.md
+                - Cursor Utils:
+                    - Cursor Guard Classes: use-guide/cursor-scoped.md
+                - Property Edit Family:
+                    - DAPropertyItemWidget: use-guide/property-item.md
+                    - Alignment Editor: use-guide/alignment-edit.md
+                    - File Path Editor: use-guide/file-path-edit.md
+                    - Time Format Editor: use-guide/time-format-edit.md
+                    - Recent Files Manager: use-guide/recent-files.md
+                - Style Edit Family:
+                    - Color Grid & Palette: use-guide/color-grid.md
+                    - Color Menu & Picker: use-guide/color-menu.md
+                    - Pen Style Editor: use-guide/pen-edit.md
+                    - Brush Style Editor: use-guide/brush-edit.md
+                    - Font Edit Panel: use-guide/font-edit.md
+                    - Shape Edit Panel: use-guide/shape-edit.md
+
+# Markdown 扩展
+markdown_extensions:
+  - meta
+  - abbr
+  - attr_list
+  - def_list
+  - footnotes
+  - tables
+  - md_in_html
+  - toc:
+      permalink: true
+  - fenced_code
+  - nl2br
+  - admonition
+  - pymdownx.caret
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.tilde
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.highlight:
+      linenums: true
+      linenums_style: table
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+# 自定义 CSS
+extra_css:
+  - stylesheets/extra.css

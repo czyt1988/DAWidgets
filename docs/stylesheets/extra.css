@@ -1,0 +1,428 @@
+/* ============================================================
+   DAWidgets Documentation Styles
+   Modern widget library aesthetic with dark/light mode
+   ============================================================ */
+
+/* ----- Design Tokens ----- */
+:root {
+    --daw-teal: #0d9488;
+    --daw-teal-hover: #14b8a6;
+    --daw-teal-glow: rgba(13, 148, 136, 0.25);
+
+    --daw-surface: #ffffff;
+    --daw-surface-raised: #f8fafc;
+    --daw-border: #e2e8f0;
+    --daw-text: #1e293b;
+    --daw-text-secondary: #475569;
+    --daw-text-muted: #94a3b8;
+
+    --daw-card-bg: #ffffff;
+    --daw-card-border: #e2e8f0;
+    --daw-card-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    --daw-card-shadow-hover: 0 8px 24px rgba(0,0,0,0.1);
+
+    --daw-code-bg: #0f172a;
+
+    --daw-hero-bg: linear-gradient(160deg, #134e4a 0%, #0f766e 40%, #115e59 100%);
+    --daw-hero-text: #f1f5f9;
+    --daw-hero-muted: #94a3b8;
+    --daw-hero-pill-bg: rgba(255,255,255,0.08);
+    --daw-hero-pill-border: rgba(255,255,255,0.15);
+
+    --daw-footer-bg: linear-gradient(160deg, #134e4a 0%, #0f172a 100%);
+    --daw-footer-text: #f1f5f9;
+    --daw-footer-muted: #64748b;
+
+    --daw-icon-color: #0d9488;
+}
+
+[data-md-color-scheme="slate"] {
+    --daw-teal: #14b8a6;
+    --daw-teal-hover: #2dd4bf;
+    --daw-teal-glow: rgba(20, 184, 166, 0.2);
+
+    --daw-surface: #1e293b;
+    --daw-surface-raised: #0f172a;
+    --daw-border: #334155;
+    --daw-text: #e2e8f0;
+    --daw-text-secondary: #cbd5e1;
+    --daw-text-muted: #64748b;
+
+    --daw-card-bg: #1e293b;
+    --daw-card-border: #334155;
+    --daw-card-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    --daw-card-shadow-hover: 0 8px 24px rgba(0,0,0,0.4);
+
+    --daw-code-bg: #020617;
+
+    --daw-hero-bg: linear-gradient(160deg, #042f2e 0%, #134e4a 40%, #0a1628 100%);
+    --daw-hero-text: #f1f5f9;
+    --daw-hero-muted: #64748b;
+    --daw-hero-pill-bg: rgba(255,255,255,0.05);
+    --daw-hero-pill-border: rgba(255,255,255,0.1);
+
+    --daw-footer-bg: linear-gradient(160deg, #042f2e 0%, #0f172a 100%);
+    --daw-footer-text: #e2e8f0;
+    --daw-footer-muted: #475569;
+
+    --daw-icon-color: #2dd4bf;
+}
+
+/* ----- Nav section headers ----- */
+.md-nav__item--section > .md-nav__link {
+    color: var(--daw-teal) !important;
+    font-weight: bold;
+    font-size: 1.1em;
+}
+
+/* ============================================================
+   HERO
+   ============================================================ */
+.daw-hero {
+    position: relative;
+    padding: 80px 24px 56px;
+    text-align: center;
+    overflow: hidden;
+    margin: -24px -24px 0;
+    background: var(--daw-hero-bg);
+    color: var(--daw-hero-text);
+}
+
+.daw-hero-bg {
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size: 20px 20px;
+    pointer-events: none;
+}
+
+.daw-hero-inner {
+    position: relative;
+    z-index: 1;
+    max-width: 680px;
+    margin: 0 auto;
+}
+
+.daw-hero-badge {
+    display: inline-block;
+    padding: 5px 16px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #94a3b8 !important;
+    background: var(--daw-hero-pill-bg);
+    border: 1px solid var(--daw-hero-pill-border);
+    border-radius: 100px;
+    margin: 0 0 24px;
+}
+
+.daw-hero-title {
+    font-size: 3rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin: 0 0 20px;
+    color: #ffffff !important;
+}
+
+.daw-hero-desc {
+    font-size: 1.15rem;
+    line-height: 1.7;
+    color: #94a3b8 !important;
+    margin: 0 auto 32px;
+    max-width: 520px;
+}
+
+.daw-hero-pills {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 36px;
+}
+
+.daw-hero-pills span {
+    display: inline-block;
+    padding: 6px 16px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #cbd5e1 !important;
+    background: var(--daw-hero-pill-bg);
+    border: 1px solid var(--daw-hero-pill-border);
+    border-radius: 6px;
+}
+
+.daw-hero-actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+/* ----- Buttons ----- */
+.daw-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 24px;
+    font-size: 0.92rem;
+    font-weight: 600;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    border: none;
+}
+
+.daw-btn-primary {
+    background: var(--daw-teal);
+    color: #fff !important;
+    box-shadow: 0 2px 12px var(--daw-teal-glow);
+}
+
+.daw-btn-primary:hover {
+    background: var(--daw-teal-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px var(--daw-teal-glow);
+}
+
+.daw-btn-ghost {
+    background: transparent;
+    color: var(--daw-hero-text) !important;
+    border: 1px solid var(--daw-hero-pill-border);
+}
+
+.daw-btn-ghost:hover {
+    background: var(--daw-hero-pill-bg);
+    transform: translateY(-1px);
+}
+
+/* ============================================================
+   STATS BAR
+   ============================================================ */
+.daw-stats-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 32px 24px;
+    background: var(--daw-surface);
+    border-bottom: 1px solid var(--daw-border);
+    flex-wrap: wrap;
+}
+
+.daw-stat {
+    text-align: center;
+    padding: 8px 40px;
+}
+
+.daw-stat strong {
+    display: block;
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--daw-teal);
+    line-height: 1.2;
+}
+
+.daw-stat span {
+    font-size: 0.8rem;
+    color: var(--daw-text-muted);
+    font-weight: 500;
+}
+
+.daw-stat-divider {
+    width: 1px;
+    height: 36px;
+    background: var(--daw-border);
+    flex-shrink: 0;
+}
+
+/* ============================================================
+   CONTAINER & SECTION HEAD
+   ============================================================ */
+.daw-container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 64px 24px;
+}
+
+.daw-section-head {
+    text-align: center;
+    margin-bottom: 48px;
+}
+
+.daw-section-head h2 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--daw-text) !important;
+    margin: 0 0 10px !important;
+    letter-spacing: -0.02em;
+}
+
+.daw-section-head p {
+    font-size: 1.05rem;
+    color: var(--daw-text-secondary) !important;
+    margin: 0;
+    max-width: 520px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.6;
+}
+
+/* ============================================================
+   FEATURE CARDS
+   ============================================================ */
+.daw-card-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+
+.daw-card {
+    background: var(--daw-card-bg);
+    border: 1px solid var(--daw-card-border);
+    border-radius: 12px;
+    padding: 28px 24px;
+    transition: all 0.25s ease;
+    box-shadow: var(--daw-card-shadow);
+}
+
+.daw-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--daw-card-shadow-hover);
+    border-color: var(--daw-teal);
+}
+
+.daw-card-icon {
+    width: 40px;
+    height: 40px;
+    margin-bottom: 16px;
+    color: var(--daw-icon-color);
+}
+
+.daw-card-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.daw-card h3 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--daw-text) !important;
+    margin: 0 0 8px !important;
+}
+
+.daw-card p {
+    font-size: 0.88rem;
+    color: var(--daw-text-secondary) !important;
+    line-height: 1.6;
+    margin: 0;
+}
+
+.daw-card code {
+    font-size: 0.82rem;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--daw-surface-raised);
+    border: 1px solid var(--daw-border);
+}
+
+/* ============================================================
+   FOOTER CTA
+   ============================================================ */
+.daw-footer {
+    background: var(--daw-footer-bg);
+    padding: 64px 24px;
+    text-align: center;
+    color: var(--daw-footer-text);
+    position: relative;
+    overflow: hidden;
+}
+
+.daw-footer::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 20px 20px;
+    pointer-events: none;
+}
+
+.daw-footer-inner {
+    position: relative;
+    z-index: 1;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.daw-footer h2 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin: 0 0 10px;
+    color: var(--daw-footer-text) !important;
+}
+
+.daw-footer p {
+    font-size: 1.05rem;
+    color: var(--daw-footer-muted) !important;
+    margin: 0 0 32px;
+}
+
+.daw-footer-links {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 1024px) {
+    .daw-card-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .daw-hero {
+        padding: 48px 16px 40px;
+    }
+    .daw-hero-title {
+        font-size: 2.2rem;
+    }
+    .daw-hero-desc {
+        font-size: 1rem;
+    }
+    .daw-card-grid {
+        grid-template-columns: 1fr;
+    }
+    .daw-stats-bar {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .daw-stat {
+        padding: 8px 20px;
+    }
+    .daw-stat-divider {
+        display: none;
+    }
+    .daw-container {
+        padding: 40px 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .daw-hero-title {
+        font-size: 1.75rem;
+    }
+    .daw-hero-actions {
+        flex-direction: column;
+        align-items: center;
+    }
+    .daw-footer-links {
+        flex-direction: column;
+        align-items: center;
+    }
+}
