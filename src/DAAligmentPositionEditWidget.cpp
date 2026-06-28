@@ -2,6 +2,12 @@
 #include "ui_DAAligmentPositionEditWidget.h"
 namespace DA
 {
+/**
+ * @brief 构造对齐位置编辑窗口
+ * @param parent 父控件
+ * @details 加载 ui 并将九宫格按钮的 buttonGroup id 绑定到对应的方向组合对齐值，
+ *          同时按 Qt 版本连接 buttonClicked/idClicked 信号
+ */
 DAAligmentPositionEditWidget::DAAligmentPositionEditWidget(QWidget* parent)
     : QWidget(parent), ui(new Ui::DAAligmentPositionEditWidget)
 {
@@ -25,11 +31,20 @@ DAAligmentPositionEditWidget::DAAligmentPositionEditWidget(QWidget* parent)
 #endif
 }
 
+/**
+ * @brief 析构函数
+ * @details 释放 ui 指针
+ */
 DAAligmentPositionEditWidget::~DAAligmentPositionEditWidget()
 {
 	delete ui;
 }
 
+/**
+ * @brief 设置对齐位置
+ * @param al 要设置的对齐方式
+ * @details 先通过 acceptAligment 过滤为本控件支持的方向组合，再选中对应按钮并发射信号
+ */
 void DAAligmentPositionEditWidget::setAligmentPosition(Qt::Alignment al)
 {
 	Qt::Alignment realal = acceptAligment(al);
@@ -45,11 +60,22 @@ void DAAligmentPositionEditWidget::setAligmentPosition(Qt::Alignment al)
 	}
 }
 
+/**
+ * @brief 获取当前对齐位置
+ * @return 当前选中的对齐方式
+ * @details 直接返回按钮组当前选中项的 id 转换而来的对齐值
+ */
 Qt::Alignment DAAligmentPositionEditWidget::getAligmentPosition() const
 {
 	return static_cast< Qt::Alignment >(ui->buttonGroup->checkedId());
 }
 
+/**
+ * @brief 过滤对齐方式为本控件支持的方向组合
+ * @param al 输入的任意对齐方式
+ * @return 映射到九宫格按钮支持的组合对齐值，无匹配时返回默认构造的空对齐
+ * @details 九宫格仅支持 9 种固定方向组合，此函数把任意对齐值归一化到这些组合之一
+ */
 Qt::Alignment DAAligmentPositionEditWidget::acceptAligment(Qt::Alignment al)
 {
 	Qt::Alignment realal;

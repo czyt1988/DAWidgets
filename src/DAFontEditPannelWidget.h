@@ -20,16 +20,24 @@ class DAWIDGETS_EXPORT DAFontEditPannelWidget : public QWidget
     Q_OBJECT
 
 public:
+    // 构造字体编辑面板
     explicit DAFontEditPannelWidget(QWidget* parent = nullptr);
+    // 析构函数
     ~DAFontEditPannelWidget();
 
+    // 获取当前字体颜色
     QColor getCurrentFontColor() const;
+    // 设置当前字体颜色
     void setCurrentFontColor(const QColor& c);
 
+    // 设置当前字体
     void setCurrentFont(const QFont& f);
+    // 获取当前字体
     QFont getCurrentFont();
 
+    // 设置字体粗细（Qt5用0-99，Qt6用QFont::Weight枚举，内部做兼容处理）
     void setFontWeight(int w);
+    // 获取字体粗细
     int getFontWeight() const;
 
 private Q_SLOTS:
@@ -39,7 +47,15 @@ private Q_SLOTS:
     void signalEmitFontChanged();
 
 Q_SIGNALS:
+    /**
+     * @brief 字体改变时发射
+     * @param f 新字体
+     */
     void currentFontChanged(const QFont& f);
+    /**
+     * @brief 字体颜色改变时发射
+     * @param c 新颜色
+     */
     void currentFontColorChanged(const QColor& c);
 
 private:

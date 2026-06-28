@@ -57,6 +57,13 @@ public:
     bool popupVisible { false };
 };
 
+/**
+ * @brief 构造多标签选择下拉框
+ * @param parent 父控件
+ * @details 创建 DAChipsEdit 编辑区、隐形占位 QLineEdit、QListWidget 候选弹出框，
+ *          安装全局事件过滤器与默认 qss 样式。编辑区组件必须在 setEditable 之前
+ *          就绪，否则 sizeHint 协商会访问空指针。
+ */
 DASelectComboBox::DASelectComboBox(QWidget *parent) : QComboBox(parent), DA_PIMPL_CONSTRUCT
 {
     DA_D(d);
@@ -112,8 +119,17 @@ DASelectComboBox::DASelectComboBox(QWidget *parent) : QComboBox(parent), DA_PIMP
     applyDefaultStyle();
 }
 
+/**
+ * @brief 析构
+ * @details PIMPL 指针由 DA_PIMPL_CONSTRUCT 宏自动释放
+ */
 DASelectComboBox::~DASelectComboBox() = default;
 
+/**
+ * @brief 应用默认现代化样式
+ * @details 将内嵌 PNG 箭头写入缓存目录，qss 用 url(绝对路径) 引用。
+ *          不用 Qt RCC：静态库的资源不会自动传递给链接它的可执行文件。
+ */
 void DASelectComboBox::applyDefaultStyle()
 {
     // 把内嵌 PNG 写到缓存目录，qss 用 url(绝对路径) 引用。
@@ -160,12 +176,21 @@ DA--DAChipsEdit { background:transparent; border:none; }
     setStyleSheet(QString::fromLatin1(kDefaultQssTpl).arg(kArrowPath));
 }
 
+/**
+ * @brief 获取候选选项列表
+ * @return 当前候选选项的字符串列表
+ */
 QStringList DASelectComboBox::options() const
 {
     DA_DC(d);
     return d->options;
 }
 
+/**
+ * @brief 设置候选选项列表
+ * @param options 候选选项字符串列表
+ * @details 替换当前所有候选选项，若弹出框可见则立即刷新过滤结果
+ */
 void DASelectComboBox::setOptions(const QStringList &options)
 {
     DA_D(d);
@@ -174,18 +199,31 @@ void DASelectComboBox::setOptions(const QStringList &options)
         refreshPopup(d->chips->inputText());
 }
 
+/**
+ * @brief 获取已选标签列表
+ * @return 当前已选标签的字符串列表
+ */
 QStringList DASelectComboBox::tags() const
 {
     DA_DC(d);
     return d->chips->tags();
 }
 
+/**
+ * @brief 设置已选标签列表
+ * @param tags 标签字符串列表
+ * @details 委托给 DAChipsEdit 替换当前所有标签
+ */
 void DASelectComboBox::setTags(const QStringList &tags)
 {
     DA_D(d);
     d->chips->setTags(tags);
 }
 
+/**
+ * @brief 清空所有已选标签与候选选项
+ * @details 同时清空 DAChipsEdit 标签与输入框，并关闭弹出框
+ */
 void DASelectComboBox::clear()
 {
     DA_D(d);
@@ -194,48 +232,82 @@ void DASelectComboBox::clear()
     hideCustomPopup();
 }
 
+/**
+ * @brief 是否允许在无匹配时创建新标签
+ * @return 允许创建返回 true
+ */
 bool DASelectComboBox::allowCreate() const
 {
     DA_DC(d);
     return d->allowCreate;
 }
 
+/**
+ * @brief 设置是否允许创建新标签
+ * @param on 是否允许
+ */
 void DASelectComboBox::setAllowCreate(bool on)
 {
     DA_D(d);
     d->allowCreate = on;
 }
 
+/**
+ * @brief 下拉列表是否支持输入过滤
+ * @return 支持过滤返回 true
+ */
 bool DASelectComboBox::filterable() const
 {
     DA_DC(d);
     return d->filterable;
 }
 
+/**
+ * @brief 设置下拉列表是否支持输入过滤
+ * @param on 是否支持过滤
+ */
 void DASelectComboBox::setFilterable(bool on)
 {
     DA_D(d);
     d->filterable = on;
 }
 
+/**
+ * @brief 获取输入框占位提示文本
+ * @return 占位提示文本
+ */
 QString DASelectComboBox::placeholder() const
 {
     DA_DC(d);
     return d->chips->placeholder();
 }
 
+/**
+ * @brief 设置输入框占位提示文本
+ * @param text 占位提示文本
+ */
 void DASelectComboBox::setPlaceholder(const QString &text)
 {
     DA_D(d);
     d->chips->setPlaceholder(text);
 }
 
+/**
+ * @brief 获取当前高度策略
+ * @return 高度策略枚举值
+ */
 DASelectComboBox::HeightMode DASelectComboBox::heightMode() const
 {
     DA_DC(d);
     return d->heightMode;
 }
 
+/**
+ * @brief 设置高度策略
+ * @param mode 高度策略
+ * @details 若策略变化则重新组装编辑区容器布局（GrowWithTags 直接放入，
+ *          FixedHeightScrollable 包入 QScrollArea）
+ */
 void DASelectComboBox::setHeightMode(HeightMode mode)
 {
     DA_D(d);
@@ -245,12 +317,21 @@ void DASelectComboBox::setHeightMode(HeightMode mode)
     applyHeightMode();
 }
 
+/**
+ * @brief 获取固定高度模式下的显示行数
+ * @return 显示行数
+ */
 int DASelectComboBox::fixedRowCount() const
 {
     DA_DC(d);
     return d->fixedRowCount;
 }
 
+/**
+ * @brief 设置固定高度模式下的显示行数
+ * @param rows 显示行数，最小为 1
+ * @details 若当前处于固定高度模式则触发 updateGeometry 重新协商尺寸
+ */
 void DASelectComboBox::setFixedRowCount(int rows)
 {
     DA_D(d);
@@ -259,6 +340,14 @@ void DASelectComboBox::setFixedRowCount(int rows)
         updateGeometry();
 }
 
+/**
+ * @brief 计算推荐尺寸
+ * @return 推荐的 QSize
+ * @details GrowWithTags 模式下用 layout()->heightForWidth 计算换行高度，
+ *          绕过 QWidget::heightForWidth 的 isVisible 检查以保证协商阶段正确；
+ *          FixedHeightScrollable 模式下用 rowHeightHint * fixedRowCount。
+ *          宽度取所有候选选项的最大文本宽度与 DAChipsEdit 宽度的较大值。
+ */
 QSize DASelectComboBox::sizeHint() const
 {
     DA_DC(d);
@@ -301,6 +390,12 @@ QSize DASelectComboBox::sizeHint() const
 #endif
 }
 
+/**
+ * @brief 计算最小推荐尺寸
+ * @return 最小 QSize
+ * @details 高度基于单行 rowHeightHint，FixedHeightScrollable 模式乘以行数；
+ *          宽度保证箭头按钮可显示
+ */
 QSize DASelectComboBox::minimumSizeHint() const
 {
     DA_DC(d);
@@ -319,6 +414,12 @@ QSize DASelectComboBox::minimumSizeHint() const
 #endif
 }
 
+/**
+ * @brief 处理尺寸变化事件
+ * @param event 尺寸变化事件
+ * @details 将编辑区容器对齐到 QComboBox 的 EditField subcontrol 区域，
+ *          保证 DAChipsEdit 覆盖原生编辑区
+ */
 void DASelectComboBox::resizeEvent(QResizeEvent *event)
 {
     QComboBox::resizeEvent(event);
@@ -329,6 +430,10 @@ void DASelectComboBox::resizeEvent(QResizeEvent *event)
     d->container->setGeometry(field);
 }
 
+/**
+ * @brief 弹出/收起下拉候选列表
+ * @details 不调用 QComboBox::showPopup，改用自己的 QListWidget 弹出以支持过滤
+ */
 void DASelectComboBox::showPopup()
 {
     // 不调用 QComboBox::showPopup：用自己的 QListWidget 弹出，支持过滤
@@ -339,6 +444,14 @@ void DASelectComboBox::showPopup()
         showCustomPopup();
 }
 
+/**
+ * @brief 全局事件过滤器
+ * @param watched 被监听的对象
+ * @param event 事件
+ * @return 是否拦截事件
+ * @details popup 可见时，外部鼠标按下关闭下拉（点 popup 内部由 itemClicked 处理），
+ *          Tab/Backtab 焦点切换也关闭下拉
+ */
 bool DASelectComboBox::eventFilter(QObject *watched, QEvent *event)
 {
     DA_D(d);
@@ -368,6 +481,11 @@ bool DASelectComboBox::eventFilter(QObject *watched, QEvent *event)
     return QComboBox::eventFilter(watched, event);
 }
 
+/**
+ * @brief 输入框文本变化时刷新候选列表
+ * @param text 当前输入文本
+ * @details 可过滤时根据文本显示/隐藏弹出框并刷新过滤结果
+ */
 void DASelectComboBox::onInputTextChanged(const QString &text)
 {
     DA_D(d);
@@ -382,6 +500,12 @@ void DASelectComboBox::onInputTextChanged(const QString &text)
     }
 }
 
+/**
+ * @brief 输入框焦点变化处理
+ * @param focused 是否获得焦点
+ * @details 获焦时若可过滤且有候选选项则弹出下拉；失焦时不主动关闭，
+ *          避免与 popup itemClicked 的点击事件竞争导致误关
+ */
 void DASelectComboBox::onInputFocusChanged(bool focused)
 {
     DA_D(d);
@@ -393,6 +517,13 @@ void DASelectComboBox::onInputFocusChanged(bool focused)
     // 避免与 popup itemClicked 的点击事件竞争导致误关。
 }
 
+/**
+ * @brief 输入框按键事件拦截
+ * @param event 按键事件
+ * @param handled 输出参数，置 true 阻止 DAChipsEdit 默认处理
+ * @details 回车/Enter 选中当前候选项或创建新标签；方向键导航候选列表；
+ *          Escape 关闭下拉并清空输入
+ */
 void DASelectComboBox::onInputKey(QKeyEvent *event, bool *handled)
 {
     DA_D(d);
@@ -429,6 +560,11 @@ void DASelectComboBox::onInputKey(QKeyEvent *event, bool *handled)
     }
 }
 
+/**
+ * @brief 点击弹出列表项时选中该项
+ * @param item 被点击的列表项
+ * @details 将项文本追加为标签并发射 optionSelected，清空输入框并刷新候选列表
+ */
 void DASelectComboBox::onPopupItemClicked(QListWidgetItem *item)
 {
     DA_D(d);
@@ -441,6 +577,11 @@ void DASelectComboBox::onPopupItemClicked(QListWidgetItem *item)
         refreshPopup(QString());
 }
 
+/**
+ * @brief 应用高度策略，组装编辑区容器布局
+ * @details GrowWithTags 模式将 DAChipsEdit 直接放入容器；
+ *          FixedHeightScrollable 模式将其包入 QScrollArea 以支持滚动
+ */
 void DASelectComboBox::applyHeightMode()
 {
     DA_D(d);
@@ -467,6 +608,10 @@ void DASelectComboBox::applyHeightMode()
     updateGeometry();
 }
 
+/**
+ * @brief 显示自定义候选弹出框
+ * @details 刷新候选列表后定位到 combobox 正下方，设置默认选中第一项（default-first-option）
+ */
 void DASelectComboBox::showCustomPopup()
 {
     DA_D(d);
@@ -485,6 +630,9 @@ void DASelectComboBox::showCustomPopup()
     d->popupVisible = true;
 }
 
+/**
+ * @brief 隐藏自定义候选弹出框
+ */
 void DASelectComboBox::hideCustomPopup()
 {
     DA_D(d);
@@ -494,6 +642,11 @@ void DASelectComboBox::hideCustomPopup()
     d->popupVisible = false;
 }
 
+/**
+ * @brief 刷新弹出框候选列表
+ * @param filter 过滤文本，空字符串表示显示全部
+ * @details 排除已选标签，按过滤文本模糊匹配；无匹配项时自动关闭弹出框
+ */
 void DASelectComboBox::refreshPopup(const QString &filter)
 {
     DA_D(d);
@@ -513,6 +666,10 @@ void DASelectComboBox::refreshPopup(const QString &filter)
         d->popup->setCurrentRow(0);
 }
 
+/**
+ * @brief 选中当前高亮的候选项
+ * @details 将当前项文本追加为标签并发射 optionSelected，清空输入框并刷新候选列表
+ */
 void DASelectComboBox::pickCurrent()
 {
     DA_D(d);

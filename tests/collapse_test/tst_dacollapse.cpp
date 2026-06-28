@@ -1,4 +1,4 @@
-﻿#include <QtTest>
+#include <QtTest>
 #include <QLabel>
 #include <QLayout>
 #include <QPixmap>
@@ -29,6 +29,7 @@ private slots:
     void testCollapseAnimationResetsMaxHeight();
     void testContentNaturalHeightForWordWrap();
     void testExpandDoesNotFlickerSibling();
+    void testDebugLoggingOnExpand();
 };
 
 void DACollapseTest::testBasicExpand()
@@ -385,5 +386,24 @@ void DACollapseTest::testExpandDoesNotFlickerSibling()
     }
 }
 
+void DACollapseTest::testDebugLoggingOnExpand()
+{
+    qputenv("DAWIDGETS_COLLAPSE_DEBUG", "1");
+
+    DACollapseItem item(QStringLiteral("debug-item"));
+    item.setAnimationEnabled(false);
+    item.resize(240, 160);
+    item.setContentWidget(new QLabel(QStringLiteral("debug content")));
+
+    QTest::ignoreMessage(QtDebugMsg,
+                         "[DEBUG-DACollapse] setExpanded title=\"debug-item\" name=\"\" from=false to=true");
+    item.setExpanded(true);
+
+    qunsetenv("DAWIDGETS_COLLAPSE_DEBUG");
+}
+
 QTEST_MAIN(DACollapseTest)
 #include "tst_dacollapse.moc"
+
+
+

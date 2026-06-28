@@ -57,6 +57,11 @@ DAColorPaletteGridWidget::PrivateData::PrivateData(DAColorPaletteGridWidget* p)
 // DAColorPaletteGridWidget
 //===================================================
 
+/**
+ * @brief 构造默认Office风格色板
+ * @param par 父控件
+ * @details 使用内置10色Office主色列表初始化
+ */
 DAColorPaletteGridWidget::DAColorPaletteGridWidget(QWidget* par) : QWidget(par), DA_PIMPL_CONSTRUCT
 {
     DA_D(d);
@@ -64,6 +69,11 @@ DAColorPaletteGridWidget::DAColorPaletteGridWidget(QWidget* par) : QWidget(par),
     init();
 }
 
+/**
+ * @brief 构造自定义主色色板
+ * @param cls 主色列表
+ * @param par 父控件
+ */
 DAColorPaletteGridWidget::DAColorPaletteGridWidget(const QList<QColor>& cls, QWidget* par)
     : QWidget(par), DA_PIMPL_CONSTRUCT
 {
@@ -72,6 +82,9 @@ DAColorPaletteGridWidget::DAColorPaletteGridWidget(const QList<QColor>& cls, QWi
     init();
 }
 
+/**
+ * @brief 析构函数
+ */
 DAColorPaletteGridWidget::~DAColorPaletteGridWidget()
 {
 }
@@ -88,6 +101,11 @@ void DAColorPaletteGridWidget::init()
             this, &DAColorPaletteGridWidget::onPaletteColorClicked);
 }
 
+/**
+ * @brief 设置主色列表
+ * @param cls 主色列表
+ * @details 同时重建主色行和调色板行
+ */
 void DAColorPaletteGridWidget::setColorList(const QList<QColor>& cls)
 {
     DA_D(d);
@@ -98,12 +116,21 @@ void DAColorPaletteGridWidget::setColorList(const QList<QColor>& cls)
     d->mPaletteColorGrid->setColorList(makeColorPalette(cls));
 }
 
+/**
+ * @brief 获取主色列表
+ * @return 主色列表
+ */
 QList<QColor> DAColorPaletteGridWidget::colorList() const
 {
     DA_DC(d);
     return d->mColors;
 }
 
+/**
+ * @brief 设置浅色/深色变体因子列表
+ * @param factor lighter因子列表，前几个为浅色(>100)，后几个为深色(<100)
+ * @details 会根据新因子重新生成调色板
+ */
 void DAColorPaletteGridWidget::setFactor(const QList<int>& factor)
 {
     DA_D(d);
@@ -111,12 +138,21 @@ void DAColorPaletteGridWidget::setFactor(const QList<int>& factor)
     d->mPaletteColorGrid->setColorList(makeColorPalette(d->mColors));
 }
 
+/**
+ * @brief 获取浅色/深色变体因子列表
+ * @return 因子列表
+ */
 QList<int> DAColorPaletteGridWidget::factor() const
 {
     DA_DC(d);
     return d->mFactor;
 }
 
+/**
+ * @brief 设置色块图标尺寸
+ * @param s 图标尺寸
+ * @details 同时设置主色行和调色板行的图标尺寸
+ */
 void DAColorPaletteGridWidget::setColorIconSize(const QSize& s)
 {
     DA_D(d);
@@ -124,12 +160,21 @@ void DAColorPaletteGridWidget::setColorIconSize(const QSize& s)
     d->mPaletteColorGrid->setColorIconSize(s);
 }
 
+/**
+ * @brief 获取色块图标尺寸
+ * @return 图标尺寸
+ */
 QSize DAColorPaletteGridWidget::colorIconSize() const
 {
     DA_DC(d);
     return d->mMainColorList->colorIconSize();
 }
 
+/**
+ * @brief 设置色块是否可选中
+ * @param on 是否可选中
+ * @details 同时设置主色行和调色板行的checkable
+ */
 void DAColorPaletteGridWidget::setColorCheckable(bool on)
 {
     DA_D(d);
@@ -137,6 +182,10 @@ void DAColorPaletteGridWidget::setColorCheckable(bool on)
     d->mPaletteColorGrid->setColorCheckable(on);
 }
 
+/**
+ * @brief 返回色块是否可选中
+ * @return 是否可选中
+ */
 bool DAColorPaletteGridWidget::isColorCheckable() const
 {
     DA_DC(d);

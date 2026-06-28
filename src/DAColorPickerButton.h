@@ -41,25 +41,43 @@ public:
     };
 
     explicit DAColorPickerButton(QWidget* parent = nullptr);
+    // 构造指定样式的颜色拾取按钮
     explicit DAColorPickerButton(ColorToolButtonStyle style, QWidget* parent = nullptr);
+    // 析构函数
     ~DAColorPickerButton();
 
+    // 获取当前颜色
     QColor color() const;
 
+    // 获取绘制边距
     QMargins margins() const;
+    // 设置绘制边距，控制颜色块与按钮边框的间距
     void setMargins(const QMargins& mg);
 
+    // 获取按钮样式模式
     ColorToolButtonStyle colorToolButtonStyle() const;
+    // 设置按钮样式模式，决定是否自动创建颜色菜单
     void setColorToolButtonStyle(ColorToolButtonStyle s);
 
+    // 获取关联的颜色菜单（WithColorMenu模式下自动创建）
     DAColorMenu* colorMenu() const;
+    // 创建并关联颜色菜单，返回创建的菜单指针
     DAColorMenu* createColorMenu();
 
     /// 绘制"无颜色"标记:红色对角线+黑色边框
     static void paintNoneColor(QPainter* p, const QRect& colorRect);
 
 Q_SIGNALS:
+    /**
+     * @brief 按钮被点击时发射（NoColorMenu模式下使用）
+     * @param color 当前颜色
+     * @param checked 按钮是否处于选中状态
+     */
     void colorClicked(const QColor& color, bool checked = false);
+    /**
+     * @brief 颜色改变时发射
+     * @param color 新颜色
+     */
     void colorChanged(const QColor& color);
 
 public Q_SLOTS:

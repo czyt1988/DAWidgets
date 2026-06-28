@@ -4,6 +4,11 @@
 namespace DA
 {
 
+/**
+ * @brief 构造对齐编辑窗口
+ * @param parent 父控件
+ * @details 加载 ui 并将各对齐按钮的 buttonGroup id 绑定到对应的 Qt::Alignment 枚举值
+ */
 DAAligmentEditWidget::DAAligmentEditWidget(QWidget* parent) : QWidget(parent), ui(new Ui::DAAligmentEditWidget)
 {
 	ui->setupUi(this);
@@ -15,6 +20,10 @@ DAAligmentEditWidget::DAAligmentEditWidget(QWidget* parent) : QWidget(parent), u
 	ui->buttonGroup->setId(ui->toolButtonAligmentCenter, static_cast< int >(Qt::AlignCenter));
 }
 
+/**
+ * @brief 析构函数
+ * @details 释放 ui 指针
+ */
 DAAligmentEditWidget::~DAAligmentEditWidget()
 {
 	delete ui;

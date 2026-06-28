@@ -39,12 +39,17 @@ class DAWIDGETS_EXPORT DACollapse : public QWidget
     Q_PROPERTY(QStringList activeNames READ activeNames WRITE setActiveNames NOTIFY activeNamesChanged)
     DA_DECLARE_PRIVATE(DACollapse)
 public:
+    // 构造折叠面板容器
     explicit DACollapse(QWidget *parent = nullptr);
+    // 析构,释放内部条目与布局
     ~DACollapse();
 
+    // 是否启用手风琴模式(同时仅一个面板展开)
     bool accordion() const;
+    // 启用/禁用手风琴模式
     void setAccordion(bool on);
 
+    // 获取当前激活(展开)面板的 name 列表
     QStringList activeNames() const;
     // 设置激活面板(手风琴模式下仅取首个生效);会同步展开/折叠子项
     void setActiveNames(const QStringList &names);
@@ -56,16 +61,27 @@ public:
 
     // 按 name 查找条目
     DACollapseItem *item(const QString &name) const;
+    // 获取全部条目列表
     QList<DACollapseItem *> items() const;
 
     // 移除并销毁条目
     void removeItem(DACollapseItem *item);
+    // 清空并销毁所有条目
     void clear();
 
+    // 推荐尺寸
     QSize sizeHint() const override;
 
 Q_SIGNALS:
+    /**
+     * @brief 手风琴模式切换时发射
+     * @param on 切换后是否启用手风琴模式
+     */
     void accordionChanged(bool on);
+    /**
+     * @brief 激活面板集合变化时发射
+     * @param activeNames 当前激活面板的 name 列表
+     */
     void activeNamesChanged(const QStringList &activeNames);
 
 private:

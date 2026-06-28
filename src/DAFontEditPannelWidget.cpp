@@ -17,6 +17,11 @@ public:
     int mFontPointSize { 10 };
 };
 
+/**
+ * @brief 构造字体编辑面板
+ * @param parent 父控件
+ * @details 初始化字号下拉列表、颜色按钮，连接字体/粗体/斜体/下划线/字号变更信号
+ */
 DAFontEditPannelWidget::DAFontEditPannelWidget(QWidget* parent)
     : QWidget(parent), d(new PrivateData)
 {
@@ -36,16 +41,27 @@ DAFontEditPannelWidget::DAFontEditPannelWidget(QWidget* parent)
     connect(d->ui.toolButtonFontSizeSub, &QToolButton::clicked, this, &DAFontEditPannelWidget::onFontSizeSub);
 }
 
+/**
+ * @brief 析构函数
+ */
 DAFontEditPannelWidget::~DAFontEditPannelWidget()
 {
     delete d;
 }
 
+/**
+ * @brief 获取当前字体颜色
+ * @return 当前字体颜色
+ */
 QColor DAFontEditPannelWidget::getCurrentFontColor() const
 {
     return d->ui.colorButton->color();
 }
 
+/**
+ * @brief 设置当前字体颜色
+ * @param c 新颜色
+ */
 void DAFontEditPannelWidget::setCurrentFontColor(const QColor& c)
 {
     if (d->ui.colorButton->color() == c) {
@@ -54,6 +70,11 @@ void DAFontEditPannelWidget::setCurrentFontColor(const QColor& c)
     d->ui.colorButton->setColor(c);
 }
 
+/**
+ * @brief 设置当前字体
+ * @param f 新字体
+ * @details 同步更新字体下拉框、字号、粗体/斜体/下划线状态
+ */
 void DAFontEditPannelWidget::setCurrentFont(const QFont& f)
 {
     if (f == getCurrentFont()) {
@@ -68,6 +89,10 @@ void DAFontEditPannelWidget::setCurrentFont(const QFont& f)
     signalEmitFontChanged();
 }
 
+/**
+ * @brief 获取当前字体
+ * @return 由字体下拉框、粗体/斜体/下划线按钮、字号组合而成的字体
+ */
 QFont DAFontEditPannelWidget::getCurrentFont()
 {
     QFont f = d->ui.fontComboBox->currentFont();
@@ -78,6 +103,11 @@ QFont DAFontEditPannelWidget::getCurrentFont()
     return f;
 }
 
+/**
+ * @brief 设置字体粗细（字号）
+ * @param w 字号值
+ * @details Qt5中字重为0-99整数值，Qt6中为QFont::Weight枚举，此处用int兼容
+ */
 void DAFontEditPannelWidget::setFontWeight(int w)
 {
     d->ui.comboBoxFontSize->setCurrentText(QString::number(w));
@@ -85,6 +115,10 @@ void DAFontEditPannelWidget::setFontWeight(int w)
     signalEmitFontChanged();
 }
 
+/**
+ * @brief 获取字体粗细（字号）
+ * @return 当前字号
+ */
 int DAFontEditPannelWidget::getFontWeight() const
 {
     return d->ui.comboBoxFontSize->currentText().toInt();

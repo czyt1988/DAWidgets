@@ -4,6 +4,12 @@
 namespace DA
 {
 
+/**
+ * @brief 构造时间格式编辑窗口
+ * @param parent 父控件
+ * @details 加载 ui，填充常用时间格式选项到下拉框并连接文本变化信号，
+ *          默认选中最后一个（最完整的日期时间）格式
+ */
 DATimeFormatEditWidget::DATimeFormatEditWidget(QWidget* parent)
 	: QWidget(parent), ui(new Ui::DATimeFormatEditWidget), m_currentDateTime(QDateTime::currentDateTime())
 {
@@ -13,16 +19,29 @@ DATimeFormatEditWidget::DATimeFormatEditWidget(QWidget* parent)
 	ui->comboBox->setCurrentIndex(ui->comboBox->count() - 1);
 }
 
+/**
+ * @brief 析构函数
+ * @details 释放 ui 指针
+ */
 DATimeFormatEditWidget::~DATimeFormatEditWidget()
 {
 	delete ui;
 }
 
+/**
+ * @brief 获取当前时间格式
+ * @return 下拉框当前选中的时间格式字符串
+ */
 QString DATimeFormatEditWidget::getTimeFormat() const
 {
 	return ui->comboBox->currentText();
 }
 
+/**
+ * @brief 设置时间格式文本
+ * @param str 时间格式字符串
+ * @details 设置下拉框的当前文本，若匹配已有项则选中对应项
+ */
 void DATimeFormatEditWidget::setTimeFormatText(const QString& str)
 {
 	ui->comboBox->setCurrentText(str);

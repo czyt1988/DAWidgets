@@ -1,6 +1,7 @@
-﻿#include "DACollapseItem.h"
+#include "DACollapseItem.h"
 
 #include <QColor>
+#include <QDebug>
 #include <QEvent>
 #include <QHBoxLayout>
 #include <QIcon>
@@ -25,15 +26,91 @@ constexpr int kArrowSize = 14;
 /// Disabled 模式交由 QIcon 自动从 Normal 生成灰度版本。
 const QIcon& arrowRightIcon()
 {
-    static QIcon icon(QStringLiteral(":/DAWidgetsIcons/resources/arrow-right.svg"));
+    static QIcon icon(QStringLiteral(":/DAWidgetsIcons/arrow-right.svg"));
     return icon;
 }
 
 /// 展开态箭头(▼)
 const QIcon& arrowDownIcon()
 {
-    static const QIcon icon(QStringLiteral(":/DAWidgetsIcons/resources/arrow-down.svg"));
+    static const QIcon icon(QStringLiteral(":/DAWidgetsIcons/arrow-down.svg"));
     return icon;
+}
+
+/// 读取 DAWIDGETS_COLLAPSE_DEBUG 环境变量判断是否开启调试日志
+bool collapseDebugEnabled()
+{
+    bool ok           = false;
+    const int enabled = qEnvironmentVariableIntValue("DAWIDGETS_COLLAPSE_DEBUG", &ok);
+    return ok ? (enabled != 0) : qEnvironmentVariableIsSet("DAWIDGETS_COLLAPSE_DEBUG");
+}
+
+/// 布尔值转 "true"/"false" 字符串,用于调试输出
+QString boolText(bool on)
+{
+    return on ? QStringLiteral("true") : QStringLiteral("false");
+}
+
+/// 矩形转 "[x,y wxh]" 字符串,用于调试输出
+QString rectText(const QRect& rect)
+{
+    return QStringLiteral("[%1,%2 %3x%4]")
+        .arg(rect.x())
+        .arg(rect.y())
+        .arg(rect.width())
+        .arg(rect.height());
+}
+
+/// 汇总控件可见性/几何/最小最大高度,用于调试输出
+QString widgetState(const QWidget* w)
+{
+    if (!w) {
+        return QStringLiteral("null");
+    }
+    return QStringLiteral("visible=%1 geom=%2 minH=%3 maxH=%4")
+        .arg(boolText(w->isVisible()))
+        .arg(rectText(w->geometry()))
+        .arg(w->minimumHeight())
+        .arg(w->maximumHeight());
+}
+
+/// 判定被监听对象的角色名(item/header/content/other)
+const char* watchedName(const QObject* watched, const QObject* item, const QObject* header, const QObject* content)
+{
+    if (watched == item)
+        return "item";
+    if (watched == header)
+        return "header";
+    if (watched == content)
+        return "content";
+    return "other";
+}
+
+/// 事件类型转可读名称,用于调试输出
+const char* eventTypeName(QEvent::Type type)
+{
+    switch (type) {
+    case QEvent::Move:
+        return "Move";
+    case QEvent::Resize:
+        return "Resize";
+    case QEvent::Show:
+        return "Show";
+    case QEvent::Hide:
+        return "Hide";
+    case QEvent::LayoutRequest:
+        return "LayoutRequest";
+    default:
+        return "Other";
+    }
+}
+
+/// 调试开关开启时输出 [DEBUG-DACollapse] 前缀日志
+void logCollapseDebug(const QString& line)
+{
+    if (!collapseDebugEnabled())
+        return;
+    qDebug().noquote().nospace() << "[DEBUG-DACollapse] " << line;
 }
 }  // namespace
 
@@ -59,13 +136,23 @@ public:
     bool animationEnabled { true };
 };
 
+/**
+ * @brief 构造空标题的折叠条目
+ * @param parent 父控件
+ */
 DACollapseItem::DACollapseItem(QWidget* parent) : QFrame(parent), DA_PIMPL_CONSTRUCT
 {
     init();
 }
 
+/** @brief 析构,由 PIMPL 智能指针自动释放私有数据 */
 DACollapseItem::~DACollapseItem() = default;
 
+/**
+ * @brief 构造指定标题的折叠条目
+ * @param title 标题文本
+ * @param parent 父控件
+ */
 DACollapseItem::DACollapseItem(const QString& title, QWidget* parent) : QFrame(parent), DA_PIMPL_CONSTRUCT
 {
     DA_D(d);
@@ -74,12 +161,18 @@ DACollapseItem::DACollapseItem(const QString& title, QWidget* parent) : QFrame(p
     d->titleLabel->setText(title);
 }
 
+/**
+ * @brief 初始化标题栏、内容区与动画
+ * @details 显式注册 qrc 资源避免静态库被链接器丢弃;标题栏垂直固定防止展开时跳动;
+ *          内容区初始 maximumHeight=0 折叠;动画绑定 content 的 maximumHeight 属性
+ */
 void DACollapseItem::init()
 {
     DA_D(d);
     Q_INIT_RESOURCE(dawidgetsicons);  // 静态库需显式注册 qrc 资源,否则被链接器丢弃
     setObjectName(QStringLiteral("DACollapseItem"));
     setFrameShape(QFrame::NoFrame);
+    installEventFilter(this);
 
     auto* outer = new QVBoxLayout(this);
     outer->setContentsMargins(0, 0, 0, 0);
@@ -127,6 +220,16 @@ void DACollapseItem::init()
     d->animation = new QPropertyAnimation(d->content, "maximumHeight", this);
     d->animation->setDuration(250);
     d->animation->setEasingCurve(QEasingCurve::OutCubic);
+    connect(d->animation, &QVariantAnimation::valueChanged, this, [this](const QVariant& value) {
+        DA_D(d);
+        logCollapseDebug(QStringLiteral("animationValue title=\"%1\" name=\"%2\" value=%3 item=%4 content=%5 parent=%6")
+                             .arg(d->title)
+                             .arg(d->name)
+                             .arg(value.toInt())
+                             .arg(widgetState(this))
+                             .arg(widgetState(d->content))
+                             .arg(widgetState(parentWidget())));
+    });
     connect(d->animation, &QPropertyAnimation::finished, this, &DACollapseItem::onAnimationFinished);
 
     updateArrow();
@@ -135,6 +238,7 @@ void DACollapseItem::init()
     setAttribute(Qt::WA_LayoutUsesWidgetRect);
 }
 
+/** @brief 根据展开态与禁用态刷新箭头图标 */
 void DACollapseItem::updateArrow()
 {
     DA_D(d);
@@ -144,6 +248,11 @@ void DACollapseItem::updateArrow()
     d->arrow->setPixmap(icon.pixmap(QSize(kArrowSize, kArrowSize), mode));
 }
 
+/**
+ * @brief 刷新标题栏禁用视觉
+ * @details qss 的 color 作用在 QFrame 上不会传递给子 QLabel,故在此内置禁用
+ *          置灰与光标切换,并维护 disabled 动态属性供 qss 进一步定制
+ */
 void DACollapseItem::updateHeaderVisualState()
 {
     DA_D(d);
@@ -161,6 +270,13 @@ void DACollapseItem::updateHeaderVisualState()
     style()->polish(this);
 }
 
+/**
+ * @brief 计算内容区在当前宽度下的自然高度
+ * @return heightForWidth 结果,退化为 sizeHint
+ * @details 用 item 当前宽度而非 layout->sizeHint()——后者基于 idealWidth,
+ *          对 wordWrap 等 heightForWidth 内容严重偏小,会导致动画目标值错误、
+ *          结束后高度跳变
+ */
 int DACollapseItem::contentNaturalHeight() const
 {
     DA_DC(d);
@@ -176,9 +292,27 @@ int DACollapseItem::contentNaturalHeight() const
     return d->content->sizeHint().height();
 }
 
+/**
+ * @brief 执行展开/折叠的实际动画或即时切换
+ * @param on true 展开, false 折叠
+ * @details 通过动画驱动 content 的 maximumHeight 在 0 与自然高度间过渡。
+ *          关键:minimumHeight 必须先解除至 0,否则 QWIDGETSIZE_MAX 哨兵或
+ *          锁定的最小高度会让收缩动画起点无效(哨兵陷阱)。
+ *          折叠时以当前实际高度作为动画起点,onAnimationFinished 已把 min/max
+ *          锁在自然高度,此处须显式解除并固定 maximumHeight 保证动画全程有效
+ */
 void DACollapseItem::doExpand(bool on)
 {
     DA_D(d);
+    logCollapseDebug(QStringLiteral("doExpand title=\"%1\" name=\"%2\" targetExpanded=%3 animationEnabled=%4 item=%5 content=%6 parent=%7 naturalHeight=%8")
+                         .arg(d->title)
+                         .arg(d->name)
+                         .arg(boolText(on))
+                         .arg(boolText(d->animationEnabled))
+                         .arg(widgetState(this))
+                         .arg(widgetState(d->content))
+                         .arg(widgetState(parentWidget()))
+                         .arg(contentNaturalHeight()));
     if (d->animationEnabled) {
         if (on) {
             d->content->setMinimumHeight(0);  // 解除下限,允许从 0 增长
@@ -219,6 +353,7 @@ void DACollapseItem::doExpand(bool on)
     updateArrow();
 }
 
+/** @brief 标题栏点击处理,切换展开态(禁用面板忽略) */
 void DACollapseItem::onHeaderClicked()
 {
     DA_D(d);
@@ -227,6 +362,14 @@ void DACollapseItem::onHeaderClicked()
     setExpanded(!d->expanded);
 }
 
+/**
+ * @brief 动画结束后收尾
+ * @details 展开态双向锁定 content 高度:仅锁 maximumHeight 不够——content
+ *          sizePolicy=Preferred,父布局空间临时不足时仍会被压缩到默认
+ *          minimumHeight(0),导致已展开兄弟面板内容区"收缩又伸长"闪烁;
+ *          双向锁定后高度不受布局挤压,内容/宽度变化交由 LayoutRequest 适配。
+ *          折叠态解除最小高度并隐藏,避免 maximumHeight=0 的可见残留
+ */
 void DACollapseItem::onAnimationFinished()
 {
     DA_D(d);
@@ -243,11 +386,39 @@ void DACollapseItem::onAnimationFinished()
         d->content->setMinimumHeight(0);
         d->content->hide();
     }
+    logCollapseDebug(QStringLiteral("animationFinished title=\"%1\" name=\"%2\" expanded=%3 item=%4 content=%5 parent=%6")
+                         .arg(d->title)
+                         .arg(d->name)
+                         .arg(boolText(d->expanded))
+                         .arg(widgetState(this))
+                         .arg(widgetState(d->content))
+                         .arg(widgetState(parentWidget())));
 }
 
+/**
+ * @brief 事件过滤器:转发标题栏点击、适配内容区布局变化与调试日志
+ * @param watched 被监听对象(自身/标题栏/内容区)
+ * @param event 事件
+ * @details 标题栏 MouseButtonPress 触发展开切换;内容区 LayoutRequest 在非动画
+ *          展开态下据自然高度更新 min/max 以适配动态内容或宽度变化
+ */
 bool DACollapseItem::eventFilter(QObject* watched, QEvent* event)
 {
     DA_D(d);
+    if ((watched == this || watched == d->header || watched == d->content)
+        && (event->type() == QEvent::Move || event->type() == QEvent::Resize || event->type() == QEvent::Show
+            || event->type() == QEvent::Hide || event->type() == QEvent::LayoutRequest)) {
+        logCollapseDebug(QStringLiteral("event target=%1 type=%2 title=\"%3\" name=\"%4\" expanded=%5 animating=%6 self=%7 content=%8 parent=%9")
+                             .arg(QString::fromLatin1(watchedName(watched, this, d->header, d->content)))
+                             .arg(QString::fromLatin1(eventTypeName(event->type())))
+                             .arg(d->title)
+                             .arg(d->name)
+                             .arg(boolText(d->expanded))
+                             .arg(boolText(d->animation->state() == QAbstractAnimation::Running))
+                             .arg(widgetState(this))
+                             .arg(widgetState(d->content))
+                             .arg(widgetState(parentWidget())));
+    }
     if (watched == d->header && event->type() == QEvent::MouseButtonPress) {
         auto* me = static_cast< QMouseEvent* >(event);
         if (me->button() == Qt::LeftButton)
@@ -258,6 +429,11 @@ bool DACollapseItem::eventFilter(QObject* watched, QEvent* event)
         // 展开态(非动画中)下内容或宽度变化时,更新高度上下限以适应新的自然高度。
         // 动画进行中不处理,避免与动画值冲突。
         if (d->expanded && d->animation->state() != QAbstractAnimation::Running) {
+            logCollapseDebug(QStringLiteral("layoutAdjust title=\"%1\" name=\"%2\" naturalHeight=%3 content=%4")
+                                 .arg(d->title)
+                                 .arg(d->name)
+                                 .arg(contentNaturalHeight())
+                                 .arg(widgetState(d->content)));
             const int h = contentNaturalHeight();
             d->content->setMaximumHeight(h);
             d->content->setMinimumHeight(h);
@@ -266,12 +442,18 @@ bool DACollapseItem::eventFilter(QObject* watched, QEvent* event)
     return QFrame::eventFilter(watched, event);
 }
 
+/** @brief 获取标题文本 */
 QString DACollapseItem::title() const
 {
     DA_DC(d);
     return d->title;
 }
 
+/**
+ * @brief 设置标题文本
+ * @param title 新标题文本
+ * @details 值未变化时跳过;更新标签后发射 titleChanged
+ */
 void DACollapseItem::setTitle(const QString& title)
 {
     DA_D(d);
@@ -282,12 +464,18 @@ void DACollapseItem::setTitle(const QString& title)
     Q_EMIT titleChanged(title);
 }
 
+/** @brief 获取面板标识 */
 QString DACollapseItem::name() const
 {
     DA_DC(d);
     return d->name;
 }
 
+/**
+ * @brief 设置面板标识
+ * @param name 新面板标识
+ * @details 值未变化时跳过;更新后发射 nameChanged
+ */
 void DACollapseItem::setName(const QString& name)
 {
     DA_D(d);
@@ -297,12 +485,18 @@ void DACollapseItem::setName(const QString& name)
     Q_EMIT nameChanged(name);
 }
 
+/** @brief 是否禁用 */
 bool DACollapseItem::disabled() const
 {
     DA_DC(d);
     return d->disabled;
 }
 
+/**
+ * @brief 启用/禁用面板交互
+ * @param on true 禁用
+ * @details 更新标题置灰、箭头灰度与光标,并维护 qss disabled 属性后发射信号
+ */
 void DACollapseItem::setDisabled(bool on)
 {
     DA_D(d);
@@ -314,28 +508,52 @@ void DACollapseItem::setDisabled(bool on)
     Q_EMIT disabledChanged(on);
 }
 
+/** @brief 是否处于展开态 */
 bool DACollapseItem::expanded() const
 {
     DA_DC(d);
     return d->expanded;
 }
 
+/**
+ * @brief 展开/折叠面板
+ * @param on true 展开, false 折叠
+ * @details 值未变化时跳过;更新状态后调用 doExpand 执行动画或即时切换,
+ *          随后发射 expandChanged 供容器协调互斥
+ */
 void DACollapseItem::setExpanded(bool on)
 {
     DA_D(d);
-    if (d->expanded == on)
+    if (d->expanded == on) {
+        logCollapseDebug(QStringLiteral("setExpanded title=\"%1\" name=\"%2\" from=%3 to=%4 skipped=true")
+                             .arg(d->title)
+                             .arg(d->name)
+                             .arg(boolText(d->expanded))
+                             .arg(boolText(on)));
         return;
+    }
+    logCollapseDebug(QStringLiteral("setExpanded title=\"%1\" name=\"%2\" from=%3 to=%4")
+                         .arg(d->title)
+                         .arg(d->name)
+                         .arg(boolText(d->expanded))
+                         .arg(boolText(on)));
     d->expanded = on;
     doExpand(on);
     Q_EMIT expandChanged(on);
 }
 
+/** @brief 是否启用展开/折叠动画 */
 bool DACollapseItem::animationEnabled() const
 {
     DA_DC(d);
     return d->animationEnabled;
 }
 
+/**
+ * @brief 设置是否启用动画
+ * @param on true 启用
+ * @details 值未变化时跳过;更新后发射 animationEnabledChanged
+ */
 void DACollapseItem::setAnimationEnabled(bool on)
 {
     DA_D(d);
@@ -345,6 +563,11 @@ void DACollapseItem::setAnimationEnabled(bool on)
     Q_EMIT animationEnabledChanged(on);
 }
 
+/**
+ * @brief 设置自定义标题控件
+ * @param widget 标题控件,传入 nullptr 还原默认文本标签
+ * @details 取代默认标题文本,插入到箭头与标题之间;旧的自定义控件被销毁
+ */
 void DACollapseItem::setTitleWidget(QWidget* widget)
 {
     DA_D(d);
@@ -366,12 +589,18 @@ void DACollapseItem::setTitleWidget(QWidget* widget)
     }
 }
 
+/** @brief 获取自定义标题控件,未设置时返回 nullptr */
 QWidget* DACollapseItem::titleWidget() const
 {
     DA_DC(d);
     return d->titleWidget;
 }
 
+/**
+ * @brief 设置内容控件
+ * @param widget 内容控件,可为 nullptr 仅清空
+ * @details 清空旧内容布局项后追加新控件,取代默认内容
+ */
 void DACollapseItem::setContentWidget(QWidget* widget)
 {
     DA_D(d);
@@ -387,6 +616,7 @@ void DACollapseItem::setContentWidget(QWidget* widget)
     }
 }
 
+/** @brief 获取内容控件,未设置时返回 nullptr */
 QWidget* DACollapseItem::contentWidget() const
 {
     DA_DC(d);
@@ -397,14 +627,21 @@ QWidget* DACollapseItem::contentWidget() const
     return nullptr;
 }
 
+/** @brief 获取内容区布局,可直接 addWidget 追加多个控件 */
 QVBoxLayout* DACollapseItem::contentLayout() const
 {
     DA_DC(d);
     return d->contentLayout;
 }
 
+/** @brief 推荐尺寸,委托基类实现 */
 QSize DACollapseItem::sizeHint() const
 {
     return QFrame::sizeHint();
 }
 }  // namespace DA
+
+
+
+
+

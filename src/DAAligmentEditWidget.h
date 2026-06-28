@@ -19,7 +19,9 @@ class DAWIDGETS_EXPORT DAAligmentEditWidget : public QWidget
 	Q_OBJECT
 
 public:
+	// 构造对齐编辑窗口，初始化按钮组映射
 	explicit DAAligmentEditWidget(QWidget* parent = nullptr);
+	// 析构，释放 ui 资源
 	~DAAligmentEditWidget();
 	// 设置对齐方式
 	Qt::Alignment getCurrentAlignment() const;

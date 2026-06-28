@@ -12,7 +12,9 @@ namespace DA
 class DAWIDGETS_EXPORT DAWaitCursorScoped : public DACursorScoped
 {
 public:
+	// 构造等待光标守卫，构造时立即显示等待沙漏
 	DAWaitCursorScoped();
+	// 析构时恢复原光标
 	virtual ~DAWaitCursorScoped();
 };
 }  // end namespace DA

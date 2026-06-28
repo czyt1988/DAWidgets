@@ -24,23 +24,38 @@ class DAWIDGETS_EXPORT DAColorPaletteGridWidget : public QWidget
     Q_OBJECT
     DA_DECLARE_PRIVATE(DAColorPaletteGridWidget)
 public:
+    // 构造默认Office风格色板
     explicit DAColorPaletteGridWidget(QWidget* par = nullptr);
+    // 构造自定义主色色板
     explicit DAColorPaletteGridWidget(const QList<QColor>& cls, QWidget* par = nullptr);
+    // 析构函数
     ~DAColorPaletteGridWidget();
 
+    // 设置主色列表，会重新生成调色板
     void setColorList(const QList<QColor>& cls);
+    // 获取主色列表
     QList<QColor> colorList() const;
 
+    // 设置浅色/深色变体的 lighter/darker 因子列表
     void setFactor(const QList<int>& factor);
+    // 获取浅色/深色变体因子列表
     QList<int> factor() const;
 
+    // 设置色块图标尺寸
     void setColorIconSize(const QSize& s);
+    // 获取色块图标尺寸
     QSize colorIconSize() const;
 
+    // 设置色块是否可选中
     void setColorCheckable(bool on = true);
+    // 返回色块是否可选中
     bool isColorCheckable() const;
 
 Q_SIGNALS:
+    /**
+     * @brief 点击任意色块时发射
+     * @param c 被点击的颜色
+     */
     void colorClicked(const QColor& c);
 
 private:

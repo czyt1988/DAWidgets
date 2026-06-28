@@ -30,6 +30,10 @@ DAColorPickerButton::PrivateData::PrivateData(DAColorPickerButton* p) : q_ptr(p)
 // DAColorPickerButton
 //===================================================
 
+/**
+ * @brief 构造默认WithColorMenu模式的颜色拾取按钮
+ * @param parent 父控件
+ */
 DAColorPickerButton::DAColorPickerButton(QWidget* parent)
     : QToolButton(parent), DA_PIMPL_CONSTRUCT
 {
@@ -38,6 +42,11 @@ DAColorPickerButton::DAColorPickerButton(QWidget* parent)
     setColorToolButtonStyle(WithColorMenu);
 }
 
+/**
+ * @brief 构造指定样式的颜色拾取按钮
+ * @param style 按钮样式模式
+ * @param parent 父控件
+ */
 DAColorPickerButton::DAColorPickerButton(ColorToolButtonStyle style, QWidget* parent)
     : QToolButton(parent), DA_PIMPL_CONSTRUCT
 {
@@ -46,16 +55,28 @@ DAColorPickerButton::DAColorPickerButton(ColorToolButtonStyle style, QWidget* pa
     setColorToolButtonStyle(style);
 }
 
+/**
+ * @brief 析构函数
+ */
 DAColorPickerButton::~DAColorPickerButton()
 {
 }
 
+/**
+ * @brief 获取当前颜色
+ * @return 当前颜色
+ */
 QColor DAColorPickerButton::color() const
 {
     DA_DC(d);
     return d->mColor;
 }
 
+/**
+ * @brief 设置当前颜色
+ * @param c 新颜色
+ * @details 颜色变化时更新显示并发射colorChanged信号
+ */
 void DAColorPickerButton::setColor(const QColor& c)
 {
     DA_D(d);
@@ -66,12 +87,20 @@ void DAColorPickerButton::setColor(const QColor& c)
     Q_EMIT colorChanged(c);
 }
 
+/**
+ * @brief 获取绘制边距
+ * @return 内容边距
+ */
 QMargins DAColorPickerButton::margins() const
 {
     DA_DC(d);
     return d->mMargins;
 }
 
+/**
+ * @brief 设置绘制边距
+ * @param mg 新边距
+ */
 void DAColorPickerButton::setMargins(const QMargins& mg)
 {
     DA_D(d);
@@ -79,12 +108,21 @@ void DAColorPickerButton::setMargins(const QMargins& mg)
     update();
 }
 
+/**
+ * @brief 获取按钮样式模式
+ * @return 当前样式模式
+ */
 DAColorPickerButton::ColorToolButtonStyle DAColorPickerButton::colorToolButtonStyle() const
 {
     DA_DC(d);
     return d->mColorButtonStyle;
 }
 
+/**
+ * @brief 设置按钮样式模式
+ * @param s 样式模式
+ * @details WithColorMenu模式自动创建DAColorMenu，NoColorMenu模式移除已有菜单
+ */
 void DAColorPickerButton::setColorToolButtonStyle(ColorToolButtonStyle s)
 {
     DA_D(d);
@@ -101,11 +139,20 @@ void DAColorPickerButton::setColorToolButtonStyle(ColorToolButtonStyle s)
     }
 }
 
+/**
+ * @brief 获取关联的颜色菜单
+ * @return 颜色菜单指针，不存在返回nullptr
+ */
 DAColorMenu* DAColorPickerButton::colorMenu() const
 {
     return qobject_cast<DAColorMenu*>(menu());
 }
 
+/**
+ * @brief 创建并关联颜色菜单
+ * @return 创建的DAColorMenu指针
+ * @details 设置InstantPopup模式，启用NoneColorAction，连接选色信号
+ */
 DAColorMenu* DAColorPickerButton::createColorMenu()
 {
     DA_D(d);
@@ -117,6 +164,12 @@ DAColorMenu* DAColorPickerButton::createColorMenu()
     return m;
 }
 
+/**
+ * @brief 绘制"无颜色"标记
+ * @param p 画笔
+ * @param colorRect 绘制区域
+ * @details 绘制红色对角线+黑色边框表示无颜色状态
+ */
 void DAColorPickerButton::paintNoneColor(QPainter* p, const QRect& colorRect)
 {
     p->save();
@@ -133,12 +186,20 @@ void DAColorPickerButton::paintNoneColor(QPainter* p, const QRect& colorRect)
     p->restore();
 }
 
+/**
+ * @brief 按钮点击时发射colorClicked信号
+ * @param checked 按钮是否处于选中状态
+ */
 void DAColorPickerButton::onButtonClicked(bool checked)
 {
     DA_D(d);
     Q_EMIT colorClicked(d->mColor, checked);
 }
 
+/**
+ * @brief 重绘事件，自绘按钮全部内容
+ * @details 按顺序绘制：按钮面板→图标→文字→颜色块
+ */
 void DAColorPickerButton::paintEvent(QPaintEvent*)
 {
     QStylePainter p(this);
@@ -155,12 +216,21 @@ void DAColorPickerButton::paintEvent(QPaintEvent*)
     paintColor(&p, colorRect, d->mColor, opt);
 }
 
+/**
+ * @brief 尺寸变化事件，触发重绘
+ * @param event 尺寸变化事件
+ */
 void DAColorPickerButton::resizeEvent(QResizeEvent* event)
 {
     QToolButton::resizeEvent(event);
     update();
 }
 
+/**
+ * @brief 推荐尺寸
+ * @return 根据toolButtonStyle、图标、文字、边距计算的推荐尺寸
+ * @details 不同ToolButtonStyle下图标/文字/颜色块的排列方式不同
+ */
 QSize DAColorPickerButton::sizeHint() const
 {
     DA_DC(d);
@@ -206,6 +276,14 @@ QSize DAColorPickerButton::sizeHint() const
     return style()->sizeFromContents(QStyle::CT_ToolButton, &opt, QSize(w, h), this).expandedTo(QSize(2, 2));
 }
 
+/**
+ * @brief 计算图标、文字、颜色块的布局矩形
+ * @param opt 样式选项
+ * @param iconRect [out] 图标矩形
+ * @param textRect [out] 文字矩形
+ * @param colorRect [out] 颜色块矩形
+ * @details 根据ToolButtonStyle和是否有图标计算各元素的位置和大小
+ */
 void DAColorPickerButton::calcRect(const QStyleOptionToolButton& opt, QRect& iconRect, QRect& textRect, QRect& colorRect)
 {
     DA_D(d);
@@ -318,6 +396,11 @@ void DAColorPickerButton::calcRect(const QStyleOptionToolButton& opt, QRect& ico
     }
 }
 
+/**
+ * @brief 绘制按钮面板（背景、边框、下拉箭头、焦点框）
+ * @param p 画笔
+ * @param opt 样式选项
+ */
 void DAColorPickerButton::paintButton(QStylePainter* p, const QStyleOptionToolButton& opt)
 {
     if (opt.state & QStyle::State_AutoRaise) {
@@ -341,6 +424,12 @@ void DAColorPickerButton::paintButton(QStylePainter* p, const QStyleOptionToolBu
     }
 }
 
+/**
+ * @brief 绘制图标
+ * @param p 画笔
+ * @param iconRect 图标区域
+ * @param opt 样式选项
+ */
 void DAColorPickerButton::paintIcon(QStylePainter* p, const QRect& iconRect, const QStyleOptionToolButton& opt)
 {
     if (iconRect.isNull() || iconRect.isEmpty())
@@ -350,6 +439,12 @@ void DAColorPickerButton::paintIcon(QStylePainter* p, const QRect& iconRect, con
     }
 }
 
+/**
+ * @brief 绘制文字
+ * @param p 画笔
+ * @param textRect 文字区域
+ * @param opt 样式选项
+ */
 void DAColorPickerButton::paintText(QStylePainter* p, const QRect& textRect, const QStyleOptionToolButton& opt)
 {
     if (textRect.isNull() || textRect.isEmpty())
@@ -359,6 +454,13 @@ void DAColorPickerButton::paintText(QStylePainter* p, const QRect& textRect, con
     }
 }
 
+/**
+ * @brief 绘制颜色块
+ * @param p 画笔
+ * @param colorRect 颜色块区域
+ * @param color 颜色，无效颜色时绘制"无颜色"标记
+ * @param opt 样式选项
+ */
 void DAColorPickerButton::paintColor(QStylePainter* p, const QRect& colorRect, const QColor& color, const QStyleOptionToolButton& opt)
 {
     if (colorRect.isNull() || colorRect.isEmpty())

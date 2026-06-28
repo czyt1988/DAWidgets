@@ -26,16 +26,29 @@ DABrushStyleComboBox::PrivateData::PrivateData(DABrushStyleComboBox* p)
 // DABrushStyleComboBox
 //===================================================
 
+/**
+ * @brief 构造画刷样式下拉框
+ * @param parent 父控件
+ * @details 默认以纯色模式初始化，颜色为黑色，并连接索引变更信号
+ */
 DABrushStyleComboBox::DABrushStyleComboBox(QWidget* parent) : QComboBox(parent), DA_PIMPL_CONSTRUCT
 {
     setBrushColor(Qt::black);
     connect(this, QOverload< int >::of(&QComboBox::currentIndexChanged), this, &DABrushStyleComboBox::onCurrentIndexChanged);
 }
 
+/**
+ * @brief 析构函数
+ */
 DABrushStyleComboBox::~DABrushStyleComboBox()
 {
 }
 
+/**
+ * @brief 将画刷样式枚举转换为可读的本地化字符串
+ * @param s 画刷样式
+ * @return 样式对应的本地化名称，未知样式返回空字符串
+ */
 QString DABrushStyleComboBox::brushStyleToString(Qt::BrushStyle s)
 {
     switch (s) {
@@ -172,6 +185,12 @@ void DABrushStyleComboBox::rebuildItems()
     }
 }
 
+/**
+ * @brief 生成指定画刷样式的图标
+ * @param s 画刷样式
+ * @return 绘制好的 QPixmap 图标
+ * @details 根据样式类型用 QPainter 绘制对应图案：NoBrush绘制禁止符号，纯色/图案用fillRect，渐变用对应QGradient，纹理用棋盘格
+ */
 QIcon DABrushStyleComboBox::generateBrushStyleIcon(Qt::BrushStyle s)
 {
     QSize iss = iconSize();
@@ -288,6 +307,11 @@ void DABrushStyleComboBox::updateIcons()
     }
 }
 
+/**
+ * @brief 设置是否在下拉项上显示样式文字
+ * @param on 是否显示
+ * @details 切换后会重新构建所有item以应用文字显示状态
+ */
 void DABrushStyleComboBox::setStyleTextVisible(bool on)
 {
     if (d_ptr->mStyleTextVisible != on) {
@@ -306,6 +330,10 @@ void DABrushStyleComboBox::setStyleTextVisible(bool on)
     d_ptr->mStyleTextVisible = on;
 }
 
+/**
+ * @brief 返回是否在样式上显示文字
+ * @return 当前是否显示文字
+ */
 bool DABrushStyleComboBox::isStyleTextVisible() const
 {
     return d_ptr->mStyleTextVisible;
@@ -358,11 +386,20 @@ void DABrushStyleComboBox::setCurrentBrushStyle(Qt::BrushStyle s)
     }
 }
 
+/**
+ * @brief 下拉框索引变化时发射画刷样式变更信号
+ * @param index 当前索引
+ */
 void DABrushStyleComboBox::onCurrentIndexChanged(int index)
 {
     emit currentBrushStyleChanged(getBrushStyle(index));
 }
 
+/**
+ * @brief 添加一个画刷样式项到下拉框
+ * @param s 要添加的画刷样式
+ * @details 根据样式生成图标和可选文字，将样式枚举值存入itemData
+ */
 void DABrushStyleComboBox::addItem(Qt::BrushStyle s)
 {
     QComboBox::addItem(generateBrushStyleIcon(s), isStyleTextVisible() ? brushStyleToString(s) : "", static_cast< int >(s));

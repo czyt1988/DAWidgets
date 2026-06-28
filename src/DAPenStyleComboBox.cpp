@@ -30,6 +30,11 @@ DAPenStyleComboBox::PrivateData::PrivateData(DAPenStyleComboBox* p) : q_ptr(p)
 // DAPenStyleComboBox
 //===================================================
 
+/**
+ * @brief 构造画笔样式下拉框
+ * @param parent 父控件
+ * @details 设置不可编辑模式，初始化图标尺寸并重建所有画笔样式item
+ */
 DAPenStyleComboBox::DAPenStyleComboBox(QWidget* parent) : QComboBox(parent), DA_PIMPL_CONSTRUCT
 {
 	setEditable(false);
@@ -38,6 +43,9 @@ DAPenStyleComboBox::DAPenStyleComboBox(QWidget* parent) : QComboBox(parent), DA_
 	connect(this, QOverload< int >::of(&QComboBox::currentIndexChanged), this, &DAPenStyleComboBox::onCurrentIndexChanged);
 }
 
+/**
+ * @brief 析构函数
+ */
 DAPenStyleComboBox::~DAPenStyleComboBox()
 {
 }
@@ -80,6 +88,11 @@ void DAPenStyleComboBox::setPenColor(const QColor& c)
 	updateItems();
 }
 
+/**
+ * @brief 设置绘制画笔的线条宽度
+ * @param w 线宽
+ * @details 更新内部画笔宽度后刷新所有item图标
+ */
 void DAPenStyleComboBox::setPenLineWidth(int w)
 {
 	d_ptr->mDrawPen.setWidth(w);
@@ -150,6 +163,13 @@ QIcon DAPenStyleComboBox::generatePenIcon(Qt::PenStyle s) const
 #endif
 }
 
+/**
+ * @brief 在指定矩形区域内绘制画笔样式线条
+ * @param painter 画笔
+ * @param rect 绘制区域
+ * @param pen 画笔配置（颜色、宽度、样式）
+ * @details 在矩形垂直中心绘制一条水平线，用于展示画笔样式
+ */
 void DAPenStyleComboBox::drawPenStyle(QPainter* painter, const QRect& rect, const QPen& pen)
 {
 	painter->save();
@@ -159,6 +179,10 @@ void DAPenStyleComboBox::drawPenStyle(QPainter* painter, const QRect& rect, cons
 	painter->restore();
 }
 
+/**
+ * @brief 刷新所有item的图标
+ * @details 遍历所有item，根据其存储的PenStyle重新生成图标
+ */
 void DAPenStyleComboBox::updateItems()
 {
 	for (int i = 0; i < count(); ++i) {
@@ -190,6 +214,10 @@ void DAPenStyleComboBox::setStyleTextVisible(bool on)
 	d_ptr->mStyleTextVisible = on;
 }
 
+/**
+ * @brief 返回是否在样式上显示文字
+ * @return 当前是否显示文字
+ */
 bool DAPenStyleComboBox::isStyleTextVisible() const
 {
     return d_ptr->mStyleTextVisible;
@@ -238,6 +266,10 @@ void DAPenStyleComboBox::addItem(Qt::PenStyle s)
     QComboBox::addItem(generatePenIcon(s), isStyleTextVisible() ? penStyleToString(s) : "", static_cast< int >(s));
 }
 
+/**
+ * @brief 下拉框索引变化时发射画笔样式变更信号
+ * @param index 当前索引
+ */
 void DAPenStyleComboBox::onCurrentIndexChanged(int index)
 {
     emit currentPenStyleChanged(static_cast< Qt::PenStyle >(itemData(index).toInt()));

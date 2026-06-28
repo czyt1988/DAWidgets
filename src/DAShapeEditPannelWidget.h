@@ -20,18 +20,32 @@ class DAWIDGETS_EXPORT DAShapeEditPannelWidget : public QWidget
     Q_OBJECT
 
 public:
+    // 构造形状编辑面板
     explicit DAShapeEditPannelWidget(QWidget* parent = nullptr);
+    // 析构函数
     ~DAShapeEditPannelWidget();
 
+    // 获取当前背景画刷
     QBrush getBackgroundBrush() const;
+    // 获取当前边框画笔
     QPen getBorderPen() const;
 
 public Q_SLOTS:
+    // 设置背景画刷
     void setBackgroundBrush(const QBrush& b);
+    // 设置边框画笔
     void setBorderPen(const QPen& v);
 
 Q_SIGNALS:
+    /**
+     * @brief 背景画刷改变时发射
+     * @param b 新画刷
+     */
     void backgroundBrushChanged(const QBrush& b);
+    /**
+     * @brief 边框画笔改变时发射
+     * @param p 新画笔
+     */
     void borderPenChanged(const QPen& p);
 
 private:

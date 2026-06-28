@@ -19,7 +19,9 @@ class DAWIDGETS_EXPORT DAPenStyleComboBox : public QComboBox
     DA_DECLARE_PRIVATE(DAPenStyleComboBox)
 #endif
 public:
+    // 构造函数
     DAPenStyleComboBox(QWidget* parent = Q_NULLPTR);
+    // 析构函数，释放私有数据
     ~DAPenStyleComboBox();
 
     // 画笔样式转换为字符串
@@ -33,6 +35,7 @@ public:
     void updateItems();
     // 是否在样式上显示文字
     void setStyleTextVisible(bool on);
+    // 返回是否在样式上显示文字
     bool isStyleTextVisible() const;
     // 重建所有items
     void rebuildItems();
@@ -53,6 +56,7 @@ protected:
     // 添加item
     void addItem(Qt::PenStyle s);
 private slots:
+    // 当下拉框索引变化时同步发射画笔样式变更信号
     void onCurrentIndexChanged(int index);
 signals:
     /**

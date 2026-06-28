@@ -66,6 +66,11 @@ DAPenEditWidget::PrivateData::PrivateData(DAPenEditWidget* p) : q_ptr(p)
 // DAPenEditWidget
 //===================================================
 
+/**
+ * @brief 构造画笔编辑窗口
+ * @param parent 父控件
+ * @details 以默认画笔(SolidLine,无色,1px)初始化并连接内部信号
+ */
 DAPenEditWidget::DAPenEditWidget(QWidget* parent) : QWidget(parent), DA_PIMPL_CONSTRUCT
 {
 	QPen p;
@@ -76,12 +81,20 @@ DAPenEditWidget::DAPenEditWidget(QWidget* parent) : QWidget(parent), DA_PIMPL_CO
 	initConnect();
 }
 
+/**
+ * @brief 构造并设置初始画笔
+ * @param p 初始画笔
+ * @param parent 父控件
+ */
 DAPenEditWidget::DAPenEditWidget(const QPen& p, QWidget* parent) : QWidget(parent), DA_PIMPL_CONSTRUCT
 {
 	setCurrentPen(p);
 	initConnect();
 }
 
+/**
+ * @brief 析构函数
+ */
 DAPenEditWidget::~DAPenEditWidget()
 {
 }
@@ -115,12 +128,20 @@ void DAPenEditWidget::setCurrentPen(const QPen& p)
 	emit penChanged(d_ptr->mPen);
 }
 
+/**
+ * @brief 重新翻译UI文本
+ * @details 支持多语言，更新窗口标题和线宽后缀
+ */
 void DAPenEditWidget::retranslateUi()
 {
 	setWindowTitle(QCoreApplication::translate("DAPenEditWidget", "Pen Editor", nullptr));
 	d_ptr->spinBoxWidth->setSuffix(QCoreApplication::translate("DAPenEditWidget", " px", nullptr));
 }
 
+/**
+ * @brief 获取当前画笔
+ * @return 由颜色按钮、样式下拉框、线宽spinbox组合而成的画笔
+ */
 QPen DAPenEditWidget::getCurrentPen() const
 {
 	QPen p(d_ptr->colorButton->color());
@@ -129,11 +150,19 @@ QPen DAPenEditWidget::getCurrentPen() const
 	return p;
 }
 
+/**
+ * @brief 设置是否在线型样式上显示文字
+ * @param on 是否显示
+ */
 void DAPenEditWidget::setLineStyleTextVisible(bool on)
 {
 	d_ptr->comboBox->setStyleTextVisible(on);
 }
 
+/**
+ * @brief 返回是否在线型样式上显示文字
+ * @return 是否显示
+ */
 bool DAPenEditWidget::isLineStyleTextVisible() const
 {
 	return d_ptr->comboBox->isStyleTextVisible();

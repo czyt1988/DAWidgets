@@ -41,7 +41,9 @@ public:
         BelowLayout    ///< Below模式：顶部属性名 + 下方编辑Widget
     };
 
+    // 构造属性项控件，默认采用 Inline 布局
     explicit DAPropertyItemWidget(QWidget* parent = nullptr);
+    // 析构属性项控件
     ~DAPropertyItemWidget();
 
     // 属性ID

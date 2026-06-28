@@ -39,17 +39,30 @@ DAColorMenu::PrivateData::PrivateData(DAColorMenu* p) : q_ptr(p)
 // DAColorMenu
 //===================================================
 
+/**
+ * @brief 构造默认主题色的颜色菜单
+ * @param parent 父控件
+ * @details 使用DAColorPaletteGridWidget的默认Office主题色初始化
+ */
 DAColorMenu::DAColorMenu(QWidget* parent) : QMenu(parent), DA_PIMPL_CONSTRUCT
 {
     // 默认主题色由 DAColorPaletteGridWidget 构造函数提供
     init({});
 }
 
+/**
+ * @brief 构造带标题的颜色菜单
+ * @param title 菜单标题
+ * @param parent 父控件
+ */
 DAColorMenu::DAColorMenu(const QString& title, QWidget* parent) : QMenu(title, parent), DA_PIMPL_CONSTRUCT
 {
     init({});
 }
 
+/**
+ * @brief 析构函数
+ */
 DAColorMenu::~DAColorMenu()
 {
 }
@@ -94,36 +107,61 @@ void DAColorMenu::init(const QList<QColor>& themeCls)
     connect(d->mCustomColorsWidget, &DAColorGridWidget::colorClicked, this, &DAColorMenu::emitSelectedColor);
 }
 
+/**
+ * @brief 获取主题色板的 QWidgetAction
+ * @return 主题色板对应的QWidgetAction
+ */
 QWidgetAction* DAColorMenu::themeColorsPaletteAction() const
 {
     DA_DC(d);
     return d->mThemeColorPaletteAction;
 }
 
+/**
+ * @brief 获取自定义颜色记录网格的 QWidgetAction
+ * @return 自定义颜色网格对应的QWidgetAction
+ */
 QWidgetAction* DAColorMenu::getCustomColorsWidgetAction() const
 {
     DA_DC(d);
     return d->mCustomColorsWidgetAction;
 }
 
+/**
+ * @brief 获取"自定义颜色"Action
+ * @return 自定义颜色Action，点击后弹出QColorDialog
+ */
 QAction* DAColorMenu::customColorAction() const
 {
     DA_DC(d);
     return d->mCustomColorAction;
 }
 
+/**
+ * @brief 获取主题色板网格控件
+ * @return 主题色板控件指针
+ */
 DAColorPaletteGridWidget* DAColorMenu::colorPaletteGridWidget() const
 {
     DA_DC(d);
     return d->mThemeColorsWidget;
 }
 
+/**
+ * @brief 获取自定义颜色记录网格控件
+ * @return 自定义颜色网格控件指针
+ */
 DAColorGridWidget* DAColorMenu::customColorsWidget() const
 {
     DA_DC(d);
     return d->mCustomColorsWidget;
 }
 
+/**
+ * @brief 启用或禁用"无颜色"Action
+ * @param on true启用，false禁用
+ * @details 启用时在Custom Color之前插入None Action，禁用时移除
+ */
 void DAColorMenu::enableNoneColorAction(bool on)
 {
     DA_D(d);
@@ -141,12 +179,20 @@ void DAColorMenu::enableNoneColorAction(bool on)
     }
 }
 
+/**
+ * @brief 获取"无颜色"Action
+ * @return 无颜色Action，未启用时返回nullptr
+ */
 QAction* DAColorMenu::noneColorAction() const
 {
     DA_DC(d);
     return d->mNoneColorAction;
 }
 
+/**
+ * @brief 发射 selectedColor 信号并隐藏菜单
+ * @param c 选中的颜色，无效颜色表示"无颜色"
+ */
 void DAColorMenu::emitSelectedColor(const QColor& c)
 {
     Q_EMIT selectedColor(c);

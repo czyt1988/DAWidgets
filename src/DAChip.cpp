@@ -17,6 +17,11 @@ public:
     QToolButton *closeBtn { nullptr };
 };
 
+/**
+ * @brief 构造带文本的标签胶囊
+ * @param text 标签显示文本
+ * @param parent 父控件
+ */
 DAChip::DAChip(const QString &text, QWidget *parent) : QFrame(parent), DA_PIMPL_CONSTRUCT
 {
     DA_D(d);
@@ -24,13 +29,26 @@ DAChip::DAChip(const QString &text, QWidget *parent) : QFrame(parent), DA_PIMPL_
     init();
 }
 
+/**
+ * @brief 构造空文本的标签胶囊
+ * @param parent 父控件
+ */
 DAChip::DAChip(QWidget *parent) : QFrame(parent), DA_PIMPL_CONSTRUCT
 {
     init();
 }
 
+/**
+ * @brief 析构
+ * @details PIMPL 指针由 DA_PIMPL_CONSTRUCT 宏自动释放
+ */
 DAChip::~DAChip() = default;
 
+/**
+ * @brief 初始化标签胶囊内部结构
+ * @details 创建水平布局（QLabel + QToolButton），设置对象名与 qss 选择器，
+ *          连接关闭按钮 clicked 到 closeRequested 信号
+ */
 void DAChip::init()
 {
     DA_D(d);
@@ -60,12 +78,21 @@ void DAChip::init()
     setAttribute(Qt::WA_LayoutUsesWidgetRect);
 }
 
+/**
+ * @brief 获取标签显示文本
+ * @return 当前文本
+ */
 QString DAChip::text() const
 {
     DA_DC(d);
     return d->text;
 }
 
+/**
+ * @brief 设置标签显示文本
+ * @param text 新文本
+ * @details 文本变化时更新 QLabel 并发射 textChanged
+ */
 void DAChip::setText(const QString &text)
 {
     DA_D(d);
@@ -76,12 +103,21 @@ void DAChip::setText(const QString &text)
     Q_EMIT textChanged(text);
 }
 
+/**
+ * @brief 是否显示关闭按钮
+ * @return 可关闭返回 true
+ */
 bool DAChip::closable() const
 {
     DA_DC(d);
     return d->closable;
 }
 
+/**
+ * @brief 设置是否显示关闭按钮
+ * @param on 是否可关闭
+ * @details 变化时切换关闭按钮可见性并发射 closableChanged
+ */
 void DAChip::setClosable(bool on)
 {
     DA_D(d);
@@ -92,6 +128,11 @@ void DAChip::setClosable(bool on)
     Q_EMIT closableChanged(on);
 }
 
+/**
+ * @brief 鼠标按下事件
+ * @param e 鼠标事件
+ * @details 左键点击时发射 clicked 信号
+ */
 void DAChip::mousePressEvent(QMouseEvent *e)
 {
     if (e->button() == Qt::LeftButton)

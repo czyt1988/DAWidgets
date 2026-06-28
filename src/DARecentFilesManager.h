@@ -16,6 +16,7 @@ class DAWIDGETS_EXPORT DARecentFilesManager : public QObject
 {
 	Q_OBJECT
 public:
+	// 构造最近文件管理器，读取持久化记录并清理失效路径
 	explicit DARecentFilesManager(QObject* parent        = nullptr,
 								  int maxEntries         = 8,
 								  const QString& orgName = QString(),

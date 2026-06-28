@@ -46,44 +46,79 @@ class DAWIDGETS_EXPORT DACollapseItem : public QFrame
     Q_PROPERTY(bool animationEnabled READ animationEnabled WRITE setAnimationEnabled NOTIFY animationEnabledChanged)
     DA_DECLARE_PRIVATE(DACollapseItem)
 public:
+    // 构造空标题的折叠条目
     explicit DACollapseItem(QWidget *parent = nullptr);
+    // 构造指定标题的折叠条目
     explicit DACollapseItem(const QString &title, QWidget *parent = nullptr);
+    // 析构,释放标题栏与内容区子控件
     ~DACollapseItem();
 
+    // 获取标题文本
     QString title() const;
+    // 设置标题文本
     void setTitle(const QString &title);
 
+    // 获取面板标识(供容器 activeNames 引用)
     QString name() const;
+    // 设置面板标识
     void setName(const QString &name);
 
+    // 是否禁用(禁用后不可点击展开)
     bool disabled() const;
+    // 启用/禁用面板交互
     void setDisabled(bool on);
 
+    // 是否处于展开态
     bool expanded() const;
+    // 展开/折叠面板(可带动画)
     void setExpanded(bool on);
 
     // 动画开关(默认开)
     bool animationEnabled() const;
+    // 设置是否启用展开/折叠动画
     void setAnimationEnabled(bool on);
 
     // 自定义标题内容(对标 title slot);传入后取代默认标题文本
     void setTitleWidget(QWidget *widget);
+    // 获取自定义标题控件(未设置时返回 nullptr)
     QWidget *titleWidget() const;
 
     // 设置内容控件(取代默认内容布局)
     void setContentWidget(QWidget *widget);
+    // 获取内容控件(未设置时返回 nullptr)
     QWidget *contentWidget() const;
 
     // 内容区布局,可直接 addWidget 追加多个控件
     QVBoxLayout *contentLayout() const;
 
+    // 推荐尺寸
     QSize sizeHint() const override;
 
 Q_SIGNALS:
+    /**
+     * @brief 标题文本变化时发射
+     * @param title 新标题文本
+     */
     void titleChanged(const QString &title);
+    /**
+     * @brief 面板标识变化时发射
+     * @param name 新面板标识
+     */
     void nameChanged(const QString &name);
+    /**
+     * @brief 禁用状态变化时发射
+     * @param disabled 是否禁用
+     */
     void disabledChanged(bool disabled);
+    /**
+     * @brief 展开/折叠状态变化时发射
+     * @param expanded 是否展开
+     */
     void expandChanged(bool expanded);
+    /**
+     * @brief 动画开关变化时发射
+     * @param on 是否启用动画
+     */
     void animationEnabledChanged(bool on);
 
 protected:

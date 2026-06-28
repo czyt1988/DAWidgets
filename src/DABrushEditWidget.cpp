@@ -33,6 +33,11 @@ public:
     QBrush mBrush;
 };
 
+/**
+ * @brief 构造画刷编辑窗口
+ * @param parent 父控件
+ * @details 初始化UI，颜色按钮初始为无效色，连接颜色和样式变更信号
+ */
 DABrushEditWidget::DABrushEditWidget(QWidget* parent) : QWidget(parent), d(new PrivateData)
 {
     d->ui.setupUi(this);
@@ -41,36 +46,64 @@ DABrushEditWidget::DABrushEditWidget(QWidget* parent) : QWidget(parent), d(new P
     connect(d->ui.comboBox, &DABrushStyleComboBox::currentBrushStyleChanged, this, &DABrushEditWidget::onBrushStyleChanged);
 }
 
+/**
+ * @brief 析构函数
+ */
 DABrushEditWidget::~DABrushEditWidget()
 {
     delete d;
 }
 
+/**
+ * @brief 获取当前画刷
+ * @return 当前画刷
+ */
 QBrush DABrushEditWidget::getCurrentBrush() const
 {
     return d->mBrush;
 }
 
+/**
+ * @brief 设置是否在样式上显示文字
+ * @param on 是否显示
+ */
 void DABrushEditWidget::setStyleTextVisible(bool on)
 {
     d->ui.comboBox->setStyleTextVisible(on);
 }
 
+/**
+ * @brief 返回是否在样式上显示文字
+ * @return 是否显示
+ */
 bool DABrushEditWidget::isStyleTextVisible() const
 {
     return d->ui.comboBox->isStyleTextVisible();
 }
 
+/**
+ * @brief 获取当前画刷样式
+ * @return 当前画刷样式
+ */
 Qt::BrushStyle DABrushEditWidget::getCurrentBrushStyle() const
 {
     return d->ui.comboBox->getCurrentBrushStyle();
 }
 
+/**
+ * @brief 获取当前画刷颜色
+ * @return 当前画刷颜色（纯色/图案模式下有效）
+ */
 QColor DABrushEditWidget::getCurrentBrushColor() const
 {
     return d->ui.colorButton->color();
 }
 
+/**
+ * @brief 设置当前画刷
+ * @param b 新画刷
+ * @details 支持纯色/图案/渐变/纹理四种模式。渐变模式下颜色按钮显示起始色，纹理模式下显示无效色
+ */
 void DABrushEditWidget::setCurrentBrush(const QBrush& b)
 {
     QSignalBlocker b1(d->ui.colorButton), b2(d->ui.comboBox);
@@ -92,6 +125,10 @@ void DABrushEditWidget::setCurrentBrush(const QBrush& b)
     Q_EMIT brushChanged(b);
 }
 
+/**
+ * @brief 设置当前画刷样式
+ * @param s 画刷样式
+ */
 void DABrushEditWidget::setCurrentBrushStyle(Qt::BrushStyle s)
 {
     d->ui.comboBox->setCurrentBrushStyle(s);

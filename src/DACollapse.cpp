@@ -18,13 +18,20 @@ public:
     bool accordion { false };
 };
 
+/**
+ * @brief 构造折叠面板容器
+ * @param parent 父控件
+ * @details 初始化纵向布局并插入末尾弹簧,使条目顶部对齐
+ */
 DACollapse::DACollapse(QWidget* parent) : QWidget(parent), DA_PIMPL_CONSTRUCT
 {
     init();
 }
 
+/** @brief 析构,由 PIMPL 智能指针自动释放私有数据 */
 DACollapse::~DACollapse() = default;
 
+/** @brief 初始化无间距纵向布局与末尾弹簧 */
 void DACollapse::init()
 {
     DA_D(d);
@@ -36,12 +43,21 @@ void DACollapse::init()
     d->layout->addStretch(1);
 }
 
+/**
+ * @brief 查询手风琴模式
+ * @return true 表示已启用手风琴模式
+ */
 bool DACollapse::accordion() const
 {
     DA_DC(d);
     return d->accordion;
 }
 
+/**
+ * @brief 设置手风琴模式
+ * @param on true 启用, false 禁用
+ * @details 启用瞬间若当前多个面板展开,仅保留首个激活面板以维持互斥语义
+ */
 void DACollapse::setAccordion(bool on)
 {
     DA_D(d);
@@ -62,6 +78,10 @@ void DACollapse::setAccordion(bool on)
     Q_EMIT accordionChanged(on);
 }
 
+/**
+ * @brief 获取当前激活面板的 name 列表
+ * @return 遍历所有条目收集展开项的 name
+ */
 QStringList DACollapse::activeNames() const
 {
     DA_DC(d);
@@ -73,6 +93,12 @@ QStringList DACollapse::activeNames() const
     return names;
 }
 
+/**
+ * @brief 设置激活面板集合
+ * @param names 需展开面板的 name 列表
+ * @details 手风琴模式下仅展开 names 中首个实际存在的面板;非手风琴模式按集合
+ *          匹配逐项展开/折叠。完成后发射 activeNamesChanged
+ */
 void DACollapse::setActiveNames(const QStringList& names)
 {
     DA_D(d);
@@ -96,6 +122,13 @@ void DACollapse::setActiveNames(const QStringList& names)
     Q_EMIT activeNamesChanged(activeNames());
 }
 
+/**
+ * @brief 单向设置条目展开态
+ * @param item 目标条目
+ * @param on 是否展开
+ * @details 展开禁用面板将被拒绝(对标 Element UI disabled);临时阻断信号避免
+ *          setActiveNames 过程中逐个触发 onItemExpandChanged 造成抖动
+ */
 void DACollapse::activate(DACollapseItem* item, bool on)
 {
     if (!item) {
@@ -110,6 +143,11 @@ void DACollapse::activate(DACollapseItem* item, bool on)
     item->blockSignals(false);
 }
 
+/**
+ * @brief 添加已有条目并接管所有权
+ * @param item 待添加条目
+ * @details 在末尾弹簧之前插入以保持条目在上,并连接 expandChanged 用于互斥协调
+ */
 void DACollapse::addItem(DACollapseItem* item)
 {
     DA_D(d);
@@ -123,6 +161,12 @@ void DACollapse::addItem(DACollapseItem* item)
     connect(item, &DACollapseItem::expandChanged, this, [ this ](bool) { onItemExpandChanged(); });
 }
 
+/**
+ * @brief 便捷创建并添加条目
+ * @param title 标题文本
+ * @param name 面板标识,为空时回退使用 title
+ * @return 新建条目实例
+ */
 DACollapseItem* DACollapse::addItem(const QString& title, const QString& name)
 {
     auto* it = new DACollapseItem(title, this);
@@ -131,6 +175,11 @@ DACollapseItem* DACollapse::addItem(const QString& title, const QString& name)
     return it;
 }
 
+/**
+ * @brief 按 name 查找条目
+ * @param name 面板标识
+ * @return 匹配条目,未找到返回 nullptr
+ */
 DACollapseItem* DACollapse::item(const QString& name) const
 {
     DA_DC(d);
@@ -141,12 +190,18 @@ DACollapseItem* DACollapse::item(const QString& name) const
     return nullptr;
 }
 
+/** @brief 获取全部条目列表 */
 QList< DACollapseItem* > DACollapse::items() const
 {
     DA_DC(d);
     return d->items;
 }
 
+/**
+ * @brief 移除并销毁条目
+ * @param item 待移除条目
+ * @details 从布局与列表移除后 delete;移除后发射 activeNamesChanged 同步状态
+ */
 void DACollapse::removeItem(DACollapseItem* item)
 {
     DA_D(d);
@@ -161,6 +216,10 @@ void DACollapse::removeItem(DACollapseItem* item)
     Q_EMIT activeNamesChanged(activeNames());
 }
 
+/**
+ * @brief 清空并销毁所有条目
+ * @details 移除布局中的每个条目并 delete,最后发射空 activeNamesChanged
+ */
 void DACollapse::clear()
 {
     DA_D(d);
@@ -172,6 +231,11 @@ void DACollapse::clear()
     Q_EMIT activeNamesChanged({});
 }
 
+/**
+ * @brief 子条目展开态变化时的协调槽
+ * @details 手风琴模式下新展开面板会折叠其余已展开面板(阻断信号避免递归),
+ *          随后发射 activeNamesChanged
+ */
 void DACollapse::onItemExpandChanged()
 {
     DA_D(d);
@@ -193,6 +257,7 @@ void DACollapse::onItemExpandChanged()
     Q_EMIT activeNamesChanged(activeNames());
 }
 
+/** @brief 推荐尺寸,委托基类实现 */
 QSize DACollapse::sizeHint() const
 {
     return QWidget::sizeHint();

@@ -150,10 +150,19 @@ void DAPropertyItemWidget::PrivateData::updateTooltip()
 // DAPropertyItemWidget
 //===================================================
 
+/**
+ * @brief 构造属性项控件
+ * @param parent 父控件
+ * @details 初始化 PIMPL 私有数据，默认创建 Inline 布局和属性名标签
+ */
 DAPropertyItemWidget::DAPropertyItemWidget(QWidget* parent) : QFrame(parent), DA_PIMPL_CONSTRUCT
 {
 }
 
+/**
+ * @brief 析构函数
+ * @details 通过 PIMPL 自动释放私有数据
+ */
 DAPropertyItemWidget::~DAPropertyItemWidget()
 {
 }

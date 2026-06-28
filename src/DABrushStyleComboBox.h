@@ -20,15 +20,18 @@ class DAWIDGETS_EXPORT DABrushStyleComboBox : public QComboBox
 public:
     // 默认构造以ShowNoBrushStyle|ShowPaintStyle构造，基本颜色为黑色
     DABrushStyleComboBox(QWidget* parent = Q_NULLPTR);
+    // 析构函数，释放私有数据
     ~DABrushStyleComboBox();
     // 画笔样式转换为字符串
     static QString brushStyleToString(Qt::BrushStyle s);
     // 显示无画刷
     void setShowNoBrushStyle(bool v);
+    // 是否显示了无画刷选项
     bool isShowNoBrushStyle() const;
     // 设置画刷颜色，此设置会影响ShowPaintStyle
     bool isColorBrush() const;
     void setBrushColor(const QColor& v);
+    // 获取当前用于渲染样式的画刷颜色
     QColor getBrushColor() const;
     // 重建item
     void rebuildItems();
@@ -38,6 +41,7 @@ public:
     void updateIcons();
     // 是否在样式上显示文字
     void setStyleTextVisible(bool on);
+    // 返回是否在样式上显示文字
     bool isStyleTextVisible() const;
     // 获取当前的画刷样式
     Qt::BrushStyle getCurrentBrushStyle() const;

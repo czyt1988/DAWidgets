@@ -30,24 +30,39 @@ class DAWIDGETS_EXPORT DAColorMenu : public QMenu
     Q_OBJECT
     DA_DECLARE_PRIVATE(DAColorMenu)
 public:
+    // 构造默认主题色的颜色菜单
     explicit DAColorMenu(QWidget* parent = nullptr);
+    // 构造带标题的颜色菜单
     explicit DAColorMenu(const QString& title, QWidget* parent = nullptr);
+    // 析构函数
     ~DAColorMenu();
 
+    // 获取主题色板的 QWidgetAction
     QWidgetAction* themeColorsPaletteAction() const;
+    // 获取自定义颜色记录网格的 QWidgetAction
     QWidgetAction* getCustomColorsWidgetAction() const;
+    // 获取"自定义颜色"Action（点击弹出QColorDialog）
     QAction* customColorAction() const;
 
+    // 获取主题色板网格控件
     DAColorPaletteGridWidget* colorPaletteGridWidget() const;
+    // 获取自定义颜色记录网格控件
     DAColorGridWidget* customColorsWidget() const;
 
+    // 启用或禁用"无颜色"Action
     void enableNoneColorAction(bool on = true);
+    // 获取"无颜色"Action
     QAction* noneColorAction() const;
 
 public Q_SLOTS:
+    // 发射 selectedColor 信号并隐藏菜单
     void emitSelectedColor(const QColor& c);
 
 Q_SIGNALS:
+    /**
+     * @brief 用户选色后发射
+     * @param c 选中的颜色，无效颜色表示"无颜色"
+     */
     void selectedColor(const QColor& c);
 
 private:

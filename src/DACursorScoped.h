@@ -11,9 +11,13 @@ namespace DA
 class DAWIDGETS_EXPORT DACursorScoped
 {
 public:
+	// 构造光标守卫，构造时立即设置指定光标
 	DACursorScoped(const QCursor& cur);
+	// 析构时自动恢复原光标，保证异常路径下也能恢复
 	virtual ~DACursorScoped();
+	// 设置新的覆盖光标，叠加到应用级光标栈
 	void setCursor(const QCursor& cur);
+	// 手动释放，提前恢复光标
 	void release();
 };
 }  // end namespace DA

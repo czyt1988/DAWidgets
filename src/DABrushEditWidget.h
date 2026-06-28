@@ -31,20 +31,33 @@ class DAWIDGETS_EXPORT DABrushEditWidget : public QWidget
     Q_OBJECT
 
 public:
+    // 构造画刷编辑窗口
     explicit DABrushEditWidget(QWidget* parent = nullptr);
+    // 析构函数
     ~DABrushEditWidget();
 
+    // 获取当前画刷
     QBrush getCurrentBrush() const;
+    // 设置是否在样式上显示文字
     void setStyleTextVisible(bool on);
+    // 返回是否在样式上显示文字
     bool isStyleTextVisible() const;
+    // 获取当前画刷样式
     Qt::BrushStyle getCurrentBrushStyle() const;
+    // 获取当前画刷颜色（纯色/图案模式下有效）
     QColor getCurrentBrushColor() const;
 
 public Q_SLOTS:
+    // 设置当前画刷，支持纯色/图案/渐变/纹理四种模式
     void setCurrentBrush(const QBrush& b);
+    // 设置当前画刷样式
     void setCurrentBrushStyle(Qt::BrushStyle s);
 
 Q_SIGNALS:
+    /**
+     * @brief 画刷改变时发射
+     * @param b 新画刷
+     */
     void brushChanged(const QBrush& b);
 
 private Q_SLOTS:

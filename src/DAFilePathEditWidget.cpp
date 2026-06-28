@@ -22,6 +22,11 @@ DAFilePathEditWidget::PrivateData::PrivateData(DAFilePathEditWidget* p) : q_ptr(
 // DAFilePathEditWidget
 //===============================================================
 
+/**
+ * @brief 构造文件路径编辑窗口
+ * @param parent 父控件
+ * @details 加载 ui，连接打开按钮和行编辑器的编辑完成信号
+ */
 DAFilePathEditWidget::DAFilePathEditWidget(QWidget* parent)
     : QWidget(parent), DA_PIMPL_CONSTRUCT, ui(new Ui::DAFilePathEditWidget)
 {
@@ -31,11 +36,20 @@ DAFilePathEditWidget::DAFilePathEditWidget(QWidget* parent)
     connect(ui->lineEdit, &QLineEdit::editingFinished, this, &DAFilePathEditWidget::onLineEditEditingFinished);
 }
 
+/**
+ * @brief 析构函数
+ * @details 释放 ui 指针
+ */
 DAFilePathEditWidget::~DAFilePathEditWidget()
 {
     delete ui;
 }
 
+/**
+ * @brief 设置单个文件名过滤器
+ * @param filter 文件名过滤器字符串
+ * @details 内部转换为 QStringList 后委托给 setNameFilters
+ */
 void DAFilePathEditWidget::setNameFilter(const QString& filter)
 {
     QStringList filters;
@@ -43,6 +57,11 @@ void DAFilePathEditWidget::setNameFilter(const QString& filter)
     setNameFilters(filters);
 }
 
+/**
+ * @brief 设置文件名过滤器列表
+ * @param filters 文件名过滤器字符串列表
+ * @details 过滤器存储在私有数据中，打开文件对话框时生效
+ */
 void DAFilePathEditWidget::setNameFilters(const QStringList& filters)
 {
     d_ptr->mNameFilters = filters;

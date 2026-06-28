@@ -26,7 +26,9 @@ class DAWIDGETS_EXPORT DAFilePathEditWidget : public QWidget
     Q_OBJECT
     DA_DECLARE_PRIVATE(DAFilePathEditWidget)
 public:
+    // 构造文件路径编辑窗口
     explicit DAFilePathEditWidget(QWidget* parent = nullptr);
+    // 析构，释放 ui 资源
     ~DAFilePathEditWidget();
     // 设置过滤
     void setNameFilter(const QString& filter);
