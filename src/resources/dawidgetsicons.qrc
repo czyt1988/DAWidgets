@@ -1,0 +1,29 @@
+<RCC>
+    <qresource prefix="/DAWidgetsIcons">
+        <file>arrow-down.svg</file>
+        <file>arrow-left.svg</file>
+        <file>arrow-right.svg</file>
+        <file>arrow-up.svg</file>
+        <file>error.svg</file>
+        <file>open.svg</file>
+        <file>AligmentBottom.svg</file>
+        <file>AligmentCenter.svg</file>
+        <file>AligmentLeft.svg</file>
+        <file>AligmentRight.svg</file>
+        <file>AligmentTop.svg</file>
+        <file>bottom.svg</file>
+        <file>bottomLeft.svg</file>
+        <file>bottomRight.svg</file>
+        <file>center.svg</file>
+        <file>left.svg</file>
+        <file>right.svg</file>
+        <file>top.svg</file>
+        <file>topleft.svg</file>
+        <file>topRight.svg</file>
+        <file>text-bold.svg</file>
+        <file>text-italic.svg</file>
+        <file>text-underline.svg</file>
+        <file>font-size-add.svg</file>
+        <file>font-size-sub.svg</file>
+    </qresource>
+</RCC>

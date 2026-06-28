@@ -10,6 +10,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
 
 # ---- Options ----
 option(DAWIDGETS_BUILD_SHARED "Build DAWidgets as a shared library (DLL/dylib/so); OFF=static" OFF)
@@ -71,9 +72,52 @@ set(_DAWIDGETS_SOURCES
     src/DACollapse.cpp
     src/DACollapseItem.h
     src/DACollapseItem.cpp
+    src/DACursorScoped.h
+    src/DACursorScoped.cpp
+    src/DAWaitCursorScoped.h
+    src/DAWaitCursorScoped.cpp
+    src/DAPropertyItemWidget.h
+    src/DAPropertyItemWidget.cpp
+    src/DATimeFormatEditWidget.h
+    src/DATimeFormatEditWidget.cpp
+    src/DATimeFormatEditWidget.ui
+    src/DAAligmentEditWidget.h
+    src/DAAligmentEditWidget.cpp
+    src/DAAligmentEditWidget.ui
+    src/DAAligmentPositionEditWidget.h
+    src/DAAligmentPositionEditWidget.cpp
+    src/DAAligmentPositionEditWidget.ui
+    src/DAFilePathEditWidget.h
+    src/DAFilePathEditWidget.cpp
+    src/DAFilePathEditWidget.ui
+    src/DARecentFilesManager.h
+    src/DARecentFilesManager.cpp
+    src/DABrushStyleComboBox.h
+    src/DABrushStyleComboBox.cpp
+    src/DAPenStyleComboBox.h
+    src/DAPenStyleComboBox.cpp
+    src/DAColorGridWidget.h
+    src/DAColorGridWidget.cpp
+    src/DAColorPaletteGridWidget.h
+    src/DAColorPaletteGridWidget.cpp
+    src/DAColorMenu.h
+    src/DAColorMenu.cpp
+    src/DAColorPickerButton.h
+    src/DAColorPickerButton.cpp
+    src/DAPenEditWidget.h
+    src/DAPenEditWidget.cpp
+    src/DABrushEditWidget.h
+    src/DABrushEditWidget.cpp
+    src/DABrushEditWidget.ui
+    src/DAFontEditPannelWidget.h
+    src/DAFontEditPannelWidget.cpp
+    src/DAFontEditPannelWidget.ui
+    src/DAShapeEditPannelWidget.h
+    src/DAShapeEditPannelWidget.cpp
+    src/DAShapeEditPannelWidget.ui
     src/dawidgets_resources.h
     src/dawidgets_resources.cpp
-    src/dawidgetsicons.qrc
+    src/resources/dawidgetsicons.qrc
 )
 
 # ---- Library ----
