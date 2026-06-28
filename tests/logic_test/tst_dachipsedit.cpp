@@ -8,7 +8,7 @@ using namespace DA;
 class DaChipsEditTest : public QObject
 {
     Q_OBJECT
-private slots:
+private Q_SLOTS:
     void testDedupAndMaxCount();
     void testInsertRemove();
     void testKeyboardCommit();

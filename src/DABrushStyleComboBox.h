@@ -19,7 +19,7 @@ class DAWIDGETS_EXPORT DABrushStyleComboBox : public QComboBox
     DA_DECLARE_PRIVATE(DABrushStyleComboBox)
 public:
     // 默认构造以ShowNoBrushStyle|ShowPaintStyle构造，基本颜色为黑色
-    DABrushStyleComboBox(QWidget* parent = Q_NULLPTR);
+    DABrushStyleComboBox(QWidget* parent = nullptr);
     // 析构函数，释放私有数据
     ~DABrushStyleComboBox();
     // 画笔样式转换为字符串
@@ -47,16 +47,16 @@ public:
     Qt::BrushStyle getCurrentBrushStyle() const;
     // 获取画刷样式
     Qt::BrushStyle getBrushStyle(int index) const;
-public slots:
+public Q_SLOTS:
     // 设置当前的样式 此函数会发射currentBrushStyleChanged信号
     void setCurrentBrushStyle(Qt::BrushStyle s);
-signals:
+Q_SIGNALS:
     /**
      * @brief 画刷样式发生变更
      * @param s
      */
     void currentBrushStyleChanged(Qt::BrushStyle s);
-private slots:
+private Q_SLOTS:
     // 原信号对应的槽
     void onCurrentIndexChanged(int index);
 

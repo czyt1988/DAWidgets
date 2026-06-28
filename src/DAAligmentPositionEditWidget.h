@@ -26,10 +26,10 @@ public:
 	Qt::Alignment getAligmentPosition() const;
     // 把输入的al进行过滤，得到本控件支持的组合
     static Qt::Alignment acceptAligment(Qt::Alignment al);
-public slots:
+public Q_SLOTS:
 	// 设置对齐位置，此函数会发射 aligmentPositionChanged 信号
 	void setAligmentPosition(Qt::Alignment al);
-signals:
+Q_SIGNALS:
 	/**
 	 * @brief 对齐位置变化时发射
 	 * @param al 变化后的对齐位置
@@ -38,7 +38,7 @@ signals:
 
 protected:
 	void changeEvent(QEvent* e);
-private slots:
+private Q_SLOTS:
     void onButtonClicked(int id);
 
 private:

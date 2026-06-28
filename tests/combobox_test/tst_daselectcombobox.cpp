@@ -16,7 +16,7 @@ using namespace DA;
 class DaSelectComboBoxTest : public QObject
 {
     Q_OBJECT
-private slots:
+private Q_SLOTS:
     void testIsComboBox();
     void testFilterAndSelect();
     void testAllowCreate();

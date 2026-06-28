@@ -25,10 +25,10 @@ public:
 	~DAAligmentEditWidget();
 	// 设置对齐方式
 	Qt::Alignment getCurrentAlignment() const;
-public slots:
+public Q_SLOTS:
 	// 设置对齐，此函数发射alignmentChanged信号
 	void setCurrentAlignment(Qt::Alignment al);
-signals:
+Q_SIGNALS:
 	/**
 	 * @brief 对齐发生变化
 	 * @param al
@@ -37,7 +37,7 @@ signals:
 
 protected:
 	void changeEvent(QEvent* e);
-protected slots:
+protected Q_SLOTS:
 	void onButtonGroupClicked(int id);
 
 private:

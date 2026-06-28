@@ -20,7 +20,7 @@ class DAWIDGETS_EXPORT DAPenStyleComboBox : public QComboBox
 #endif
 public:
     // 构造函数
-    DAPenStyleComboBox(QWidget* parent = Q_NULLPTR);
+    DAPenStyleComboBox(QWidget* parent = nullptr);
     // 析构函数，释放私有数据
     ~DAPenStyleComboBox();
 
@@ -42,7 +42,7 @@ public:
     // 获取当前的画笔类型
     Qt::PenStyle getCurrentPenStyle() const;
 
-public slots:
+public Q_SLOTS:
     // 设置画笔
     void setPen(const QPen& p);
     // 设置绘制的线条的颜色
@@ -55,10 +55,10 @@ public slots:
 protected:
     // 添加item
     void addItem(Qt::PenStyle s);
-private slots:
+private Q_SLOTS:
     // 当下拉框索引变化时同步发射画笔样式变更信号
     void onCurrentIndexChanged(int index);
-signals:
+Q_SIGNALS:
     /**
      * @brief 画笔样式改变
      * @param s

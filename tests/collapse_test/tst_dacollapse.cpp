@@ -14,7 +14,7 @@ using namespace DA;
 class DACollapseTest : public QObject
 {
     Q_OBJECT
-private slots:
+private Q_SLOTS:
     void testBasicExpand();
     void testActiveNames();
     void testAccordionMutualExclusion();

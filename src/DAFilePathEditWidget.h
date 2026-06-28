@@ -36,13 +36,13 @@ public:
     // 获取路径
     QString getFilePath() const;
     void setFilePath(const QString& v);
-signals:
+Q_SIGNALS:
     /**
      * @brief 选中路径后会发射此信号
      * @param p 路径
      */
     void selectedPath(const QString& p);
-private slots:
+private Q_SLOTS:
     void onToolButtonOpenClicked();
     void onLineEditEditingFinished();
 

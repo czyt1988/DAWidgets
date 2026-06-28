@@ -32,17 +32,17 @@ public:
 	void setLineStyleTextVisible(bool on);
 	// 返回是否在样式上显示文字
 	bool isLineStyleTextVisible() const;
-public slots:
+public Q_SLOTS:
 	// 设置画笔,设置画笔会触发penChanged信号
 	void setCurrentPen(const QPen& p);
-signals:
+Q_SIGNALS:
 	/**
 	 * @brief 画笔改变信号
 	 * @param p
 	 */
 	void penChanged(const QPen& p);
 
-protected slots:
+protected Q_SLOTS:
 	void onColorChanged(const QColor& c);
 	void onPenWidthValueChanged(double w);
 	void onPenStyleChanged(Qt::PenStyle s);
