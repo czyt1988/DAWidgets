@@ -38,7 +38,7 @@ classDiagram
 
 ## Usage
 
-The corresponding example is located at: `examples/chipsedit_demo`.
+The corresponding example is located at: `examples/all_widgets_demo` (Selector/Tags tab).
 
 ### 1. Basic Usage
 
@@ -164,4 +164,4 @@ QObject::connect(edit, &DA::DAChipsEdit::inputKeyEvent,
 - [DASelectComboBox](select-combobox.md)
 - [DAChip](chip.md)
 - [DAFlowLayout](flow-layout.md)
-- Example path: `examples/chipsedit_demo`
+- Example path: `examples/all_widgets_demo` (Selector/Tags tab)

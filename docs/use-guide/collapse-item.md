@@ -119,4 +119,4 @@ QObject::connect(item, &DA::DACollapseItem::expandChanged,
 ## 参考
 
 - [DACollapse 折叠容器](collapse.md)
-- 示例路径：`examples/collapse_demo`
+- 示例路径：`examples/all_widgets_demo`（各 tab 内均使用 `DACollapseWidget` 分区折叠）

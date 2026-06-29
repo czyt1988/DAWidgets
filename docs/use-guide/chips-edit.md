@@ -40,7 +40,7 @@ classDiagram
 
 ## 用法
 
-对应的示例位于：`examples/chipsedit_demo`。
+对应的示例位于：`examples/all_widgets_demo`（选择器/标签 tab）。
 
 ### 1. 基本用法
 
@@ -166,4 +166,4 @@ QObject::connect(edit, &DA::DAChipsEdit::inputKeyEvent,
 - [DASelectComboBox 下拉多选](select-combobox.md)
 - [DAChip 标签胶囊](chip.md)
 - [DAFlowLayout 流式布局](flow-layout.md)
-- 示例路径：`examples/chipsedit_demo`
+- 示例路径：`examples/all_widgets_demo`（选择器/标签 tab）

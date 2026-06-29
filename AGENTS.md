@@ -140,10 +140,7 @@ All graphical assets are managed via Qt RCC (`src/resources/dawidgetsicons.qrc`)
 
 | Directory | Description |
 |-----------|-------------|
-| `examples/chipsedit_demo/` | Standalone `DAChipsEdit` demo |
-| `examples/selectcombobox_demo/` | Standalone `DASelectComboBox` demo |
-| `examples/collapse_demo/` | Standalone `DACollapseWidget` demo |
-| `examples/all_widgets_demo/` | Comprehensive multi-tab demo exercising every public widget (Selector, Collapse, Color, DrawingStyle, Alignment, Utility) |
+| `examples/all_widgets_demo/` | Comprehensive multi-tab demo exercising every public widget (Selector, Color, DrawingStyle, Alignment, Utility). `DACollapseWidget` is used as a per-section collapsible organizer within each tab. |
 
 ## Documentation (mkdocs)
 

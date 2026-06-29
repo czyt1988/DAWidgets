@@ -2,7 +2,7 @@
 
 project(DAWidgets
     VERSION 0.1.0
-    DESCRIPTION "DA Selector - Qt tag/chip selector widgets (el-select style) for Qt5 and Qt6"
+    DESCRIPTION "DAWidgets - Qt QWidget supplement library inspired by Element UI, for Qt5 and Qt6"
     LANGUAGES CXX
 )
 

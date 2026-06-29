@@ -33,7 +33,7 @@ classDiagram
 
 ## Usage
 
-The corresponding example is located at: `examples/collapse_demo`.
+The corresponding example is located at: `examples/all_widgets_demo` (`DACollapseWidget` is used as a per-section collapsible organizer within each tab).
 
 ### 1. Basic Usage
 
@@ -142,4 +142,4 @@ QLabel#DACollapseItemArrow {
 ## References
 
 - [DACollapseItem](collapse-item.md)
-- Example path: `examples/collapse_demo`
+- Example path: `examples/all_widgets_demo` (`DACollapseWidget` is used as a per-section collapsible organizer within each tab)

@@ -52,7 +52,7 @@
 | **DateRangePicker** | DatePicker (range) | — | 🟢 自研 | 日期范围选择，Qt 无原生双日历范围选择。中等工作量 |
 | TimePicker | TimePicker | QTimeEdit | ❌ | 原生充足 |
 | DateTimePicker | DateTimePicker | QDateTimeEdit | ❌ | 原生充足 |
-| ColorPicker | ColorPicker | QColorDialog | 🟡 封装 | QColorDialog 是模态对话框；Element 风格的弹出式取色板可参考 ksnip/kColorPicker（~48★）封装 |
+| ColorPicker | ColorPicker | QColorDialog | ✅ 已实现 | DAColorPickerButton + DAColorMenu + DAColorPaletteGridWidget + DAColorGridWidget，弹出式取色板 + 最近使用记录 |
 | Upload | Upload | — | ⏸️ 暂缓 | 拖拽上传+进度，桌面端通常用 QFileDialog，Web 风格上传组件桌面需求弱 |
 | Form | Form | QFormLayout | ❌ | 原生布局充足，校验逻辑属业务层 |
 
@@ -63,7 +63,7 @@
 | 组件 | 对应 Element | Qt 原生 | 决 | 说明 / 开源替代 |
 |------|-------------|---------|------|------|
 | Table | Table | QTableView/QTableWidget | ❌ | 原生充足（排序/筛选/编辑均支持） |
-| Tag | Tag | ✅ DAChip | ✅ 已实现 | 已作为 Selector 子组件交付，可独立使用 |
+| Tag | Tag | — | ✅ 已实现 | DAChip，已作为 Selector 子组件交付，可独立使用 |
 | Progress | Progress | QProgressBar | ❌ | 原生充足 |
 | Tree | Tree | QTreeWidget/QTreeView | ❌ | 原生充足（勾选/拖拽/编辑均支持） |
 | Pagination | Pagination | — | 🟢 自研 | Qt 无原生分页控件，但需求常见。可基于 QSpinBox+QPushButton 组合封装 |
@@ -109,7 +109,7 @@
 | Dialog | Dialog | QDialog | ❌ | 原生充足 |
 | Popover/Popconfirm | Popover | — | 🟡 封装 | 弹出气泡，可基于 QWidget+QTimer 封装 |
 | Card | Card | QGroupBox | ❌ | 原生充足 |
-| **Collapse** | Collapse | QToolBox | 🟡 封装 | QToolBox 形态接近但只能单展开；Element 风格可多展开/手风琴。可封装增强 |
+| **Collapse** | Collapse | QToolBox | ✅ 已实现 | DACollapseWidget + DACollapseItem + DACollapseLayout，支持手风琴/多展开模式与高度动画 |
 | **Carousel** | Carousel | — | 🟢 自研 | 轮播图，Qt 无原生。可参考 Qt 官方 examples/widgets/effects/autoscalingpixmap |
 | **Timeline** | Timeline | — | 🟡 封装 | 时间线，可参考 iwxyi/Qt-Timeline-Widget（~80★） |
 | **Divider（带文字）** | Divider | QFrame(QFrame::HLine) | 🟢 自研 | 原生分割线无文字嵌入，实现简单 |

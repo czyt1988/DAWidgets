@@ -36,7 +36,7 @@ classDiagram
 
 ## Usage
 
-The corresponding example is located at: `examples/selectcombobox_demo`.
+The corresponding example is located at: `examples/all_widgets_demo` (Selector/Tags tab).
 
 ### 1. Basic Usage
 
@@ -154,4 +154,4 @@ QListView#DASelectComboBoxPopup {
 
 - [DAChipsEdit](chips-edit.md)
 - [DAChip](chip.md)
-- Example path: `examples/selectcombobox_demo`
+- Example path: `examples/all_widgets_demo` (Selector/Tags tab)

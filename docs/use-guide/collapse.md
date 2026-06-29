@@ -35,7 +35,7 @@ classDiagram
 
 ## 用法
 
-对应的示例位于：`examples/collapse_demo`。
+对应的示例位于：`examples/all_widgets_demo`（各 tab 内均使用 `DACollapseWidget` 分区折叠）。
 
 ### 1. 基本用法
 
@@ -141,4 +141,4 @@ QLabel#DACollapseItemArrow {
 ## 参考
 
 - [DACollapseItem 折叠条目](collapse-item.md)
-- 示例路径：`examples/collapse_demo`
+- 示例路径：`examples/all_widgets_demo`（各 tab 内均使用 `DACollapseWidget` 分区折叠）

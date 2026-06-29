@@ -122,4 +122,4 @@ QObject::connect(item, &DA::DACollapseItem::expandChanged,
 ## References
 
 - [DACollapse](collapse.md)
-- Example path: `examples/collapse_demo`
+- Example path: `examples/all_widgets_demo` (`DACollapseWidget` is used as a per-section collapsible organizer within each tab)

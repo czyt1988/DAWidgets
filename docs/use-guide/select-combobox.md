@@ -38,7 +38,7 @@ classDiagram
 
 ## 用法
 
-对应的示例位于：`examples/selectcombobox_demo`。
+对应的示例位于：`examples/all_widgets_demo`（选择器/标签 tab）。
 
 ### 1. 基本用法
 
@@ -156,4 +156,4 @@ QListView#DASelectComboBoxPopup {
 
 - [DAChipsEdit 标签输入框](chips-edit.md)
 - [DAChip 标签胶囊](chip.md)
-- 示例路径：`examples/selectcombobox_demo`
+- 示例路径：`examples/all_widgets_demo`（选择器/标签 tab）

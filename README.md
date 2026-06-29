@@ -143,7 +143,7 @@ QObject::connect(collapse, &DACollapseWidget::activeNamesChanged,
 
 ## 样式
 
-控件均可通过 qss 定制，参考 `examples/*/main.cpp` 中的样式表。
+控件均可通过 qss 定制，参考 `examples/all_widgets_demo/main.cpp` 中的样式表。
 `DASelectComboBox` 构造时自带现代化默认样式（圆角边框 + SVG 箭头），无需额外 qss 即可使用。
 
 ## 资源管理
@@ -161,10 +161,7 @@ CMake 自动链接 **Qt::Svg** 模块以支持 SVG 渲染。
 
 | 目录 | 说明 |
 |------|------|
-| `examples/chipsedit_demo/` | `DAChipsEdit` 独立演示 |
-| `examples/selectcombobox_demo/` | `DASelectComboBox` 独立演示 |
-| `examples/collapse_demo/` | `DACollapseWidget` 独立演示 |
-| `examples/all_widgets_demo/` | 全组件综合演示（多标签页：选择器、折叠面板、颜色、画笔画刷、对齐、工具） |
+| `examples/all_widgets_demo/` | 全组件综合演示（多标签页：选择器、颜色、绘图样式、对齐、工具；各 tab 内使用 `DACollapseWidget` 分区折叠） |
 
 ## License
 
