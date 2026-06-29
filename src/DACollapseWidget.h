@@ -1,5 +1,5 @@
-#ifndef DACOLLAPSE_H
-#define DACOLLAPSE_H
+#ifndef DACOLLAPSEWIDGET_H
+#define DACOLLAPSEWIDGET_H
 
 #include <QStringList>
 #include <QWidget>
@@ -31,17 +31,17 @@ class DACollapseItem;
  * c->setActiveNames({ QStringLiteral("1") });
  * ```
  */
-class DAWIDGETS_EXPORT DACollapse : public QWidget
+class DAWIDGETS_EXPORT DACollapseWidget : public QWidget
 {
     Q_OBJECT
     Q_PROPERTY(bool accordion READ accordion WRITE setAccordion NOTIFY accordionChanged)
     Q_PROPERTY(QStringList activeNames READ activeNames WRITE setActiveNames NOTIFY activeNamesChanged)
-    DA_DECLARE_PRIVATE(DACollapse)
+    DA_DECLARE_PRIVATE(DACollapseWidget)
 public:
     // 构造折叠面板容器
-    explicit DACollapse(QWidget *parent = nullptr);
+    explicit DACollapseWidget(QWidget* parent = nullptr);
     // 析构,释放内部条目与布局
-    ~DACollapse();
+    ~DACollapseWidget();
 
     // 是否启用手风琴模式(同时仅一个面板展开)
     bool accordion() const;
@@ -51,20 +51,20 @@ public:
     // 获取当前激活(展开)面板的 name 列表
     QStringList activeNames() const;
     // 设置激活面板(手风琴模式下仅取首个生效);会同步展开/折叠子项
-    void setActiveNames(const QStringList &names);
+    void setActiveNames(const QStringList& names);
 
     // 添加一个已有的条目(接管所有权)
-    void addItem(DACollapseItem *item);
+    void addItem(DACollapseItem* item);
     // 便捷创建并添加条目,返回新建实例以便设置内容
-    DACollapseItem *addItem(const QString &title, const QString &name = QString());
+    DACollapseItem* addItem(const QString& title, const QString& name = QString());
 
     // 按 name 查找条目
-    DACollapseItem *item(const QString &name) const;
+    DACollapseItem* item(const QString& name) const;
     // 获取全部条目列表
-    QList<DACollapseItem *> items() const;
+    QList< DACollapseItem* > items() const;
 
     // 移除并销毁条目
-    void removeItem(DACollapseItem *item);
+    void removeItem(DACollapseItem* item);
     // 清空并销毁所有条目
     void clear();
 
@@ -81,13 +81,13 @@ Q_SIGNALS:
      * @brief 激活面板集合变化时发射
      * @param activeNames 当前激活面板的 name 列表
      */
-    void activeNamesChanged(const QStringList &activeNames);
+    void activeNamesChanged(const QStringList& activeNames);
 
 private:
     void init();
-    void activate(DACollapseItem *item, bool on);
+    void activate(DACollapseItem* item, bool on);
     void onItemExpandChanged();
 };
 }  // namespace DA
 
-#endif // DACOLLAPSE_H
+#endif  // DACOLLAPSEWIDGET_H

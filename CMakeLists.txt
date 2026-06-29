@@ -68,8 +68,8 @@ set(_DAWIDGETS_SOURCES
     src/DAChipsEdit.cpp
     src/DASelectComboBox.h
     src/DASelectComboBox.cpp
-    src/DACollapse.h
-    src/DACollapse.cpp
+    src/DACollapseWidget.h
+    src/DACollapseWidget.cpp
     src/DACollapseItem.h
     src/DACollapseItem.cpp
     src/DACursorScoped.h
