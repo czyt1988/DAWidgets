@@ -1,4 +1,3 @@
-#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QScrollArea>
@@ -6,6 +5,8 @@
 
 #include <DABrushEditWidget.h>
 #include <DABrushStyleComboBox.h>
+#include <DACollapseItem.h>
+#include <DACollapseWidget.h>
 #include <DAFontEditPannelWidget.h>
 #include <DAPenEditWidget.h>
 #include <DAPenStyleComboBox.h>
@@ -34,23 +35,24 @@ static QString penToString(const QPen &p)
 // ============================================================
 // DABrushStyleComboBox —— 画刷样式下拉框
 // ============================================================
-static QGroupBox *createBrushStyleComboGroup(QWidget *parent)
+static QWidget *createBrushStyleComboContent(QWidget *parent)
 {
-    auto *box = new QGroupBox(QStringLiteral("DABrushStyleComboBox — 画刷样式下拉框"), parent);
-    auto *v = new QVBoxLayout(box);
+    auto *w = new QWidget(parent);
+    auto *v = new QVBoxLayout(w);
+    v->setContentsMargins(8, 4, 8, 4);
 
     auto *desc = new QLabel(
-        QStringLiteral("QComboBox 子类，每个条目用色块图标展示 Qt::BrushStyle。"), box);
+        QStringLiteral("QComboBox 子类，每个条目用色块图标展示 Qt::BrushStyle。"), w);
     desc->setWordWrap(true);
     v->addWidget(desc);
 
     auto *row = new QHBoxLayout;
     row->addWidget(new QLabel(QStringLiteral("当前样式:")));
-    auto *combo = new DA::DABrushStyleComboBox(box);
+    auto *combo = new DA::DABrushStyleComboBox(w);
     row->addWidget(combo, 1);
     v->addLayout(row);
 
-    auto *log = new QLabel(box);
+    auto *log = new QLabel(w);
     log->setStyleSheet(QStringLiteral("color:#909399;"));
     v->addWidget(log);
 
@@ -60,57 +62,59 @@ static QGroupBox *createBrushStyleComboGroup(QWidget *parent)
                          + DA::DABrushStyleComboBox::brushStyleToString(s));
         });
 
-    return box;
+    return w;
 }
 
 // ============================================================
 // DABrushEditWidget —— 画刷编辑器
 // ============================================================
-static QGroupBox *createBrushEditGroup(QWidget *parent)
+static QWidget *createBrushEditContent(QWidget *parent)
 {
-    auto *box = new QGroupBox(QStringLiteral("DABrushEditWidget — 画刷编辑器"), parent);
-    auto *v = new QVBoxLayout(box);
+    auto *w = new QWidget(parent);
+    auto *v = new QVBoxLayout(w);
+    v->setContentsMargins(8, 4, 8, 4);
 
     auto *desc = new QLabel(
         QStringLiteral("颜色按钮 + 画刷样式下拉框的组合编辑器。\n"
-                       "支持纯色、图案、渐变、纹理四种填充模式。"), box);
+                       "支持纯色、图案、渐变、纹理四种填充模式。"), w);
     desc->setWordWrap(true);
     v->addWidget(desc);
 
-    auto *edit = new DA::DABrushEditWidget(box);
+    auto *edit = new DA::DABrushEditWidget(w);
     edit->setCurrentBrush(QBrush(QColor(64, 158, 255)));
     v->addWidget(edit);
 
-    auto *log = new QLabel(QStringLiteral("brush: color=#409eff, style=SolidPattern"), box);
+    auto *log = new QLabel(QStringLiteral("brush: color=#409eff, style=SolidPattern"), w);
     log->setStyleSheet(QStringLiteral("color:#909399;"));
     v->addWidget(log);
 
     QObject::connect(edit, &DA::DABrushEditWidget::brushChanged,
         [log](const QBrush &b) { log->setText(QStringLiteral("brush: ") + brushToString(b)); });
 
-    return box;
+    return w;
 }
 
 // ============================================================
 // DAPenStyleComboBox —— 画笔样式下拉框
 // ============================================================
-static QGroupBox *createPenStyleComboGroup(QWidget *parent)
+static QWidget *createPenStyleComboContent(QWidget *parent)
 {
-    auto *box = new QGroupBox(QStringLiteral("DAPenStyleComboBox — 画笔样式下拉框"), parent);
-    auto *v = new QVBoxLayout(box);
+    auto *w = new QWidget(parent);
+    auto *v = new QVBoxLayout(w);
+    v->setContentsMargins(8, 4, 8, 4);
 
     auto *desc = new QLabel(
-        QStringLiteral("QComboBox 子类，每个条目用线条图标展示 Qt::PenStyle。"), box);
+        QStringLiteral("QComboBox 子类，每个条目用线条图标展示 Qt::PenStyle。"), w);
     desc->setWordWrap(true);
     v->addWidget(desc);
 
     auto *row = new QHBoxLayout;
     row->addWidget(new QLabel(QStringLiteral("当前样式:")));
-    auto *combo = new DA::DAPenStyleComboBox(box);
+    auto *combo = new DA::DAPenStyleComboBox(w);
     row->addWidget(combo, 1);
     v->addLayout(row);
 
-    auto *log = new QLabel(box);
+    auto *log = new QLabel(w);
     log->setStyleSheet(QStringLiteral("color:#909399;"));
     v->addWidget(log);
 
@@ -120,52 +124,54 @@ static QGroupBox *createPenStyleComboGroup(QWidget *parent)
                          + DA::DAPenStyleComboBox::penStyleToString(s));
         });
 
-    return box;
+    return w;
 }
 
 // ============================================================
 // DAPenEditWidget —— 画笔编辑器
 // ============================================================
-static QGroupBox *createPenEditGroup(QWidget *parent)
+static QWidget *createPenEditContent(QWidget *parent)
 {
-    auto *box = new QGroupBox(QStringLiteral("DAPenEditWidget — 画笔编辑器"), parent);
-    auto *v = new QVBoxLayout(box);
+    auto *w = new QWidget(parent);
+    auto *v = new QVBoxLayout(w);
+    v->setContentsMargins(8, 4, 8, 4);
 
     auto *desc = new QLabel(
-        QStringLiteral("颜色按钮 + 线条样式下拉框 + 线宽调节，编辑 QPen 的全部属性。"), box);
+        QStringLiteral("颜色按钮 + 线条样式下拉框 + 线宽调节，编辑 QPen 的全部属性。"), w);
     desc->setWordWrap(true);
     v->addWidget(desc);
 
-    auto *edit = new DA::DAPenEditWidget(QPen(QColor(255, 0, 0), 2, Qt::SolidLine), box);
+    auto *edit = new DA::DAPenEditWidget(QPen(QColor(255, 0, 0), 2, Qt::SolidLine), w);
     v->addWidget(edit);
 
-    auto *log = new QLabel(QStringLiteral("pen: color=#ff0000, style=SolidLine, width=2"), box);
+    auto *log = new QLabel(QStringLiteral("pen: color=#ff0000, style=SolidLine, width=2"), w);
     log->setStyleSheet(QStringLiteral("color:#909399;"));
     v->addWidget(log);
 
     QObject::connect(edit, &DA::DAPenEditWidget::penChanged,
         [log](const QPen &p) { log->setText(QStringLiteral("pen: ") + penToString(p)); });
 
-    return box;
+    return w;
 }
 
 // ============================================================
 // DAShapeEditPannelWidget —— 形状编辑面板
 // ============================================================
-static QGroupBox *createShapeEditGroup(QWidget *parent)
+static QWidget *createShapeEditContent(QWidget *parent)
 {
-    auto *box = new QGroupBox(QStringLiteral("DAShapeEditPannelWidget — 形状编辑面板"), parent);
-    auto *v = new QVBoxLayout(box);
+    auto *w = new QWidget(parent);
+    auto *v = new QVBoxLayout(w);
+    v->setContentsMargins(8, 4, 8, 4);
 
     auto *desc = new QLabel(
-        QStringLiteral("组合 DABrushEditWidget（背景填充）和 DAPenEditWidget（边框画笔）的复合编辑器。"), box);
+        QStringLiteral("组合 DABrushEditWidget（背景填充）和 DAPenEditWidget（边框画笔）的复合编辑器。"), w);
     desc->setWordWrap(true);
     v->addWidget(desc);
 
-    auto *edit = new DA::DAShapeEditPannelWidget(box);
+    auto *edit = new DA::DAShapeEditPannelWidget(w);
     v->addWidget(edit);
 
-    auto *log = new QLabel(box);
+    auto *log = new QLabel(w);
     log->setStyleSheet(QStringLiteral("color:#909399;"));
     v->addWidget(log);
 
@@ -174,27 +180,28 @@ static QGroupBox *createShapeEditGroup(QWidget *parent)
     QObject::connect(edit, &DA::DAShapeEditPannelWidget::borderPenChanged,
         [log](const QPen &p) { log->setText(QStringLiteral("边框: ") + penToString(p)); });
 
-    return box;
+    return w;
 }
 
 // ============================================================
 // DAFontEditPannelWidget —— 字体编辑面板
 // ============================================================
-static QGroupBox *createFontEditGroup(QWidget *parent)
+static QWidget *createFontEditContent(QWidget *parent)
 {
-    auto *box = new QGroupBox(QStringLiteral("DAFontEditPannelWidget — 字体编辑面板"), parent);
-    auto *v = new QVBoxLayout(box);
+    auto *w = new QWidget(parent);
+    auto *v = new QVBoxLayout(w);
+    v->setContentsMargins(8, 4, 8, 4);
 
     auto *desc = new QLabel(
-        QStringLiteral("字体族 + 字号 + 加粗/斜体/下划线 + 字体颜色的组合编辑器。"), box);
+        QStringLiteral("字体族 + 字号 + 加粗/斜体/下划线 + 字体颜色的组合编辑器。"), w);
     desc->setWordWrap(true);
     v->addWidget(desc);
 
-    auto *edit = new DA::DAFontEditPannelWidget(box);
+    auto *edit = new DA::DAFontEditPannelWidget(w);
     v->addWidget(edit);
 
     // 预览标签
-    auto *preview = new QLabel(QStringLiteral("预览：The quick brown fox 简体中文 12345"), box);
+    auto *preview = new QLabel(QStringLiteral("预览：The quick brown fox 简体中文 12345"), w);
     preview->setStyleSheet(QStringLiteral("font-size: 16px; padding: 8px;"));
     v->addWidget(preview);
 
@@ -205,7 +212,7 @@ static QGroupBox *createFontEditGroup(QWidget *parent)
             preview->setStyleSheet(QStringLiteral("font-size: 16px; padding: 8px; color: %1;").arg(c.name()));
         });
 
-    return box;
+    return w;
 }
 
 // ============================================================
@@ -219,12 +226,22 @@ QWidget *createDrawingStyleTab(QWidget *parent)
     auto *v = new QVBoxLayout(content);
     v->setSpacing(12);
 
-    v->addWidget(createBrushStyleComboGroup(content));
-    v->addWidget(createBrushEditGroup(content));
-    v->addWidget(createPenStyleComboGroup(content));
-    v->addWidget(createPenEditGroup(content));
-    v->addWidget(createShapeEditGroup(content));
-    v->addWidget(createFontEditGroup(content));
+    auto *collapse = new DA::DACollapseWidget(content);
+    collapse->addItem(QStringLiteral("DABrushStyleComboBox — 画刷样式下拉框"), QStringLiteral("1"))
+        ->setContentWidget(createBrushStyleComboContent(collapse));
+    collapse->addItem(QStringLiteral("DABrushEditWidget — 画刷编辑器"), QStringLiteral("2"))
+        ->setContentWidget(createBrushEditContent(collapse));
+    collapse->addItem(QStringLiteral("DAPenStyleComboBox — 画笔样式下拉框"), QStringLiteral("3"))
+        ->setContentWidget(createPenStyleComboContent(collapse));
+    collapse->addItem(QStringLiteral("DAPenEditWidget — 画笔编辑器"), QStringLiteral("4"))
+        ->setContentWidget(createPenEditContent(collapse));
+    collapse->addItem(QStringLiteral("DAShapeEditPannelWidget — 形状编辑面板"), QStringLiteral("5"))
+        ->setContentWidget(createShapeEditContent(collapse));
+    collapse->addItem(QStringLiteral("DAFontEditPannelWidget — 字体编辑面板"), QStringLiteral("6"))
+        ->setContentWidget(createFontEditContent(collapse));
+    collapse->setActiveNames({ QStringLiteral("1") });
+
+    v->addWidget(collapse);
     v->addStretch(1);
 
     scroll->setWidget(content);

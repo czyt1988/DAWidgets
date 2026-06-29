@@ -42,11 +42,6 @@ DA--DACollapseItem[disabled="true"] QFrame#header:hover { background:#fafafa; }
 QFrame#DACollapseItemContent { background:#ffffff; }
 
 /* ---- 通用 ---- */
-QGroupBox {
-    font-weight: bold; border: 1px solid #e4e7ed; border-radius: 4px;
-    margin-top: 10px; padding-top: 14px;
-}
-QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }
 QLabel#sectionTitle { font-size: 14px; font-weight: bold; color: #303133; }
 )";
 
@@ -58,7 +53,6 @@ int main(int argc, char **argv)
     QTabWidget tabs;
     tabs.setWindowTitle(QStringLiteral("DAWidgets 全控件演示 — 一个窗口体验所有组件"));
     tabs.addTab(createSelectorTab(&tabs),      QStringLiteral("选择器 / 标签"));
-    tabs.addTab(createCollapseTab(&tabs),      QStringLiteral("折叠面板"));
     tabs.addTab(createColorTab(&tabs),         QStringLiteral("颜色"));
     tabs.addTab(createDrawingStyleTab(&tabs),  QStringLiteral("绘图样式"));
     tabs.addTab(createAlignmentTab(&tabs),     QStringLiteral("对齐"));

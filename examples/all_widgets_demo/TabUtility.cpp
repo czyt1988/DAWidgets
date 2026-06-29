@@ -3,7 +3,6 @@
 #include <QDateTime>
 #include <QDir>
 #include <QEventLoop>
-#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -17,6 +16,8 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
+#include <DACollapseItem.h>
+#include <DACollapseWidget.h>
 #include <DAFilePathEditWidget.h>
 #include <DAPropertyItemWidget.h>
 #include <DARecentFilesManager.h>
@@ -26,21 +27,22 @@
 // ============================================================
 // DAFilePathEditWidget —— 文件路径编辑器
 // ============================================================
-static QGroupBox *createFilePathGroup(QWidget *parent)
+static QWidget *createFilePathContent(QWidget *parent)
 {
-    auto *box = new QGroupBox(QStringLiteral("DAFilePathEditWidget — 文件路径编辑器"), parent);
-    auto *v = new QVBoxLayout(box);
+    auto *w = new QWidget(parent);
+    auto *v = new QVBoxLayout(w);
+    v->setContentsMargins(8, 4, 8, 4);
 
     auto *desc = new QLabel(
-        QStringLiteral("路径文本框 + 浏览按钮，点击浏览弹出 QFileDialog 选择文件。"), box);
+        QStringLiteral("路径文本框 + 浏览按钮，点击浏览弹出 QFileDialog 选择文件。"), w);
     desc->setWordWrap(true);
     v->addWidget(desc);
 
-    auto *edit = new DA::DAFilePathEditWidget(box);
+    auto *edit = new DA::DAFilePathEditWidget(w);
     edit->setNameFilter(QStringLiteral("C++ 文件 (*.cpp *.h);;所有文件 (*.*)"));
     v->addWidget(edit);
 
-    auto *log = new QLabel(box);
+    auto *log = new QLabel(w);
     log->setStyleSheet(QStringLiteral("color:#909399;"));
     v->addWidget(log);
 
@@ -49,27 +51,28 @@ static QGroupBox *createFilePathGroup(QWidget *parent)
             log->setText(QStringLiteral("已选择: ") + p);
         });
 
-    return box;
+    return w;
 }
 
 // ============================================================
 // DATimeFormatEditWidget —— 时间格式编辑器
 // ============================================================
-static QGroupBox *createTimeFormatGroup(QWidget *parent)
+static QWidget *createTimeFormatContent(QWidget *parent)
 {
-    auto *box = new QGroupBox(QStringLiteral("DATimeFormatEditWidget — 时间格式编辑器"), parent);
-    auto *v = new QVBoxLayout(box);
+    auto *w = new QWidget(parent);
+    auto *v = new QVBoxLayout(w);
+    v->setContentsMargins(8, 4, 8, 4);
 
     auto *desc = new QLabel(
-        QStringLiteral("预置常用日期/时间格式的下拉框，也可手动输入自定义格式。"), box);
+        QStringLiteral("预置常用日期/时间格式的下拉框，也可手动输入自定义格式。"), w);
     desc->setWordWrap(true);
     v->addWidget(desc);
 
-    auto *edit = new DA::DATimeFormatEditWidget(box);
+    auto *edit = new DA::DATimeFormatEditWidget(w);
     v->addWidget(edit);
 
     // 用当前时间按所选格式显示预览
-    auto *preview = new QLabel(box);
+    auto *preview = new QLabel(w);
     preview->setStyleSheet(QStringLiteral("color:#909399;"));
 
     auto updatePreview = [edit, preview]() {
@@ -86,38 +89,39 @@ static QGroupBox *createTimeFormatGroup(QWidget *parent)
     }
 
     // 定时刷新预览
-    auto *timer = new QTimer(box);
+    auto *timer = new QTimer(w);
     timer->start(1000);
     QObject::connect(timer, &QTimer::timeout, updatePreview);
 
     v->addWidget(preview);
 
-    return box;
+    return w;
 }
 
 // ============================================================
 // DAPropertyItemWidget —— 属性项组件
 // ============================================================
-static QGroupBox *createPropertyItemGroup(QWidget *parent)
+static QWidget *createPropertyItemContent(QWidget *parent)
 {
-    auto *box = new QGroupBox(QStringLiteral("DAPropertyItemWidget — 属性项组件"), parent);
-    auto *v = new QVBoxLayout(box);
+    auto *w = new QWidget(parent);
+    auto *v = new QVBoxLayout(w);
+    v->setContentsMargins(8, 4, 8, 4);
 
     auto *desc = new QLabel(
         QStringLiteral("将属性名标签与编辑控件配对显示，支持 InlineLayout（左右排列）\n"
-                       "和 BelowLayout（上下排列）两种布局模式。"), box);
+                       "和 BelowLayout（上下排列）两种布局模式。"), w);
     desc->setWordWrap(true);
     v->addWidget(desc);
 
     // ---- InlineLayout 模式 ----
     v->addWidget(new QLabel(QStringLiteral("InlineLayout 模式（标签在左，编辑器在右）:")));
 
-    auto *prop1 = new DA::DAPropertyItemWidget(box);
+    auto *prop1 = new DA::DAPropertyItemWidget(w);
     prop1->setPropertyName(QStringLiteral("名称"));
     prop1->setPropertyDescription(QStringLiteral("设置对象名称"));
     prop1->setEditorWidget(new QLineEdit(QStringLiteral("MyObject"), prop1));
 
-    auto *prop2 = new DA::DAPropertyItemWidget(box);
+    auto *prop2 = new DA::DAPropertyItemWidget(w);
     prop2->setPropertyName(QStringLiteral("字号"));
     prop2->setPropertyDescription(QStringLiteral("设置字体大小"));
     auto *spin = new QSpinBox(prop2);
@@ -132,7 +136,7 @@ static QGroupBox *createPropertyItemGroup(QWidget *parent)
     v->addSpacing(8);
     v->addWidget(new QLabel(QStringLiteral("BelowLayout 模式（标签在上，编辑器在下）:")));
 
-    auto *prop3 = new DA::DAPropertyItemWidget(box);
+    auto *prop3 = new DA::DAPropertyItemWidget(w);
     prop3->setLayoutMode(DA::DAPropertyItemWidget::BelowLayout);
     prop3->setPropertyName(QStringLiteral("备注"));
     prop3->setPropertyDescription(QStringLiteral("输入备注信息"));
@@ -141,7 +145,7 @@ static QGroupBox *createPropertyItemGroup(QWidget *parent)
 
     v->addWidget(prop3);
 
-    auto *log = new QLabel(box);
+    auto *log = new QLabel(w);
     log->setStyleSheet(QStringLiteral("color:#909399;"));
     v->addWidget(log);
 
@@ -150,33 +154,34 @@ static QGroupBox *createPropertyItemGroup(QWidget *parent)
     QObject::connect(prop2, &DA::DAPropertyItemWidget::valueChanged,
         [log](int id) { log->setText(QStringLiteral("属性 #%1 值变更").arg(id)); });
 
-    return box;
+    return w;
 }
 
 // ============================================================
 // DARecentFilesManager —— 最近文件管理器
 // ============================================================
-static QGroupBox *createRecentFilesGroup(QWidget *parent)
+static QWidget *createRecentFilesContent(QWidget *parent)
 {
-    auto *box = new QGroupBox(QStringLiteral("DARecentFilesManager — 最近文件管理器"), parent);
-    auto *v = new QVBoxLayout(box);
+    auto *w = new QWidget(parent);
+    auto *v = new QVBoxLayout(w);
+    v->setContentsMargins(8, 4, 8, 4);
 
     auto *desc = new QLabel(
         QStringLiteral("管理「最近打开的文件」列表，持久化到 QSettings，自动过滤不存在的路径。\n"
-                       "点击下方菜单栏体验。"), box);
+                       "点击下方菜单栏体验。"), w);
     desc->setWordWrap(true);
     v->addWidget(desc);
 
-    auto *menuBar = new QMenuBar(box);
+    auto *menuBar = new QMenuBar(w);
     auto *fileMenu = menuBar->addMenu(QStringLiteral("文件(&F)"));
 
-    auto *mgr = new DA::DARecentFilesManager(box, 8, QStringLiteral("DAWidgets"), QStringLiteral("AllWidgetsDemo"));
+    auto *mgr = new DA::DARecentFilesManager(w, 8, QStringLiteral("DAWidgets"), QStringLiteral("AllWidgetsDemo"));
     mgr->attachToMenu(fileMenu);
 
     // 添加可执行文件自身路径用于演示（保证文件存在）
     mgr->addFile(QCoreApplication::applicationFilePath());
 
-    auto *log = new QLabel(box);
+    auto *log = new QLabel(w);
     log->setStyleSheet(QStringLiteral("color:#909399;"));
     v->addWidget(menuBar);
     v->addWidget(log);
@@ -186,27 +191,28 @@ static QGroupBox *createRecentFilesGroup(QWidget *parent)
             log->setText(QStringLiteral("已选择文件: ") + path);
         });
 
-    return box;
+    return w;
 }
 
 // ============================================================
 // DAWaitCursorScoped —— RAII 等待光标守卫
 // ============================================================
-static QGroupBox *createWaitCursorGroup(QWidget *parent)
+static QWidget *createWaitCursorContent(QWidget *parent)
 {
-    auto *box = new QGroupBox(QStringLiteral("DAWaitCursorScoped — RAII 等待光标守卫"), parent);
-    auto *v = new QVBoxLayout(box);
+    auto *w = new QWidget(parent);
+    auto *v = new QVBoxLayout(w);
+    v->setContentsMargins(8, 4, 8, 4);
 
     auto *desc = new QLabel(
         QStringLiteral("构造时设置等待光标（沙漏），析构时自动恢复，防止异常路径导致光标卡死。\n"
-                       "也可使用宏 DA_WAIT_CURSOR_SCOPED_NS() 快速创建。"), box);
+                       "也可使用宏 DA_WAIT_CURSOR_SCOPED_NS() 快速创建。"), w);
     desc->setWordWrap(true);
     v->addWidget(desc);
 
-    auto *btn = new QPushButton(QStringLiteral("模拟耗时操作（2秒等待光标）"), box);
+    auto *btn = new QPushButton(QStringLiteral("模拟耗时操作（2秒等待光标）"), w);
     v->addWidget(btn);
 
-    auto *log = new QLabel(box);
+    auto *log = new QLabel(w);
     log->setStyleSheet(QStringLiteral("color:#909399;"));
     v->addWidget(log);
 
@@ -220,7 +226,7 @@ static QGroupBox *createWaitCursorGroup(QWidget *parent)
         log->setText(QStringLiteral("耗时操作完成，光标已恢复"));
     });
 
-    return box;
+    return w;
 }
 
 // ============================================================
@@ -234,11 +240,20 @@ QWidget *createUtilityTab(QWidget *parent)
     auto *v = new QVBoxLayout(content);
     v->setSpacing(12);
 
-    v->addWidget(createFilePathGroup(content));
-    v->addWidget(createTimeFormatGroup(content));
-    v->addWidget(createPropertyItemGroup(content));
-    v->addWidget(createRecentFilesGroup(content));
-    v->addWidget(createWaitCursorGroup(content));
+    auto *collapse = new DA::DACollapseWidget(content);
+    collapse->addItem(QStringLiteral("DAFilePathEditWidget — 文件路径编辑器"), QStringLiteral("1"))
+        ->setContentWidget(createFilePathContent(collapse));
+    collapse->addItem(QStringLiteral("DATimeFormatEditWidget — 时间格式编辑器"), QStringLiteral("2"))
+        ->setContentWidget(createTimeFormatContent(collapse));
+    collapse->addItem(QStringLiteral("DAPropertyItemWidget — 属性项组件"), QStringLiteral("3"))
+        ->setContentWidget(createPropertyItemContent(collapse));
+    collapse->addItem(QStringLiteral("DARecentFilesManager — 最近文件管理器"), QStringLiteral("4"))
+        ->setContentWidget(createRecentFilesContent(collapse));
+    collapse->addItem(QStringLiteral("DAWaitCursorScoped — RAII 等待光标守卫"), QStringLiteral("5"))
+        ->setContentWidget(createWaitCursorContent(collapse));
+    collapse->setActiveNames({ QStringLiteral("1") });
+
+    v->addWidget(collapse);
     v->addStretch(1);
 
     scroll->setWidget(content);

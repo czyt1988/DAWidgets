@@ -21,6 +21,10 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
+# ---- Install / find_package 支持 ----
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
 # 源码为 UTF-8（含中文注释/字面量），强制 MSVC 以 UTF-8 解码，避免代码页乱码
 if(MSVC)
     add_compile_options(/utf-8)
@@ -112,7 +116,7 @@ add_library(DA::DAWidgets ALIAS DAWidgets)
 target_include_directories(DAWidgets
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
-        $<INSTALL_INTERFACE:include>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/DAWidgets>
 )
 
 target_link_libraries(DAWidgets
@@ -138,3 +142,46 @@ if(DAWIDGETS_BUILD_TESTS)
     add_subdirectory(tests/combobox_test)
     add_subdirectory(tests/collapse_test)
 endif()
+
+# ---- Install ----
+# 安装库目标（ARCHIVE=静态库/导入库, LIBRARY=动态库, RUNTIME=可执行文件/DLL）
+install(TARGETS DAWidgets
+    EXPORT DAWidgetsTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+# 安装公共头文件（src/ 下所有 .h）
+install(DIRECTORY src/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/DAWidgets
+    FILES_MATCHING PATTERN "*.h"
+)
+
+# 导出 Targets 文件（供 find_package 使用）
+install(EXPORT DAWidgetsTargets
+    FILE DAWidgetsTargets.cmake
+    NAMESPACE DA::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/DAWidgets
+)
+
+# 生成版本文件
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/DAWidgetsConfigVersion.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+# 生成 Config 文件（模板中的 @QT_VERSION_MAJOR@ 会被替换为实际 Qt 版本）
+configure_package_config_file(
+    "${CMAKE_CURRENT_LIST_DIR}/cmake/DAWidgetsConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/DAWidgetsConfig.cmake"
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/DAWidgets
+)
+
+# 安装 Config 与 ConfigVersion 文件
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/DAWidgetsConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/DAWidgetsConfigVersion.cmake"
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/DAWidgets
+)

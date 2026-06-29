@@ -1,0 +1,10 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+# 查找 Qt 依赖（构建时使用的 Qt 主版本号会被写入此文件）
+find_dependency(Qt@QT_VERSION_MAJOR@ COMPONENTS Widgets Svg)
+
+include("${CMAKE_CURRENT_LIST_DIR}/DAWidgetsTargets.cmake")
+
+check_required_components(DAWidgets)

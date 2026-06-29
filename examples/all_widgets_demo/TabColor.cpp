@@ -1,4 +1,3 @@
-#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMenu>
@@ -7,6 +6,8 @@
 #include <QScrollArea>
 #include <QVBoxLayout>
 
+#include <DACollapseItem.h>
+#include <DACollapseWidget.h>
 #include <DAColorGridWidget.h>
 #include <DAColorMenu.h>
 #include <DAColorPaletteGridWidget.h>
@@ -15,21 +16,22 @@
 // ============================================================
 // DAColorPickerButton —— 颜色选择按钮
 // ============================================================
-static QGroupBox *createColorPickerGroup(QWidget *parent)
+static QWidget *createColorPickerContent(QWidget *parent)
 {
-    auto *box = new QGroupBox(QStringLiteral("DAColorPickerButton — 自绘颜色选择按钮"), parent);
-    auto *v = new QVBoxLayout(box);
+    auto *w = new QWidget(parent);
+    auto *v = new QVBoxLayout(w);
+    v->setContentsMargins(8, 4, 8, 4);
 
     auto *desc = new QLabel(
         QStringLiteral("自绘颜色块按钮。WithColorMenu 模式（默认）点击弹出 DAColorMenu 颜色面板；\n"
-                       "NoColorMenu 模式仅发射 colorClicked 信号，由外部处理。"), box);
+                       "NoColorMenu 模式仅发射 colorClicked 信号，由外部处理。"), w);
     desc->setWordWrap(true);
     v->addWidget(desc);
 
     // ---- WithColorMenu（默认） ----
     auto *row1 = new QHBoxLayout;
     row1->addWidget(new QLabel(QStringLiteral("WithColorMenu:")));
-    auto *btn1 = new DA::DAColorPickerButton(DA::DAColorPickerButton::WithColorMenu, box);
+    auto *btn1 = new DA::DAColorPickerButton(DA::DAColorPickerButton::WithColorMenu, w);
     btn1->setColor(QColor(64, 158, 255));
     row1->addWidget(btn1);
     row1->addStretch();
@@ -38,7 +40,7 @@ static QGroupBox *createColorPickerGroup(QWidget *parent)
     // ---- NoColorMenu ----
     auto *row2 = new QHBoxLayout;
     row2->addWidget(new QLabel(QStringLiteral("NoColorMenu:")));
-    auto *btn2 = new DA::DAColorPickerButton(DA::DAColorPickerButton::NoColorMenu, box);
+    auto *btn2 = new DA::DAColorPickerButton(DA::DAColorPickerButton::NoColorMenu, w);
     btn2->setColor(QColor(103, 194, 58));
     row2->addWidget(btn2);
     row2->addStretch();
@@ -47,13 +49,13 @@ static QGroupBox *createColorPickerGroup(QWidget *parent)
     // ---- 无颜色（invalid color 渲染为红色斜线） ----
     auto *row3 = new QHBoxLayout;
     row3->addWidget(new QLabel(QStringLiteral("无颜色 (QColor()):")));
-    auto *btn3 = new DA::DAColorPickerButton(box);
+    auto *btn3 = new DA::DAColorPickerButton(w);
     btn3->setColor(QColor());  // invalid
     row3->addWidget(btn3);
     row3->addStretch();
     v->addLayout(row3);
 
-    auto *log = new QLabel(box);
+    auto *log = new QLabel(w);
     log->setStyleSheet(QStringLiteral("color:#909399;"));
     v->addWidget(log);
 
@@ -66,28 +68,29 @@ static QGroupBox *createColorPickerGroup(QWidget *parent)
             log->setText(QStringLiteral("NoColorMenu 被点击, 当前颜色: ") + c.name());
         });
 
-    return box;
+    return w;
 }
 
 // ============================================================
 // DAColorPaletteGridWidget —— Office 风格调色板
 // ============================================================
-static QGroupBox *createPaletteGroup(QWidget *parent)
+static QWidget *createPaletteContent(QWidget *parent)
 {
-    auto *box = new QGroupBox(QStringLiteral("DAColorPaletteGridWidget — Office 风格调色板"), parent);
-    auto *v = new QVBoxLayout(box);
+    auto *w = new QWidget(parent);
+    auto *v = new QVBoxLayout(w);
+    v->setContentsMargins(8, 4, 8, 4);
 
     auto *desc = new QLabel(
         QStringLiteral("顶部一行为标准色，下方自动生成 5 行深浅变体（lighter/darker）。\n"
-                       "点击任意色块发射 colorClicked 信号。"), box);
+                       "点击任意色块发射 colorClicked 信号。"), w);
     desc->setWordWrap(true);
     v->addWidget(desc);
 
-    auto *palette = new DA::DAColorPaletteGridWidget(box);
+    auto *palette = new DA::DAColorPaletteGridWidget(w);
     palette->setColorCheckable(true);
     v->addWidget(palette);
 
-    auto *log = new QLabel(box);
+    auto *log = new QLabel(w);
     log->setStyleSheet(QStringLiteral("color:#909399;"));
     v->addWidget(log);
 
@@ -96,24 +99,25 @@ static QGroupBox *createPaletteGroup(QWidget *parent)
             log->setText(QStringLiteral("选中颜色: ") + c.name());
         });
 
-    return box;
+    return w;
 }
 
 // ============================================================
 // DAColorGridWidget —— 基础颜色网格
 // ============================================================
-static QGroupBox *createColorGridGroup(QWidget *parent)
+static QWidget *createColorGridContent(QWidget *parent)
 {
-    auto *box = new QGroupBox(QStringLiteral("DAColorGridWidget — 基础颜色网格"), parent);
-    auto *v = new QVBoxLayout(box);
+    auto *w = new QWidget(parent);
+    auto *v = new QVBoxLayout(w);
+    v->setContentsMargins(8, 4, 8, 4);
 
     auto *desc = new QLabel(
         QStringLiteral("使用 QGridLayout + QButtonGroup 排列色块按钮。\n"
-                       "可设置列数、间距、图标大小，支持 checkable 互斥选中。"), box);
+                       "可设置列数、间距、图标大小，支持 checkable 互斥选中。"), w);
     desc->setWordWrap(true);
     v->addWidget(desc);
 
-    auto *grid = new DA::DAColorGridWidget(box);
+    auto *grid = new DA::DAColorGridWidget(w);
     grid->setColumnCount(6);
     grid->setColorList({
         QColor(255, 0, 0), QColor(255, 165, 0), QColor(255, 255, 0),
@@ -124,7 +128,7 @@ static QGroupBox *createColorGridGroup(QWidget *parent)
     grid->setColorCheckable(true);
     v->addWidget(grid);
 
-    auto *log = new QLabel(box);
+    auto *log = new QLabel(w);
     log->setStyleSheet(QStringLiteral("color:#909399;"));
     v->addWidget(log);
 
@@ -133,30 +137,31 @@ static QGroupBox *createColorGridGroup(QWidget *parent)
             log->setText(QStringLiteral("点击: ") + c.name());
         });
 
-    return box;
+    return w;
 }
 
 // ============================================================
 // DAColorMenu —— 颜色选择菜单（通过按钮弹出）
 // ============================================================
-static QGroupBox *createColorMenuGroup(QWidget *parent)
+static QWidget *createColorMenuContent(QWidget *parent)
 {
-    auto *box = new QGroupBox(QStringLiteral("DAColorMenu — 颜色选择弹出菜单"), parent);
-    auto *v = new QVBoxLayout(box);
+    auto *w = new QWidget(parent);
+    auto *v = new QVBoxLayout(w);
+    v->setContentsMargins(8, 4, 8, 4);
 
     auto *desc = new QLabel(
         QStringLiteral("DAColorMenu 是一个 QMenu，内嵌调色板 + 无颜色 + 自定义颜色 + 历史记录。\n"
-                       "点击下方按钮弹出菜单体验。"), box);
+                       "点击下方按钮弹出菜单体验。"), w);
     desc->setWordWrap(true);
     v->addWidget(desc);
 
-    auto *btn = new QPushButton(QStringLiteral("点击弹出 DAColorMenu"), box);
+    auto *btn = new QPushButton(QStringLiteral("点击弹出 DAColorMenu"), w);
     v->addWidget(btn);
 
-    auto *menu = new DA::DAColorMenu(QStringLiteral("选择颜色"), box);
+    auto *menu = new DA::DAColorMenu(QStringLiteral("选择颜色"), w);
     menu->enableNoneColorAction(true);
 
-    auto *log = new QLabel(box);
+    auto *log = new QLabel(w);
     log->setStyleSheet(QStringLiteral("color:#909399;"));
     v->addWidget(log);
 
@@ -171,7 +176,7 @@ static QGroupBox *createColorMenuGroup(QWidget *parent)
                 log->setText(QStringLiteral("选中: 无颜色"));
         });
 
-    return box;
+    return w;
 }
 
 // ============================================================
@@ -185,10 +190,18 @@ QWidget *createColorTab(QWidget *parent)
     auto *v = new QVBoxLayout(content);
     v->setSpacing(12);
 
-    v->addWidget(createColorPickerGroup(content));
-    v->addWidget(createPaletteGroup(content));
-    v->addWidget(createColorGridGroup(content));
-    v->addWidget(createColorMenuGroup(content));
+    auto *collapse = new DA::DACollapseWidget(content);
+    collapse->addItem(QStringLiteral("DAColorPickerButton — 自绘颜色选择按钮"), QStringLiteral("1"))
+        ->setContentWidget(createColorPickerContent(collapse));
+    collapse->addItem(QStringLiteral("DAColorPaletteGridWidget — Office 风格调色板"), QStringLiteral("2"))
+        ->setContentWidget(createPaletteContent(collapse));
+    collapse->addItem(QStringLiteral("DAColorGridWidget — 基础颜色网格"), QStringLiteral("3"))
+        ->setContentWidget(createColorGridContent(collapse));
+    collapse->addItem(QStringLiteral("DAColorMenu — 颜色选择弹出菜单"), QStringLiteral("4"))
+        ->setContentWidget(createColorMenuContent(collapse));
+    collapse->setActiveNames({ QStringLiteral("1") });
+
+    v->addWidget(collapse);
     v->addStretch(1);
 
     scroll->setWidget(content);
