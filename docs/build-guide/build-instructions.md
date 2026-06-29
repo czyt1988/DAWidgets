@@ -62,19 +62,11 @@ cmake -S . -B build -DCMAKE_PREFIX_PATH="C:/Qt/6.7.3/msvc2019_64" -DDAWIDGETS_BU
 
 ## 资源系统
 
-DAWidgets 使用**两套**资源机制：
+所有图形资源（SVG 图标、箭头等）通过 Qt RCC 统一管理：
 
-### PNG 字节内嵌
-
-- 原始 PNG 存放在 `tools/` 目录（如 `tools/arrow_down.png`）。
-- `tools/generate_resources.py` 扫描 `tools/*.png` 生成 `src/dawidgets_resources.{h,cpp}`（字节数组 + `dawidgets::resources::load(name)` 辅助函数）。
-- 生成的文件在 `.gitignore` 中（不提交）。
-- CMake 在配置时自动运行脚本（若生成文件缺失且 Python3 可用），因此全新克隆即可构建。
-
-### Qt RCC（SVG 图标）
-
-- `src/resources/dawidgetsicons.qrc`，前缀 `/DAWidgetsIcons`，包含 24 个 SVG 图标。
-- 供 `.ui` 控件（DAAligmentEditWidget、DAFontEditPannelWidget、DAFilePathEditWidget 等）使用。
+- `src/resources/dawidgetsicons.qrc`，前缀 `/DAWidgetsIcons`，包含 SVG 图标。
+- 供 `.ui` 控件（DAAligmentEditWidget、DAFontEditPannelWidget、DAFilePathEditWidget 等）及 `DASelectComboBox` 默认样式使用。
+- 静态库使用者需在构造函数中调用 `Q_INIT_RESOURCE(dawidgetsicons)` 显式注册资源，否则链接器会丢弃。
 
 ## 运行测试
 

@@ -1,20 +1,14 @@
 ﻿#include "DASelectComboBox.h"
 
 #include "DAChipsEdit.h"
-#include "dawidgets_resources.h"
 
 #include <QApplication>
-#include <QDir>
-#include <QFile>
-#include <QIODevice>
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QListWidgetItem>
-#include <QPixmap>
 #include <QResizeEvent>
 #include <QScrollArea>
-#include <QStandardPaths>
 #include <QStyle>
 #include <QStyleOptionComboBox>
 #include <QTimer>
@@ -67,6 +61,7 @@ public:
 DASelectComboBox::DASelectComboBox(QWidget *parent) : QComboBox(parent), DA_PIMPL_CONSTRUCT
 {
     DA_D(d);
+    Q_INIT_RESOURCE(dawidgetsicons);  // 静态库需显式注册 qrc 资源,否则被链接器丢弃
     setObjectName(QStringLiteral("DASelectComboBox"));
 
     // 先创建 chips 和 container,sizeHint() 会访问它们,必须在 setEditable 之前就绪
@@ -114,7 +109,7 @@ DASelectComboBox::DASelectComboBox(QWidget *parent) : QComboBox(parent), DA_PIMP
     // Qt::ToolTip 不抢 mouse grab，外部点击由本过滤器兜底关闭。
     qApp->installEventFilter(this);
 
-    // 默认现代化样式：圆角边框 + 无边框 drop-down + 内置 PNG 箭头。
+    // 默认现代化样式：圆角边框 + 无边框 drop-down + qrc 内置 SVG 箭头。
     // 用户可随后自行 setStyleSheet 覆盖。用本对象名作用域，避免污染其它 QComboBox。
     applyDefaultStyle();
 }
@@ -127,25 +122,12 @@ DASelectComboBox::~DASelectComboBox() = default;
 
 /**
  * @brief 应用默认现代化样式
- * @details 将内嵌 PNG 箭头写入缓存目录，qss 用 url(绝对路径) 引用。
- *          不用 Qt RCC：静态库的资源不会自动传递给链接它的可执行文件。
+ * @details qss 直接引用 qrc 中的 SVG 箭头资源（:/DAWidgetsIcons/arrow-down.svg）。
+ *          静态库通过 Q_INIT_RESOURCE(dawidgetsicons) 显式注册资源,确保被链接器保留。
  */
 void DASelectComboBox::applyDefaultStyle()
 {
-    // 把内嵌 PNG 写到缓存目录，qss 用 url(绝对路径) 引用。
-    // 不用 Qt RCC：静态库的资源不会自动传递给链接它的可执行文件。
-    // 资源由 tools/generate_resources.py 从 tools/*.png 生成到 dawidgets_resources.*。
-    static const QString kArrowPath = []() {
-        const QString dir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
-        QDir().mkpath(dir);
-        const QString path = dir + QStringLiteral("/dawidgets_arrow_down.png");
-        const QPixmap pm = dawidgets::resources::load(QStringLiteral("arrow_down"));
-        if (!pm.isNull())
-            pm.save(path, "PNG");
-        return path;
-    }();
-
-    static const char *kDefaultQssTpl = R"(
+    static const char *kDefaultQss = R"(
 DA--DASelectComboBox {
     background:#ffffff;
     border:1px solid #dcdfe6;
@@ -167,13 +149,13 @@ DA--DASelectComboBox::drop-down {
 }
 DA--DASelectComboBox::drop-down:hover { background:#f5f7fa; }
 DA--DASelectComboBox::down-arrow {
-    image:url(%1);
+    image:url(:/DAWidgetsIcons/arrow-down.svg);
     width:10px;
     height:6px;
 }
 DA--DAChipsEdit { background:transparent; border:none; }
 )";
-    setStyleSheet(QString::fromLatin1(kDefaultQssTpl).arg(kArrowPath));
+    setStyleSheet(QString::fromLatin1(kDefaultQss));
 }
 
 /**

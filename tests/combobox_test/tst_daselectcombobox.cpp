@@ -1,12 +1,8 @@
-﻿#include <QDir>
-#include <QFile>
-#include <QLineEdit>
+﻿#include <QLineEdit>
 #include <QPainter>
 #include <QPixmap>
-#include <QStandardPaths>
 #include <QStyle>
 #include <QStyleOptionComboBox>
-#include <QTemporaryFile>
 #include <QtTest/QtTest>
 
 #include <DASelectComboBox.h>
@@ -170,16 +166,14 @@ void DaSelectComboBoxTest::testArrowGeometry()
     QVERIFY2(cbDark > 5,
              "DASelectComboBox arrow region has no rendered pixels — arrow not drawn");
 
-    // 验证组件自带默认样式（applyDefaultStyle 内嵌 PNG 箭头）下箭头渲染正常。
+    // 验证组件自带默认样式（qrc SVG 箭头）下箭头渲染正常。
     // 构造函数已应用默认样式，不手动设 qss。渲染并打印 ASCII 网格确认形状。
     qApp->setStyleSheet(QString());
-    // 验证内嵌箭头 PNG 已写入缓存目录并可加载
+    // 验证 qrc 箭头 SVG 资源可加载
     {
-        const QString path = QStandardPaths::writableLocation(
-            QStandardPaths::CacheLocation) + QStringLiteral("/dawidgets_arrow_down.png");
-        QPixmap ap(path);
-        qDebug() << "built-in arrow png path=" << path
-                 << "isNull=" << ap.isNull() << "size=" << ap.size();
+        QPixmap ap(QStringLiteral(":/DAWidgetsIcons/arrow-down.svg"));
+        qDebug() << "built-in arrow svg from qrc isNull=" << ap.isNull()
+                 << "size=" << ap.size();
     }
     cb.ensurePolished();
     cb.update();

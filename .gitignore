@@ -6,9 +6,5 @@ build_shared/
 build_*/
 test_*.txt
 
-# 自动生成的资源文件（由 tools/generate_resources.py 生成）
-src/dawidgets_resources.h
-src/dawidgets_resources.cpp
-
 # mkdocs 构建产物
 site/

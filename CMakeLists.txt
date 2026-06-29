@@ -26,30 +26,6 @@ if(MSVC)
     add_compile_options(/utf-8)
 endif()
 
-# ---- 自动生成内嵌资源 ----
-# dawidgets_resources.{h,cpp} 由 tools/generate_resources.py 从 tools/*.png 生成。
-# 若文件缺失（如 clone 后首次构建），自动调用脚本生成，保证开箱即用。
-set(_DA_RES_H "${CMAKE_CURRENT_SOURCE_DIR}/src/dawidgets_resources.h")
-set(_DA_RES_CPP "${CMAKE_CURRENT_SOURCE_DIR}/src/dawidgets_resources.cpp")
-if(NOT EXISTS "${_DA_RES_H}" OR NOT EXISTS "${_DA_RES_CPP}")
-    find_package(Python3 COMPONENTS Interpreter QUIET)
-    if(Python3_Interpreter_FOUND)
-        message(STATUS "DAWidgets: generating resources via ${Python3_EXECUTABLE}")
-        execute_process(
-            COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_resources.py"
-            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-            RESULT_VARIABLE _gen_res
-        )
-        if(NOT _gen_res EQUAL 0)
-            message(WARNING "DAWidgets: resource generation failed (${_gen_res}); "
-                            "ensure tools/*.png exist and Python3 is available")
-        endif()
-    else()
-        message(WARNING "DAWidgets: dawidgets_resources.* missing and Python3 not found; "
-                        "build will fail. Run: python tools/generate_resources.py")
-    endif()
-endif()
-
 # ---- Qt (Qt5 / Qt6 compatible) ----
 find_package(QT NAMES Qt6 Qt5 COMPONENTS Widgets Svg REQUIRED)
 find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Widgets Svg REQUIRED)
@@ -117,8 +93,6 @@ set(_DAWIDGETS_SOURCES
     src/DAShapeEditPannelWidget.h
     src/DAShapeEditPannelWidget.cpp
     src/DAShapeEditPannelWidget.ui
-    src/dawidgets_resources.h
-    src/dawidgets_resources.cpp
     src/resources/dawidgetsicons.qrc
 )
 
@@ -155,9 +129,6 @@ endif()
 
 # ---- Demo ----
 if(DAWIDGETS_BUILD_DEMO)
-    add_subdirectory(examples/chipsedit_demo)
-    add_subdirectory(examples/selectcombobox_demo)
-    add_subdirectory(examples/collapse_demo)
     add_subdirectory(examples/all_widgets_demo)
 endif()
 

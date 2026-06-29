@@ -62,19 +62,11 @@ Export macros are hand-written in `src/DAWidgetsGlobals.h` (no CMake `GenerateEx
 
 ## Resource System
 
-DAWidgets uses **two** resource mechanisms:
+All graphical assets (SVG icons, arrows, etc.) are managed via Qt RCC:
 
-### PNG Byte Embedding
-
-- Raw PNGs live in the `tools/` directory (e.g. `tools/arrow_down.png`).
-- `tools/generate_resources.py` scans `tools/*.png` and generates `src/dawidgets_resources.{h,cpp}` (byte arrays + a `dawidgets::resources::load(name)` helper).
-- The generated files are listed in `.gitignore` (not committed).
-- CMake automatically runs the script at configure time if the generated files are missing (requires Python3), so a fresh clone builds out of the box.
-
-### Qt RCC (SVG Icons)
-
-- `src/resources/dawidgetsicons.qrc`, prefix `/DAWidgetsIcons`, containing 24 SVG icons.
-- Used by `.ui` widgets (DAAligmentEditWidget, DAFontEditPannelWidget, DAFilePathEditWidget, etc.).
+- `src/resources/dawidgetsicons.qrc`, prefix `/DAWidgetsIcons`, containing SVG icons.
+- Used by `.ui` widgets (DAAligmentEditWidget, DAFontEditPannelWidget, DAFilePathEditWidget, etc.) and `DASelectComboBox` default styling.
+- Static-library consumers must call `Q_INIT_RESOURCE(dawidgetsicons)` in their constructor to ensure the linker keeps the resources.
 
 ## Running Tests
 
