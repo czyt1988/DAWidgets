@@ -1,7 +1,6 @@
 #ifndef DARECENTFILESMANAGER_H
 #define DARECENTFILESMANAGER_H
 #include "DAWidgetsGlobals.h"
-#include "DAWIDGETS_EXPORT.h"
 #include <QObject>
 #include <QStringList>
 class QActionGroup;

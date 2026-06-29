@@ -1,7 +1,6 @@
 #ifndef DAPENSTYLECOMBOBOX_H
 #define DAPENSTYLECOMBOBOX_H
 #include "DAWidgetsGlobals.h"
-#include "DAWIDGETS_EXPORT.h"
 #include <QComboBox>
 #include <QAbstractItemDelegate>
 #define DAPENSTYLECOMBOBOX_USE_DELEGATE 0

@@ -4,7 +4,6 @@
 #include <QComboBox>
 #include <QStringList>
 #include "DAWidgetsGlobals.h"
-#include "DAWIDGETS_EXPORT.h"
 
 class QListWidget;
 class QListWidgetItem;

@@ -3,7 +3,6 @@
 
 #include <QFrame>
 #include "DAWidgetsGlobals.h"
-#include "DAWIDGETS_EXPORT.h"
 
 class QLabel;
 class QToolButton;

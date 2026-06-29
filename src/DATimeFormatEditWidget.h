@@ -1,7 +1,6 @@
 #ifndef DATIMEFORMATEDITWIDGET_H
 #define DATIMEFORMATEDITWIDGET_H
 #include "DAWidgetsGlobals.h"
-#include "DAWIDGETS_EXPORT.h"
 #include <QWidget>
 #include <QDateTime>
 class QComboBox;

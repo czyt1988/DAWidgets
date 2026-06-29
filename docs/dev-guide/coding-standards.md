@@ -199,6 +199,31 @@ void setSeparators(const QString& separators);
 !!! info "设计理念"
     枚举带来编译期类型安全，用户无需翻文档就知道支持哪些取值。字符串 API 保留给运行时配置场景。
 
+## 文件编码与编辑工具
+
+!!! danger "禁止用 PowerShell 读写源码文件"
+    所有源文件（`.h` / `.cpp` / `.md`）均为 **UTF-8** 编码，且包含中文注释。
+
+    **禁止**使用以下方式修改文件：
+
+    - PowerShell `Set-Content` / `Get-Content` / `Out-File`（默认使用系统 ANSI 代码页 GBK，会静默破坏 UTF-8 中文）
+    - `sed` / `awk`（同上，编码不可控）
+    - `echo > file` / `cat <<EOF`（同上）
+
+    **正确做法：**
+
+    - 使用 `edit` / `write_file` 工具编辑文件（保持原编码）
+    - 如需批量处理，编写 Python 脚本并显式指定 `encoding='utf-8'`
+
+    ```python
+    # ✅ 正确：Python 脚本批量处理
+    import pathlib
+    for f in pathlib.Path('src').glob('*.h'):
+        text = f.read_text(encoding='utf-8')
+        text = text.replace('old', 'new')
+        f.write_text(text, encoding='utf-8')
+    ```
+
 ## 相关文档
 
 - [注释规范](comment-standards.md)

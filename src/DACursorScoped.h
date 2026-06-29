@@ -2,7 +2,6 @@
 #define DACURSORSCOPED_H
 #include <QCursor>
 #include "DAWidgetsGlobals.h"
-#include "DAWIDGETS_EXPORT.h"
 namespace DA
 {
 /**

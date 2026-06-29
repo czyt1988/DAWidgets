@@ -6,7 +6,6 @@
 #include <QSet>
 #include <QStringList>
 #include "DAWidgetsGlobals.h"
-#include "DAWIDGETS_EXPORT.h"
 
 class QLineEdit;
 class QKeyEvent;

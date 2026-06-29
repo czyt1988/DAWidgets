@@ -1,7 +1,6 @@
 #ifndef DABRUSHSTYLECOMBOBOX_H
 #define DABRUSHSTYLECOMBOBOX_H
 #include "DAWidgetsGlobals.h"
-#include "DAWIDGETS_EXPORT.h"
 #include <QComboBox>
 #include <QAbstractItemDelegate>
 #include <QBrush>

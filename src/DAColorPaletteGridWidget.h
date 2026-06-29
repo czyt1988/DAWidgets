@@ -5,7 +5,6 @@
 #include <QList>
 #include <QColor>
 #include "DAWidgetsGlobals.h"
-#include "DAWIDGETS_EXPORT.h"
 
 namespace DA
 {

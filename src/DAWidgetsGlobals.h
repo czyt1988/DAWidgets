@@ -1,19 +1,33 @@
 #ifndef DAWIDGETSGLOBALS_H
 #define DAWIDGETSGLOBALS_H
-
-//
-// 本头文件提供 DAWidgets 库的 PIMPL 宏套件。
-//
-// 维护契约:
-//   此处的宏定义必须与 data-workbench 项目的 src/DAGlobals.h 中对应宏
-//   逐字一致。两侧均以 #ifndef 守卫,任一翻译单元先 include 谁都安全
-//   (first-include-wins)。不可独立修改本文件中的宏定义——若需变更,
-//   需同步更新 data-workbench 的 DAGlobals.h。
-//   这样 DAWidgets 既能独立构建,又能作为 submodule 被 data-workbench
-//   引入而不产生宏重定义冲突。
-//
-
 #include <memory>
+
+// ---- 符号导出/导入宏 ----
+// 不依赖 CMake GenerateExportHeader,手动实现,便于 qmake 等其他构建系统集成。
+//
+// 三种场景:
+//   1. 静态构建 (DA_BUILT_AS_STATIC): 导出宏为空
+//   2. 共享构建-编译库 (DAWIDGETS_EXPORTS): 符号导出
+//   3. 共享构建-使用者侧: 符号导入
+#if defined(DA_BUILT_AS_STATIC)
+#define DAWIDGETS_EXPORT
+#elif defined(DAWIDGETS_EXPORTS)
+#if defined(_MSC_VER)
+#define DAWIDGETS_EXPORT __declspec(dllexport)
+#elif defined(__GNUC__) || defined(__clang__)
+#define DAWIDGETS_EXPORT __attribute__((visibility("default")))
+#else
+#define DAWIDGETS_EXPORT
+#endif
+#else
+#if defined(_MSC_VER)
+#define DAWIDGETS_EXPORT __declspec(dllimport)
+#elif defined(__GNUC__) || defined(__clang__)
+#define DAWIDGETS_EXPORT
+#else
+#define DAWIDGETS_EXPORT
+#endif
+#endif
 
 /**
  * @def DA_DECLARE_PRIVATE
@@ -76,7 +90,7 @@
  * 配套DA_DECLARE_PRIVATE使用
  */
 #ifndef DA_DECLARE_PUBLIC
-#define DA_DECLARE_PUBLIC(classname)                                                                                    \
+#define DA_DECLARE_PUBLIC(classname)                                                                                   \
     friend class classname;                                                                                            \
     classname* q_ptr { nullptr };                                                                                      \
     inline classname* q_func()                                                                                         \

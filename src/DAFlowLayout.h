@@ -6,7 +6,6 @@
 #include <QRect>
 #include <QStyle>
 #include "DAWidgetsGlobals.h"
-#include "DAWIDGETS_EXPORT.h"
 
 class QWidget;
 

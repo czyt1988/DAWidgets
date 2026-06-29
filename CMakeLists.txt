@@ -136,7 +136,6 @@ add_library(DA::DAWidgets ALIAS DAWidgets)
 target_include_directories(DAWidgets
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
         $<INSTALL_INTERFACE:include>
 )
 
@@ -152,20 +151,12 @@ else()
     target_compile_definitions(DAWidgets PRIVATE QT_DISABLE_DEPRECATED_BEFORE=0x050F00)
 endif()
 
-# Export macro header (DAWIDGETS_EXPORT.h) generated into build dir
-include(GenerateExportHeader)
-generate_export_header(DAWidgets
-    BASE_NAME DAWidgets
-    EXPORT_MACRO_NAME DAWIDGETS_EXPORT
-    EXPORT_FILE_NAME ${CMAKE_CURRENT_BINARY_DIR}/DAWIDGETS_EXPORT.h
-    STATIC_DEFINE DA_BUILT_AS_STATIC
-)
-
 # ---- Demo ----
 if(DAWIDGETS_BUILD_DEMO)
     add_subdirectory(examples/chipsedit_demo)
     add_subdirectory(examples/selectcombobox_demo)
     add_subdirectory(examples/collapse_demo)
+    add_subdirectory(examples/all_widgets_demo)
 endif()
 
 # ---- Tests ----

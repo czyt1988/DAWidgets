@@ -5,7 +5,6 @@
 #include <QColor>
 #include <QList>
 #include "DAWidgetsGlobals.h"
-#include "DAWIDGETS_EXPORT.h"
 
 class QLabel;
 class QWidgetAction;

@@ -5,7 +5,6 @@
 #include <QBrush>
 #include <QPen>
 #include "DAWidgetsGlobals.h"
-#include "DAWIDGETS_EXPORT.h"
 
 namespace DA
 {

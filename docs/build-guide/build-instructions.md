@@ -50,12 +50,12 @@ cmake -S . -B build -DCMAKE_PREFIX_PATH="C:/Qt/6.7.3/msvc2019_64" -DDAWIDGETS_BU
 
 ## 静态/动态库导出宏
 
-`DAWIDGETS_EXPORT.h` 由 CMake 的 `GenerateExportHeader` 生成到构建目录。`DA_BUILT_AS_STATIC` 宏控制展开：
+导出宏手写在 `src/DAWidgetsGlobals.h` 中（不依赖 CMake `GenerateExportHeader`，便于 qmake 等其他构建系统集成）。`DA_BUILT_AS_STATIC` 宏控制展开：
 
 | 构建模式 | 宏定义 | `DAWIDGETS_EXPORT` 展开 |
 |---------|--------|------------------------|
 | 静态库 | `DA_BUILT_AS_STATIC` 被 `PUBLIC` 定义 | 空（无导出） |
-| 动态库 | `DAWIDGETS_EXPORTS` 被 `PRIVATE` 定义（CMake 自动） | `dllexport`（编译时）/ `dllimport`（消费时） |
+| 动态库 | `DAWIDGETS_EXPORTS` 被 `PRIVATE` 定义 | `dllexport`（编译时）/ `dllimport`（消费时） |
 
 !!! danger "注意"
     不要定义 `DA_BUILT_AS_STATIC=0`（值 "0" 仍算作已定义，会静默破坏导出）。

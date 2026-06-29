@@ -1,7 +1,6 @@
 #ifndef DAPENEDITWIDGET_H
 #define DAPENEDITWIDGET_H
 #include "DAWidgetsGlobals.h"
-#include "DAWIDGETS_EXPORT.h"
 #include <QWidget>
 #include <QPen>
 

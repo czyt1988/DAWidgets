@@ -6,7 +6,6 @@
 #include <QGradient>
 #include <QPixmap>
 #include "DAWidgetsGlobals.h"
-#include "DAWIDGETS_EXPORT.h"
 
 namespace DA
 {

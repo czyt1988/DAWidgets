@@ -5,7 +5,6 @@
 #include <QColor>
 #include <QMargins>
 #include "DAWidgetsGlobals.h"
-#include "DAWIDGETS_EXPORT.h"
 
 class QStylePainter;
 class QStyleOptionToolButton;

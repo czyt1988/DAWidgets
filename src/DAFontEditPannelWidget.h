@@ -5,7 +5,6 @@
 #include <QColor>
 #include <QFont>
 #include "DAWidgetsGlobals.h"
-#include "DAWIDGETS_EXPORT.h"
 
 namespace DA
 {

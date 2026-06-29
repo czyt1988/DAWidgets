@@ -3,7 +3,6 @@
 
 #include <QWidget>
 #include "DAWidgetsGlobals.h"
-#include "DAWIDGETS_EXPORT.h"
 class QAbstractButton;
 namespace Ui
 {

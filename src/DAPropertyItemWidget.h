@@ -2,7 +2,6 @@
 #define DAPROPERTYITEMWIDGET_H
 
 #include "DAWidgetsGlobals.h"
-#include "DAWIDGETS_EXPORT.h"
 #include <QFrame>
 #include <QString>
 
