@@ -5,7 +5,7 @@
 #include <QResizeEvent>
 #include <QSignalSpy>
 
-#include "DACollapse.h"
+#include "DACollapseWidget.h"
 #include "DACollapseItem.h"
 
 using namespace DA;
@@ -29,7 +29,6 @@ private Q_SLOTS:
     void testCollapseAnimationResetsMaxHeight();
     void testContentNaturalHeightForWordWrap();
     void testExpandDoesNotFlickerSibling();
-    void testDebugLoggingOnExpand();
 };
 
 void DACollapseTest::testBasicExpand()
@@ -54,11 +53,11 @@ void DACollapseTest::testBasicExpand()
 
 void DACollapseTest::testActiveNames()
 {
-    DACollapse c;
+    DACollapseWidget c;
     c.addItem(QStringLiteral("a"), QStringLiteral("1"))->setAnimationEnabled(false);
     c.addItem(QStringLiteral("b"), QStringLiteral("2"))->setAnimationEnabled(false);
     c.addItem(QStringLiteral("c"), QStringLiteral("3"))->setAnimationEnabled(false);
-    QSignalSpy spy(&c, &DACollapse::activeNamesChanged);
+    QSignalSpy spy(&c, &DACollapseWidget::activeNamesChanged);
 
     c.setActiveNames({ QStringLiteral("2"), QStringLiteral("3") });
     QCOMPARE(c.activeNames(), QStringList({ QStringLiteral("2"), QStringLiteral("3") }));
@@ -70,7 +69,7 @@ void DACollapseTest::testActiveNames()
 
 void DACollapseTest::testAccordionMutualExclusion()
 {
-    DACollapse c;
+    DACollapseWidget c;
     c.setAccordion(true);
     auto* i1 = c.addItem(QStringLiteral("a"), QStringLiteral("1"));
     auto* i2 = c.addItem(QStringLiteral("b"), QStringLiteral("2"));
@@ -89,7 +88,7 @@ void DACollapseTest::testAccordionMutualExclusion()
 
 void DACollapseTest::testAccordionSetActiveNamesTakesFirst()
 {
-    DACollapse c;
+    DACollapseWidget c;
     c.setAccordion(true);
     c.addItem(QStringLiteral("a"), QStringLiteral("1"))->setAnimationEnabled(false);
     c.addItem(QStringLiteral("b"), QStringLiteral("2"))->setAnimationEnabled(false);
@@ -116,7 +115,7 @@ void DACollapseTest::testDisabledProperty()
 
 void DACollapseTest::testDisabledNotActivatable()
 {
-    DACollapse c;
+    DACollapseWidget c;
     c.addItem(QStringLiteral("a"), QStringLiteral("1"))->setAnimationEnabled(false);
     auto* i2 = c.addItem(QStringLiteral("b"), QStringLiteral("2"));
     i2->setAnimationEnabled(false);
@@ -179,7 +178,7 @@ void DACollapseTest::testDisabledVisualState()
 
 void DACollapseTest::testRemoveAndClear()
 {
-    DACollapse c;
+    DACollapseWidget c;
     auto* i1 = c.addItem(QStringLiteral("a"), QStringLiteral("1"));
     c.addItem(QStringLiteral("b"), QStringLiteral("2"));
     QCOMPARE(c.items().size(), 2);
@@ -332,7 +331,7 @@ void DACollapseTest::testExpandDoesNotFlickerSibling()
     rootLay->setContentsMargins(0, 0, 0, 0);
     rootLay->addWidget(new QLabel(QStringLiteral("基础用法")));
 
-    auto* c = new DA::DACollapse(&root);
+    auto* c = new DA::DACollapseWidget(&root);
     auto* i1 = c->addItem(QStringLiteral("一致性"), QStringLiteral("1"));
     auto* lbl1 = new QLabel;
     lbl1->setWordWrap(true);
@@ -384,22 +383,6 @@ void DACollapseTest::testExpandDoesNotFlickerSibling()
                                 .arg(h).arg(stableH)
                                 .arg(QVariant::fromValue(probe.heights).toString())));
     }
-}
-
-void DACollapseTest::testDebugLoggingOnExpand()
-{
-    qputenv("DAWIDGETS_COLLAPSE_DEBUG", "1");
-
-    DACollapseItem item(QStringLiteral("debug-item"));
-    item.setAnimationEnabled(false);
-    item.resize(240, 160);
-    item.setContentWidget(new QLabel(QStringLiteral("debug content")));
-
-    QTest::ignoreMessage(QtDebugMsg,
-                         "[DEBUG-DACollapse] setExpanded title=\"debug-item\" name=\"\" from=false to=true");
-    item.setExpanded(true);
-
-    qunsetenv("DAWIDGETS_COLLAPSE_DEBUG");
 }
 
 QTEST_MAIN(DACollapseTest)

@@ -5,11 +5,10 @@
 #include <QWidget>
 #include "DAWidgetsGlobals.h"
 
-class QVBoxLayout;
-
 namespace DA
 {
 class DACollapseItem;
+class DACollapseLayout;
 
 /**
  * @brief 折叠面板容器,对标 Element UI el-collapse。

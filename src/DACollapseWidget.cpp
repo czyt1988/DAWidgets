@@ -1,5 +1,6 @@
 ﻿#include "DACollapseWidget.h"
 #include "DACollapseItem.h"
+#include "DACollapseLayout.h"
 #include <QSet>
 #include <QVBoxLayout>
 
@@ -11,7 +12,7 @@ public:
     PrivateData(DACollapseWidget*)
     {
     }
-    QVBoxLayout* layout { nullptr };
+    DACollapseLayout* layout { nullptr };
     QList< DACollapseItem* > items;
     bool accordion { false };
 };
@@ -34,7 +35,7 @@ void DACollapseWidget::init()
 {
     DA_D(d);
     setObjectName(QStringLiteral("DACollapse"));
-    d->layout = new QVBoxLayout(this);
+    d->layout = new DACollapseLayout(this);
     d->layout->setContentsMargins(0, 0, 0, 0);
     d->layout->setSpacing(0);
     // 末尾弹簧,使条目顶部对齐
