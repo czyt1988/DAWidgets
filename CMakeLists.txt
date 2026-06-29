@@ -72,6 +72,8 @@ set(_DAWIDGETS_SOURCES
     src/DACollapseWidget.cpp
     src/DACollapseItem.h
     src/DACollapseItem.cpp
+    src/DACollapseLayout.h
+    src/DACollapseLayout.cpp
     src/DACursorScoped.h
     src/DACursorScoped.cpp
     src/DAWaitCursorScoped.h
