@@ -261,4 +261,77 @@ QSize DACollapseWidget::sizeHint() const
 {
     return QWidget::sizeHint();
 }
+
+/**
+ * @brief 在指定索引处插入普通控件
+ * @param index 插入位置(相对于布局中所有项,含 DACollapseItem 与弹簧)
+ * @param widget 待插入控件,可为任意 QWidget(非 DACollapseItem)
+ * @details 直接委托给内部 DACollapseLayout::insertWidget,
+ *          控件不进入 items 列表,不参与 activeNames/accordion 协调。
+ *          负索引或超出范围时钳制到 [0, count]。
+ */
+void DACollapseWidget::insertWidget(int index, QWidget* widget)
+{
+    DA_D(d);
+    if (!widget)
+        return;
+    // 插入到弹簧之前:布局末尾是 stretch,新控件应位于其前
+    const int stretchIdx = d->layout->count() - 1;
+    const int clamped    = qBound(0, index, stretchIdx);
+    d->layout->insertWidget(clamped, widget);
+}
+
+/**
+ * @brief 末尾(弹簧前)添加普通控件
+ * @param widget 待添加控件
+ * @details 等价于 insertWidget(count-1, widget),确保控件在末尾弹簧之前。
+ */
+void DACollapseWidget::addWidget(QWidget* widget)
+{
+    DA_D(d);
+    insertWidget(d->layout->count() - 1, widget);
+}
+
+/**
+ * @brief 移除普通控件(不销毁)
+ * @param widget 待移除控件
+ * @details 遍历布局查找匹配的 QWidgetItem 并 takeAt,调用方负责后续所有权。
+ *          若 widget 同时是 DACollapseItem,应用 removeItem 以同步 items 列表。
+ */
+void DACollapseWidget::removeWidget(QWidget* widget)
+{
+    DA_D(d);
+    if (!widget)
+        return;
+    const int n = d->layout->count();
+    for (int i = 0; i < n; ++i) {
+        if (QLayoutItem* it = d->layout->itemAt(i)) {
+            if (it->widget() == widget) {
+                d->layout->takeAt(i);
+                return;
+            }
+        }
+    }
+}
+
+/**
+ * @brief 返回普通控件的索引
+ * @param widget 目标控件
+ * @return 布局中的索引,不存在返回 -1
+ * @details 索引相对于布局中所有项(含 DACollapseItem 与弹簧)。
+ */
+int DACollapseWidget::indexOf(QWidget* widget) const
+{
+    DA_DC(d);
+    if (!widget)
+        return -1;
+    const int n = d->layout->count();
+    for (int i = 0; i < n; ++i) {
+        if (QLayoutItem* it = d->layout->itemAt(i)) {
+            if (it->widget() == widget)
+                return i;
+        }
+    }
+    return -1;
+}
 }  // namespace DA

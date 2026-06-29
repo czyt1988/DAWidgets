@@ -67,6 +67,15 @@ public:
     // 清空并销毁所有条目
     void clear();
 
+    // 在指定索引处插入普通控件(非 DACollapseItem,不参与 activeNames/accordion 协调)
+    void insertWidget(int index, QWidget* widget);
+    // 末尾(弹簧前)添加普通控件
+    void addWidget(QWidget* widget);
+    // 移除普通控件(不销毁,调用方负责所有权)
+    void removeWidget(QWidget* widget);
+    // 返回普通控件的索引,不存在返回 -1
+    int indexOf(QWidget* widget) const;
+
     // 推荐尺寸
     QSize sizeHint() const override;
 

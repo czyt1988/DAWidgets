@@ -29,6 +29,7 @@ private Q_SLOTS:
     void testCollapseAnimationResetsMaxHeight();
     void testContentNaturalHeightForWordWrap();
     void testExpandDoesNotFlickerSibling();
+    void testMixedWidgets();
 };
 
 void DACollapseTest::testBasicExpand()
@@ -385,8 +386,65 @@ void DACollapseTest::testExpandDoesNotFlickerSibling()
     }
 }
 
+/**
+ * @brief 验证 DACollapseWidget 与普通 QWidget 混排
+ * @details insertWidget/addWidget/removeWidget/indexOf 应正确管理普通控件,
+ *          且普通控件不进入 items 列表,不参与 activeNames/accordion 协调。
+ *          混排顺序应保持:widget1, item1, widget2, item2, widget3(弹簧在末尾)。
+ */
+void DACollapseTest::testMixedWidgets()
+{
+    DACollapseWidget c;
+    c.addItem(QStringLiteral("g1"), QStringLiteral("1"))->setAnimationEnabled(false);
+    c.addItem(QStringLiteral("g2"), QStringLiteral("2"))->setAnimationEnabled(false);
+
+    auto* w1 = new QLabel(QStringLiteral("w1"));
+    auto* w2 = new QLabel(QStringLiteral("w2"));
+    auto* w3 = new QLabel(QStringLiteral("w3"));
+
+    // 在头部插入 w1
+    c.insertWidget(0, w1);
+    // 在末尾(弹簧前)追加 w3
+    c.addWidget(w3);
+    // 在 item1 之后插入 w2:item1 位于索引 1(w1=0, item1=1),w2 应插入到索引 2
+    c.insertWidget(2, w2);
+
+    // 布局顺序: w1(0), item1(1), w2(2), item2(3), w3(4), stretch(5)
+    QCOMPARE(c.indexOf(w1), 0);
+    QCOMPARE(c.indexOf(w2), 2);
+    QCOMPARE(c.indexOf(w3), 4);
+    // 末尾弹簧不计入 items
+    QCOMPARE(c.items().size(), 2);
+
+    // 普通控件不参与 activeNames
+    c.setActiveNames({ QStringLiteral("1") });
+    QVERIFY(c.item(QStringLiteral("1"))->expanded());
+    QVERIFY(!c.item(QStringLiteral("2"))->expanded());
+    QCOMPARE(c.activeNames(), QStringList{ QStringLiteral("1") });
+
+    // removeWidget 不销毁控件,且不影响 items
+    c.removeWidget(w2);
+    QCOMPARE(c.indexOf(w2), -1);
+    QCOMPARE(c.items().size(), 2);
+    QCOMPARE(c.indexOf(w1), 0);
+    QCOMPARE(c.indexOf(w3), 3);  // w2 移除后 w3 索引前移
+
+    // removeWidget 不接管所有权,手动删除避免泄漏
+    delete w2;
+
+    // clear 只清 DACollapseItem,普通控件需调用方自行管理
+    auto* w1Parent = w1->parentWidget();
+    c.clear();
+    QCOMPARE(c.items().size(), 0);
+    // w1/w3 仍存在(作为 DACollapseWidget 的子控件,parent 未变)
+    QCOMPARE(w1->parentWidget(), w1Parent);
+    QCOMPARE(w3->parentWidget(), w1Parent);
+
+    delete w1;
+    delete w3;
+}
+
 QTEST_MAIN(DACollapseTest)
 #include "tst_dacollapse.moc"
-
 
 
