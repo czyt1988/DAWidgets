@@ -13,7 +13,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 # ---- Options ----
-option(DAWIDGETS_BUILD_SHARED "Build DAWidgets as a shared library (DLL/dylib/so); OFF=static" OFF)
+option(DAWIDGETS_BUILD_SHARED "Build DAWidgets as a shared library (DLL/dylib/so); OFF=static" ON)
 option(DAWIDGETS_BUILD_DEMO   "Build DAWidgets demo applications" ON)
 option(DAWIDGETS_BUILD_TESTS  "Build DAWidgets tests" OFF)
 
