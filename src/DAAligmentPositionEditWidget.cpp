@@ -21,7 +21,7 @@ DAAligmentPositionEditWidget::DAAligmentPositionEditWidget(QWidget* parent)
 	ui->buttonGroup->setId(ui->toolButtonBottomLeft, static_cast< int >(Qt::AlignLeft | Qt::AlignBottom));
 	ui->buttonGroup->setId(ui->toolButtonBottom, static_cast< int >(Qt::AlignBottom | Qt::AlignHCenter));
 	ui->buttonGroup->setId(ui->toolButtonBottomRight, static_cast< int >(Qt::AlignBottom | Qt::AlignRight));
-#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+#if QT_VERSION < QT_VERSION_CHECK(5, 15, 0)
 	connect(ui->buttonGroup,
 			QOverload< int >::of(&QButtonGroup::buttonClicked),
 			this,

@@ -4,6 +4,7 @@ build_qt5/
 build_shared/
 .qtcreator/
 build_*/
+build-*/
 test_*.txt
 
 # mkdocs 构建产物

@@ -365,11 +365,7 @@ QSize DASelectComboBox::sizeHint() const
 #endif
     }
     w += fw * 2 + arrow.width();
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     return QSize(w, h);
-#else
-    return QSize(w, h).expandedTo(QApplication::globalStrut());
-#endif
 }
 
 /**
@@ -389,11 +385,7 @@ QSize DASelectComboBox::minimumSizeHint() const
         h *= qMax(1, d->fixedRowCount);
     h += fw * 2;
     const QRect arrow = style()->subControlRect(QStyle::CC_ComboBox, &opt, QStyle::SC_ComboBoxArrow, this);
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     return QSize(arrow.width() + 40, h);
-#else
-    return QSize(arrow.width() + 40, h).expandedTo(QApplication::globalStrut());
-#endif
 }
 
 /**

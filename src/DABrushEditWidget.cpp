@@ -286,7 +286,7 @@ void DABrushEditWidget::editGradient(Qt::BrushStyle style)
         previewLabel->setPixmap(pm);
     };
 
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
     connect(typeGroup, &QButtonGroup::idClicked, [&](int) { updatePreview(); });
 #else
     connect(typeGroup, QOverload<int>::of(&QButtonGroup::buttonClicked), [&](int) { updatePreview(); });
