@@ -20,7 +20,6 @@
 #include <DACollapseWidget.h>
 #include <DAFilePathEditWidget.h>
 #include <DAPropertyItemWidget.h>
-#include <DARecentFilesManager.h>
 #include <DATimeFormatEditWidget.h>
 #include <DAWaitCursorScoped.h>
 
@@ -158,43 +157,6 @@ static QWidget *createPropertyItemContent(QWidget *parent)
 }
 
 // ============================================================
-// DARecentFilesManager —— 最近文件管理器
-// ============================================================
-static QWidget *createRecentFilesContent(QWidget *parent)
-{
-    auto *w = new QWidget(parent);
-    auto *v = new QVBoxLayout(w);
-    v->setContentsMargins(8, 4, 8, 4);
-
-    auto *desc = new QLabel(
-        QStringLiteral("管理「最近打开的文件」列表，持久化到 QSettings，自动过滤不存在的路径。\n"
-                       "点击下方菜单栏体验。"), w);
-    desc->setWordWrap(true);
-    v->addWidget(desc);
-
-    auto *menuBar = new QMenuBar(w);
-    auto *fileMenu = menuBar->addMenu(QStringLiteral("文件(&F)"));
-
-    auto *mgr = new DA::DARecentFilesManager(w, 8, QStringLiteral("DAWidgets"), QStringLiteral("AllWidgetsDemo"));
-    mgr->attachToMenu(fileMenu);
-
-    // 添加可执行文件自身路径用于演示（保证文件存在）
-    mgr->addFile(QCoreApplication::applicationFilePath());
-
-    auto *log = new QLabel(w);
-    log->setStyleSheet(QStringLiteral("color:#909399;"));
-    v->addWidget(menuBar);
-    v->addWidget(log);
-
-    QObject::connect(mgr, &DA::DARecentFilesManager::fileSelected,
-        [log](const QString &path) {
-            log->setText(QStringLiteral("已选择文件: ") + path);
-        });
-
-    return w;
-}
-
-// ============================================================
 // DAWaitCursorScoped —— RAII 等待光标守卫
 // ============================================================
 static QWidget *createWaitCursorContent(QWidget *parent)
@@ -247,8 +209,6 @@ QWidget *createUtilityTab(QWidget *parent)
         ->setContentWidget(createTimeFormatContent(collapse));
     collapse->addItem(QStringLiteral("DAPropertyItemWidget — 属性项组件"), QStringLiteral("3"))
         ->setContentWidget(createPropertyItemContent(collapse));
-    collapse->addItem(QStringLiteral("DARecentFilesManager — 最近文件管理器"), QStringLiteral("4"))
-        ->setContentWidget(createRecentFilesContent(collapse));
     collapse->addItem(QStringLiteral("DAWaitCursorScoped — RAII 等待光标守卫"), QStringLiteral("5"))
         ->setContentWidget(createWaitCursorContent(collapse));
     collapse->setActiveNames({ QStringLiteral("1") });

@@ -72,8 +72,6 @@ set(_DAWIDGETS_SOURCES
     src/DAFilePathEditWidget.h
     src/DAFilePathEditWidget.cpp
     src/DAFilePathEditWidget.ui
-    src/DARecentFilesManager.h
-    src/DARecentFilesManager.cpp
     src/DABrushStyleComboBox.h
     src/DABrushStyleComboBox.cpp
     src/DAPenStyleComboBox.h
