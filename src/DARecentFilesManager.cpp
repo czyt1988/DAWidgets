@@ -146,6 +146,10 @@ void DARecentFilesManager::rebuildMenu()
  */
 void DARecentFilesManager::readAndCleanSettings()
 {
+    // NOTE: 3rdparty DAWidgets 不能依赖 DAUtils(DADir.h),因此这里保留两参数构造。
+    // 主程序 main.cpp 中 QSettings::setDefaultFormat(IniFormat) + setPath 全局重定向
+    // 已将两参数构造从注册表(NativeFormat)改为 INI 文件,写入选定的 AppData/config 目录。
+    // 主程序实际使用的 DAGui 副本用显式路径 recent-files.ini,此副本作为 3rdparty 独立构建的兜底。
     QSettings s(m_org, m_app);
     m_files = s.value("RecentFiles").toStringList();
 
@@ -168,6 +172,7 @@ void DARecentFilesManager::readAndCleanSettings()
  */
 void DARecentFilesManager::writeSettings()
 {
+    // NOTE: 同 readAndCleanSettings,全局 setDefaultFormat 已覆盖此两参数构造
     QSettings s(m_org, m_app);
     s.setValue("RecentFiles", m_files);
 }
