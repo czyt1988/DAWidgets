@@ -48,7 +48,7 @@ Source files live directly under `src/` (flat, no subdirectory). SVG icons live 
 | `DAPenStyleComboBox` | `Qt::PenStyle` selector as a `QComboBox` with auto-generated icons. |
 | `DABrushEditWidget` | Brush editor: color + style. Supports solid/pattern/gradient (Linear/Radial/Conical)/texture. |
 | `DABrushStyleComboBox` | `Qt::BrushStyle` selector as a `QComboBox` with auto-generated icons. |
-| `DAFontEditPannelWidget` | Font editing panel: family + size + bold/italic/underline + color. |
+| `DAFontEditPannelWidget` | Font editing panel: family + size + bold/italic/underline + color. Two layout modes: `TwoRowsLayout` (default) / `SingleRowLayout` (all controls in one row, for toolbar embedding). |
 | `DAShapeEditPannelWidget` | Shape editor: composes `DABrushEditWidget` + `DAPenEditWidget`. |
 | `DAAligmentEditWidget` | Alignment editor (horizontal/vertical). |
 | `DAAligmentPositionEditWidget` | 9-grid alignment position editor. |

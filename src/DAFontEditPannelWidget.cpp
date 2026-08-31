@@ -7,15 +7,75 @@
 #include <QToolButton>
 #include <QFontComboBox>
 #include <QComboBox>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
 
 namespace DA
 {
 class DAFontEditPannelWidget::PrivateData
 {
+    DA_DECLARE_PUBLIC(DAFontEditPannelWidget)
+public:
+    PrivateData(DAFontEditPannelWidget* p);
+    void rebuildLayout();
+
 public:
     Ui::DAFontEditPannelWidget ui;
+    DAFontEditPannelWidget::LayoutMode mLayoutMode { DAFontEditPannelWidget::TwoRowsLayout };
     int mFontPointSize { 10 };
 };
+
+DAFontEditPannelWidget::PrivateData::PrivateData(DAFontEditPannelWidget* p) : q_ptr(p)
+{
+}
+
+/**
+ * @brief 根据当前布局模式重建布局
+ * @details 控件由父widget持有，删除布局不会删除控件，仅重新排列
+ */
+void DAFontEditPannelWidget::PrivateData::rebuildLayout()
+{
+    // 移除旧布局的所有子项后删除（QLayoutItem析构不删除widget，仅解除布局管理）
+    if (QLayout* oldLay = q_ptr->layout()) {
+        while (oldLay->count() > 0) {
+            QLayoutItem* item = oldLay->takeAt(0);
+            delete item;
+        }
+        delete oldLay;
+    }
+    if (mLayoutMode == DAFontEditPannelWidget::SingleRowLayout) {
+        // 单排：字体族(拉伸) + 样式按钮 + 颜色 + 字号 + 增减按钮
+        q_ptr->setMinimumSize(0, 0);
+        QHBoxLayout* lay = new QHBoxLayout(q_ptr);
+        lay->setContentsMargins(2, 2, 2, 2);
+        lay->setSpacing(2);
+        lay->addWidget(ui.fontComboBox, 1);
+        lay->addWidget(ui.toolButtonBold);
+        lay->addWidget(ui.toolButtonItalic);
+        lay->addWidget(ui.toolButtonUnderline);
+        lay->addWidget(ui.colorButton);
+        lay->addWidget(ui.comboBoxFontSize);
+        lay->addWidget(ui.toolButtonFontSizeAdd);
+        lay->addWidget(ui.toolButtonFontSizeSub);
+    } else {
+        // 两排：第一排字体族，第二排样式按钮+颜色+字号+增减按钮（与.ui默认一致）
+        q_ptr->setMinimumSize(0, 54);
+        QVBoxLayout* vlay = new QVBoxLayout(q_ptr);
+        vlay->setContentsMargins(2, 2, 2, 2);
+        vlay->setSpacing(5);
+        vlay->addWidget(ui.fontComboBox);
+        QHBoxLayout* hlay = new QHBoxLayout();
+        hlay->setSpacing(0);
+        hlay->addWidget(ui.toolButtonBold);
+        hlay->addWidget(ui.toolButtonItalic);
+        hlay->addWidget(ui.toolButtonUnderline);
+        hlay->addWidget(ui.colorButton);
+        hlay->addWidget(ui.comboBoxFontSize);
+        hlay->addWidget(ui.toolButtonFontSizeAdd);
+        hlay->addWidget(ui.toolButtonFontSizeSub);
+        vlay->addLayout(hlay);
+    }
+}
 
 /**
  * @brief 构造字体编辑面板
@@ -23,9 +83,10 @@ public:
  * @details 初始化字号下拉列表、颜色按钮，连接字体/粗体/斜体/下划线/字号变更信号
  */
 DAFontEditPannelWidget::DAFontEditPannelWidget(QWidget* parent)
-    : QWidget(parent), d(new PrivateData)
+    : QWidget(parent), d(new PrivateData(this))
 {
     d->ui.setupUi(this);
+    d->rebuildLayout();
     d->ui.comboBoxFontSize->addItems(
         { "6", "8", "9", "10", "11", "12", "14", "16", "18", "20", "22", "24", "26", "28", "36", "48", "72" });
     d->ui.comboBoxFontSize->setCurrentText("10");
@@ -47,6 +108,34 @@ DAFontEditPannelWidget::DAFontEditPannelWidget(QWidget* parent)
 DAFontEditPannelWidget::~DAFontEditPannelWidget()
 {
     delete d;
+}
+
+/**
+ * @brief 设置布局模式
+ *
+ * 默认TwoRowsLayout（两排布局）。SingleRowLayout将所有控件排为一行，
+ * 适合嵌入工具栏等高度受限的场景。切换时重建布局，控件与状态保留。
+ * @param m 布局模式
+ * @see layoutMode
+ */
+void DAFontEditPannelWidget::setLayoutMode(LayoutMode m)
+{
+    if (d->mLayoutMode == m) {
+        return;
+    }
+    d->mLayoutMode = m;
+    d->rebuildLayout();
+    updateGeometry();
+}
+
+/**
+ * @brief 获取布局模式
+ * @return 当前布局模式
+ * @see setLayoutMode
+ */
+DAFontEditPannelWidget::LayoutMode DAFontEditPannelWidget::layoutMode() const
+{
+    return d->mLayoutMode;
 }
 
 /**

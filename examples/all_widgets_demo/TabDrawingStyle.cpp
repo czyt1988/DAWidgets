@@ -200,6 +200,14 @@ static QWidget *createFontEditContent(QWidget *parent)
     auto *edit = new DA::DAFontEditPannelWidget(w);
     v->addWidget(edit);
 
+    // 单排布局（SingleRowLayout）：所有控件一行排列，适合工具栏等高度受限场景
+    auto *descSingle = new QLabel(
+        QStringLiteral("单排布局（SingleRowLayout），适合工具栏："), w);
+    v->addWidget(descSingle);
+    auto *editSingle = new DA::DAFontEditPannelWidget(w);
+    editSingle->setLayoutMode(DA::DAFontEditPannelWidget::SingleRowLayout);
+    v->addWidget(editSingle);
+
     // 预览标签
     auto *preview = new QLabel(QStringLiteral("预览：The quick brown fox 简体中文 12345"), w);
     preview->setStyleSheet(QStringLiteral("font-size: 16px; padding: 8px;"));

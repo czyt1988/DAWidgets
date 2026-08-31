@@ -17,12 +17,26 @@ namespace DA
 class DAWIDGETS_EXPORT DAFontEditPannelWidget : public QWidget
 {
     Q_OBJECT
+public:
+    // 布局模式：TwoRowsLayout为默认两排布局，SingleRowLayout为单排布局（适合工具栏）
+    enum LayoutMode
+    {
+        TwoRowsLayout,   ///< 两排布局：第一排字体族，第二排样式按钮+字号（默认）
+        SingleRowLayout  ///< 单排布局：所有控件一行排列，适合工具栏等高度受限场景
+    };
+    Q_ENUM(LayoutMode)
+    Q_PROPERTY(LayoutMode layoutMode READ layoutMode WRITE setLayoutMode)
 
 public:
     // 构造字体编辑面板
     explicit DAFontEditPannelWidget(QWidget* parent = nullptr);
     // 析构函数
     ~DAFontEditPannelWidget();
+
+    // 设置布局模式，默认TwoRowsLayout，切换时重建布局
+    void setLayoutMode(LayoutMode m);
+    // 获取布局模式
+    LayoutMode layoutMode() const;
 
     // 获取当前字体颜色
     QColor getCurrentFontColor() const;
