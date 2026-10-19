@@ -84,6 +84,12 @@ set(_DAWIDGETS_SOURCES
     src/DAColorMenu.cpp
     src/DAColorPickerButton.h
     src/DAColorPickerButton.cpp
+    src/DAItemListEditWidget.h
+    src/DAItemListEditWidget.cpp
+    src/DAItemListPickDialog.h
+    src/DAItemListPickDialog.cpp
+    src/DAColorScalePreviewWidget.h
+    src/DAColorScalePreviewWidget.cpp
     src/DAPenEditWidget.h
     src/DAPenEditWidget.cpp
     src/DABrushEditWidget.h
