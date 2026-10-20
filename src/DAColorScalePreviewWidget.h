@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QColor>
 #include <QList>
+#include <QBrush>
 #include "DAWidgetsGlobals.h"
 
 namespace DA
@@ -39,9 +40,16 @@ Q_SIGNALS:
 
 protected:
     void paintEvent(QPaintEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
 
 private:
-    QList< QColor > mColors;  ///< 渐变色（2/3 个有效色，否则空白态）
+    // 按当前颜色和控件尺寸重建缓存渐变画刷
+    void updateGradientBrush();
+
+private:
+    QList< QColor > mColors;        ///< 渐变色（2/3 个有效色，否则空白态）
+    QBrush mGradientBrush;          ///< 预构建的渐变画刷，绘制时直接使用
+    bool mGradientValid { false };  ///< 缓存画刷是否有效（颜色不合法时为空白态）
 };
 }  // namespace DA
 
