@@ -4,10 +4,11 @@
 
 **DAWidgets** is a Qt **QWidget** UI supplement library, inspired by [Element UI](https://element.eleme.io/). Its goal is to fill gaps in the native Qt Widgets control set by bringing Web-style component interactions to desktop applications. All public classes are prefixed with `DA`.
 
-Currently ships three component families:
+Currently ships four component families:
 - **Selector** — the equivalent of Element UI's `el-select` with `multiple + filterable + allow-create`.
 - **Collapse** — the equivalent of Element UI's `el-collapse` with animated expand/collapse and accordion mode.
 - **Property Editing** — a suite of property-panel editors (color, pen, brush, font, alignment, file path, etc.).
+- **Item Selection** — reusable "pick some entries from a candidate set" widgets (selected-list editor + search/multi-check dialog) plus small preview widgets (e.g. 2/3-color gradient bar).
 
 - **Language:** C++17
 - **Framework:** Qt Widgets + Qt Svg (Qt5 / Qt6 dual-compatible). Qt Svg is required for rendering SVG icons used by the property-editing widgets.
@@ -57,6 +58,15 @@ Source files live directly under `src/` (flat, no subdirectory). SVG icons live 
 | `DAPropertyItemWidget` | Property row wrapper: label + editor in `InlineLayout` or `BelowLayout` mode. |
 | `DARecentFilesManager` | Recent files list manager. Persists to QSettings, auto-filters invalid paths. |
 | `DACursorScoped` / `DAWaitCursorScoped` | RAII cursor guards (exception-safe). |
+
+### Item Selection & Preview Family
+
+| Class | Role |
+|-------|------|
+| `DAItemEntry` | Generic candidate/selected entry: display `text` + identifying `data` (falls back to text equality when `data` is invalid). |
+| `DAItemListEditWidget` | "Selected items" list editor: rows with an inline remove button; a `MenuButtonPopup` add tool button (arrow = candidate dropdown menu, body = pick dialog); remove-all with confirmation. Emits `selectedItemsChanged()` on every mutation. Typical reuse: table column selection. |
+| `DAItemListPickDialog` | Item check dialog: search filter (substring, state preserved across filtering) + checkable list; `checkedEntries()` returns the batch to add. |
+| `DAColorScalePreviewWidget` | 2/3-color horizontal linear gradient preview bar (paints stops at 0 / 0.5 / 1); blank state when colors are invalid. |
 
 ### Infrastructure
 
