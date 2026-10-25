@@ -1,5 +1,6 @@
 #include <QApplication>
 #include <QTabWidget>
+#include <QTimer>
 
 #include "TabPages.h"
 
@@ -63,5 +64,20 @@ int main(int argc, char **argv)
 
     tabs.resize(720, 640);
     tabs.show();
+
+    // 截图模式（用于验收留档/回归对比，不参与正常交互）：
+    //   dawidgets_all_widgets_demo.exe --shot <png> [tabIndex]
+    const QStringList args = app.arguments();
+    const int shotArg       = args.indexOf(QStringLiteral("--shot"));
+    if (shotArg >= 0 && shotArg + 1 < args.size()) {
+        const QString shotPath = args.at(shotArg + 1);
+        const int tabIndex     = (shotArg + 2 < args.size()) ? args.at(shotArg + 2).toInt() : 0;
+        tabs.setCurrentIndex(qBound(0, tabIndex, tabs.count() - 1));
+        QTimer::singleShot(300, &app, [ &tabs, shotPath, &app ]() {
+            tabs.grab().save(shotPath);
+            app.quit();
+        });
+    }
+
     return app.exec();
 }

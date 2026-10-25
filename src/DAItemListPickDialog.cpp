@@ -1,8 +1,7 @@
 #include "DAItemListPickDialog.h"
-#include <QVBoxLayout>
-#include <QLineEdit>
-#include <QListWidget>
+#include "DACheckListWidget.h"
 #include <QDialogButtonBox>
+#include <QVBoxLayout>
 
 namespace DA
 {
@@ -13,11 +12,8 @@ class DAItemListPickDialog::PrivateData
 public:
     PrivateData(DAItemListPickDialog* p);
     void init();
-    // 搜索过滤：隐藏不匹配行（勾选状态保存在列表项上，过滤不丢失）
-    void applyFilter(const QString& key);
 
-    QLineEdit* mSearch { nullptr };
-    QListWidget* mList { nullptr };
+    DACheckListWidget* mCheckList { nullptr };
 };
 
 DAItemListPickDialog::PrivateData::PrivateData(DAItemListPickDialog* p) : q_ptr(p)
@@ -30,83 +26,71 @@ void DAItemListPickDialog::PrivateData::init()
     q->setWindowTitle(q->tr("Select Items"));  // cn:选择条目
     q->resize(320, 420);
     QVBoxLayout* root = new QVBoxLayout(q);
-    mSearch           = new QLineEdit(q);
-    mSearch->setPlaceholderText(q->tr("Search..."));  // cn:搜索...
-    mSearch->setClearButtonEnabled(true);
-    root->addWidget(mSearch);
-    mList = new QListWidget(q);
-    mList->setSelectionMode(QAbstractItemView::NoSelection);  // 勾选即选择，避免选中态干扰
-    root->addWidget(mList, 1);
+    // 勾选/搜索/forced 语义都在 DACheckListWidget 内实现，对话框只是壳
+    mCheckList = new DACheckListWidget(q);
+    mCheckList->setSearchVisible(true);
+    root->addWidget(mCheckList, 1);
     QDialogButtonBox* box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, q);
     QObject::connect(box, &QDialogButtonBox::accepted, q, &QDialog::accept);
     QObject::connect(box, &QDialogButtonBox::rejected, q, &QDialog::reject);
     root->addWidget(box);
-    QObject::connect(mSearch, &QLineEdit::textChanged, q, [ this ](const QString& t) { applyFilter(t); });
 }
 
-void DAItemListPickDialog::PrivateData::applyFilter(const QString& key)
-{
-    const QString k = key.trimmed().toLower();
-    for (int i = 0; i < mList->count(); ++i) {
-        const bool hit = k.isEmpty() || mList->item(i)->text().toLower().contains(k);
-        mList->setRowHidden(i, !hit);
-    }
-}
-
+/**
+ * @brief 构造条目勾选对话框
+ * @param parent 父窗口
+ */
 DAItemListPickDialog::DAItemListPickDialog(QWidget* parent) : QDialog(parent), DA_PIMPL_CONSTRUCT
 {
     DA_D(d);
     d->init();
 }
 
+/**
+ * @brief 析构
+ */
 DAItemListPickDialog::~DAItemListPickDialog()
 {
 }
 
+/**
+ * @brief 设置候选条目（全部未勾选）
+ * @param items 候选条目
+ */
 void DAItemListPickDialog::setItems(const QVector< DAItemEntry >& items)
 {
     DA_D(d);
-    d->mList->clear();
-    for (const DAItemEntry& e : items) {
-        QListWidgetItem* item = new QListWidgetItem(e.text, d->mList);
-        item->setData(Qt::UserRole, e.data);
-        item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
-        item->setCheckState(Qt::Unchecked);
-    }
+    d->mCheckList->setItems(items);
 }
 
+/**
+ * @brief 预勾选若干条目
+ * @param entries 要勾选的条目
+ */
 void DAItemListPickDialog::setCheckedEntries(const QVector< DAItemEntry >& entries)
 {
     DA_D(d);
-    for (int i = 0; i < d->mList->count(); ++i) {
-        QListWidgetItem* item = d->mList->item(i);
-        DAItemEntry cur { item->text(), item->data(Qt::UserRole) };
-        for (const DAItemEntry& e : entries) {
-            if (e == cur) {
-                item->setCheckState(Qt::Checked);
-                break;
-            }
-        }
-    }
+    d->mCheckList->setCheckedEntries(entries);
 }
 
+/**
+ * @brief 取回勾中的条目
+ * @return 勾选条目（列表顺序）
+ */
 QVector< DAItemEntry > DAItemListPickDialog::checkedEntries() const
 {
     DA_DC(d);
-    QVector< DAItemEntry > res;
-    for (int i = 0; i < d->mList->count(); ++i) {
-        const QListWidgetItem* item = d->mList->item(i);
-        if (item->checkState() == Qt::Checked) {
-            res.append(DAItemEntry { item->text(), item->data(Qt::UserRole) });
-        }
-    }
-    return res;
+    return d->mCheckList->checkedEntries();
 }
 
+/**
+ * @brief 覆盖搜索框占位文本
+ * @param t 文本
+ */
 void DAItemListPickDialog::setSearchPlaceholderText(const QString& t)
 {
     DA_D(d);
-    d->mSearch->setPlaceholderText(t);
+    d->mCheckList->setSearchPlaceholderText(t);
 }
 
 }  // namespace DA

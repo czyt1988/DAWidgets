@@ -58,7 +58,7 @@ Matches Element UI's `el-collapse` / `el-collapse-item`.
 | `DATimeFormatEditWidget` | Time format editor |
 | `DAAligmentEditWidget` | Alignment editor (left/right/top/bottom/center) |
 | `DAAligmentPositionEditWidget` | 9-grid alignment position editor |
-| `DAFilePathEditWidget` | File path selector (LineEdit + browse button) |
+| `DAFilePathEditWidget` | File/directory path selector (line edit + browse; open/save/directory modes) |
 
 ### Item Selection & Preview Family
 
@@ -67,6 +67,8 @@ Matches Element UI's `el-collapse` / `el-collapse-item`.
 | `DAItemEntry` | Generic candidate/selected entry: display text + identifying data (falls back to text equality) |
 | `DAItemListEditWidget` | Selected-items list editor: inline remove, candidate-menu/pick-dialog add, remove-all |
 | `DAItemListPickDialog` | Item check dialog: search filter (state preserved) + multi-select list |
+| `DACheckListWidget` | Checkable list with search and optional Select All/Invert (forced entries stay checked; filtering keeps state) |
+| `DAStringListEditWidget` | Plain string-list editor (Inline/External add modes, remove, up/down, max count) |
 | `DAColorScalePreviewWidget` | 2/3-color horizontal linear gradient preview bar |
 
 ### Style Edit Family

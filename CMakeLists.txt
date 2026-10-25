@@ -88,6 +88,10 @@ set(_DAWIDGETS_SOURCES
     src/DAItemListEditWidget.cpp
     src/DAItemListPickDialog.h
     src/DAItemListPickDialog.cpp
+    src/DACheckListWidget.h
+    src/DACheckListWidget.cpp
+    src/DAStringListEditWidget.h
+    src/DAStringListEditWidget.cpp
     src/DAColorScalePreviewWidget.h
     src/DAColorScalePreviewWidget.cpp
     src/DAPenEditWidget.h
@@ -161,6 +165,9 @@ if(DAWIDGETS_BUILD_TESTS)
     add_subdirectory(tests/logic_test)
     add_subdirectory(tests/combobox_test)
     add_subdirectory(tests/collapse_test)
+    add_subdirectory(tests/file_path_edit_test)
+    add_subdirectory(tests/check_list_test)
+    add_subdirectory(tests/string_list_test)
 endif()
 
 # ---- Install ----

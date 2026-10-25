@@ -46,7 +46,7 @@ Qt **QWidget** 界面补充库，灵感来源于 [Element UI](https://element.el
 | `DAAligmentEditWidget` | 对齐方式编辑器（水平 + 垂直） |
 | `DAAligmentPositionEditWidget` | 九宫格位置对齐编辑器 |
 | `DATimeFormatEditWidget` | 时间格式字符串编辑器（含预设格式） |
-| `DAFilePathEditWidget` | 文件路径编辑器：文本框 + 浏览按钮 |
+| `DAFilePathEditWidget` | 文件/目录路径编辑器：文本框 + 浏览按钮，支持打开文件 / 保存文件 / 选择目录三种模式 |
 | `DAPropertyItemWidget` | 属性行控件：标签 + 编辑器的带标签包装器 |
 | `DACursorScoped` / `DAWaitCursorScoped` | RAII 光标守卫，异常安全 |
 
@@ -58,7 +58,9 @@ Qt **QWidget** 界面补充库，灵感来源于 [Element UI](https://element.el
 |----|------|
 | `DAItemEntry` | 通用候选/选中条目：展示文本 `text` + 标识数据 `data`（`data` 无效时按文本判同） |
 | `DAItemListEditWidget` | 已选条目列表编辑器：行内删除按钮 + 带候选菜单/勾选对话框的添加按钮 + 二次确认的移除所有 |
-| `DAItemListPickDialog` | 条目勾选对话框：搜索过滤（过滤不丢勾选状态）+ 多选列表 |
+| `DAItemListPickDialog` | 条目勾选对话框：搜索过滤（过滤不丢勾选状态）+ 多选列表；`DACheckListWidget` 的对话框壳 |
+| `DACheckListWidget` | 带搜索的勾选列表，可选全选/反选；forced 条目永远勾选、全选/反选不动它，过滤只隐藏行不改勾选 |
+| `DAStringListEditWidget` | 纯字符串列表编辑器：Inline 追加可编辑空行 / External 由调用方追加（`addRequested()`），可选删除与上下移动、数量上限、空状态提示 |
 | `DAColorScalePreviewWidget` | 2/3 色横向线性渐变预览条（无效颜色时显示空状态） |
 
 > 后续会持续补充其它 Qt 缺失的界面组件。

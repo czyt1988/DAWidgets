@@ -3,6 +3,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <QEventLoop>
+#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -24,8 +25,38 @@
 #include <DAWaitCursorScoped.h>
 
 // ============================================================
-// DAFilePathEditWidget —— 文件路径编辑器
+// DAFilePathEditWidget —— 文件路径编辑器（三种模式）
 // ============================================================
+static void addFilePathMode(QWidget *parent, QVBoxLayout *v,
+                            const QString &title,
+                            DA::DAFilePathEditWidget::Mode mode,
+                            const QString &suffix,
+                            const QString &filter = QString())
+{
+    auto *box = new QGroupBox(title, parent);
+    auto *lay = new QVBoxLayout(box);
+    lay->setContentsMargins(8, 4, 8, 4);
+    auto *edit = new DA::DAFilePathEditWidget(box);
+    edit->setMode(mode);
+    if (!suffix.isEmpty()) {
+        edit->setDefaultSuffix(suffix);
+    }
+    if (!filter.isEmpty()) {
+        edit->setNameFilter(filter);
+    }
+    lay->addWidget(edit);
+
+    auto *log = new QLabel(box);
+    log->setStyleSheet(QStringLiteral("color:#909399;"));
+    log->setWordWrap(true);
+    lay->addWidget(log);
+    QObject::connect(edit, &DA::DAFilePathEditWidget::selectedPath,
+        [log](const QString &p) {
+            log->setText(QStringLiteral("已选择: ") + p);
+        });
+    v->addWidget(box);
+}
+
 static QWidget *createFilePathContent(QWidget *parent)
 {
     auto *w = new QWidget(parent);
@@ -33,22 +64,20 @@ static QWidget *createFilePathContent(QWidget *parent)
     v->setContentsMargins(8, 4, 8, 4);
 
     auto *desc = new QLabel(
-        QStringLiteral("路径文本框 + 浏览按钮，点击浏览弹出 QFileDialog 选择文件。"), w);
+        QStringLiteral("路径文本框 + 浏览按钮。三种模式共用同一控件：\n"
+                       "OpenFile 选文件、SaveFile 选保存路径（带默认后缀）、"
+                       "ExistingDirectory 选目录。"), w);
     desc->setWordWrap(true);
     v->addWidget(desc);
 
-    auto *edit = new DA::DAFilePathEditWidget(w);
-    edit->setNameFilter(QStringLiteral("C++ 文件 (*.cpp *.h);;所有文件 (*.*)"));
-    v->addWidget(edit);
-
-    auto *log = new QLabel(w);
-    log->setStyleSheet(QStringLiteral("color:#909399;"));
-    v->addWidget(log);
-
-    QObject::connect(edit, &DA::DAFilePathEditWidget::selectedPath,
-        [log](const QString &p) {
-            log->setText(QStringLiteral("已选择: ") + p);
-        });
+    addFilePathMode(w, v, QStringLiteral("OpenFile — 打开文件"),
+                    DA::DAFilePathEditWidget::Mode::OpenFile, QString(),
+                    QStringLiteral("C++ 文件 (*.cpp *.h);;所有文件 (*.*)"));
+    addFilePathMode(w, v, QStringLiteral("SaveFile — 保存文件（默认后缀 txt）"),
+                    DA::DAFilePathEditWidget::Mode::SaveFile, QStringLiteral("txt"),
+                    QStringLiteral("文本文件 (*.txt);;所有文件 (*.*)"));
+    addFilePathMode(w, v, QStringLiteral("ExistingDirectory — 选择目录"),
+                    DA::DAFilePathEditWidget::Mode::ExistingDirectory, QString());
 
     return w;
 }

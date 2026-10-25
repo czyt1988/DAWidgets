@@ -54,7 +54,7 @@ Source files live directly under `src/` (flat, no subdirectory). SVG icons live 
 | `DAAligmentEditWidget` | Alignment editor (horizontal/vertical). |
 | `DAAligmentPositionEditWidget` | 9-grid alignment position editor. |
 | `DATimeFormatEditWidget` | Time format string editor with preset format options. |
-| `DAFilePathEditWidget` | File path editor: line edit + browse button. |
+| `DAFilePathEditWidget` | File/directory path editor: line edit + browse button. Modes `OpenFile` / `SaveFile` / `ExistingDirectory`, plus start directory, name filters and default suffix. |
 | `DAPropertyItemWidget` | Property row wrapper: label + editor in `InlineLayout` or `BelowLayout` mode. |
 | `DACursorScoped` / `DAWaitCursorScoped` | RAII cursor guards (exception-safe). |
 
@@ -64,7 +64,9 @@ Source files live directly under `src/` (flat, no subdirectory). SVG icons live 
 |-------|------|
 | `DAItemEntry` | Generic candidate/selected entry: display `text` + identifying `data` (falls back to text equality when `data` is invalid). |
 | `DAItemListEditWidget` | "Selected items" list editor: rows with an inline remove button; a `MenuButtonPopup` add tool button (arrow = candidate dropdown menu, body = pick dialog); remove-all with confirmation. Emits `selectedItemsChanged()` on every mutation. Typical reuse: table column selection. |
-| `DAItemListPickDialog` | Item check dialog: search filter (substring, state preserved across filtering) + checkable list; `checkedEntries()` returns the batch to add. |
+| `DAItemListPickDialog` | Item check dialog: search filter (substring, state preserved across filtering) + checkable list; `checkedEntries()` returns the batch to add. A thin shell over `DACheckListWidget`. |
+| `DACheckListWidget` | Checkable list with search + optional Select All / Invert. Forced-checked entries can never be unchecked (select-all/invert skip them); filtering only hides rows, never changes check state. |
+| `DAStringListEditWidget` | Plain `QStringList` editor: inline editable rows (`AddMode::Inline`) or caller-supplied add (`AddMode::External` + `addRequested()`), optional remove/up/down, max count, placeholder. |
 | `DAColorScalePreviewWidget` | 2/3-color horizontal linear gradient preview bar (paints stops at 0 / 0.5 / 1); blank state when colors are invalid. |
 
 ### Infrastructure
@@ -174,7 +176,7 @@ All graphical assets are managed via Qt RCC (`src/resources/dawidgetsicons.qrc`)
 
 | Directory | Description |
 |-----------|-------------|
-| `examples/all_widgets_demo/` | Comprehensive multi-tab demo exercising every public widget (Selector, Color, DrawingStyle, Alignment, Utility). `DACollapseWidget` is used as a per-section collapsible organizer within each tab. |
+| `examples/all_widgets_demo/` | Comprehensive multi-tab demo exercising every public widget (Selector, Color, DrawingStyle, Alignment, Utility, ItemSelection, Text, Filter). `DACollapseWidget` is used as a per-section collapsible organizer within each tab. Pass `--shot <png> [tabIndex]` to save a screenshot of one tab. |
 
 ## Documentation (mkdocs)
 
