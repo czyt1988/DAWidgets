@@ -55,6 +55,10 @@ public:
     // 获取已选条目（列表顺序 = 添加顺序）
     QVector< DAItemEntry > selectedItems() const;
 
+    // 显示 Up/Down 按钮（按钮移动当前行，不使用拖拽；默认关闭）
+    void setReorderEnabled(bool on);
+    bool isReorderEnabled() const;
+
     // 覆盖默认文案（集成侧 i18n 用；默认为英文 tr 文本）
     void setAddButtonText(const QString& t);
     void setRemoveAllButtonText(const QString& t);

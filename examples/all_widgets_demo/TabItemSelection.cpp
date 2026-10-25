@@ -9,6 +9,7 @@
 #include <DACheckListWidget.h>
 #include <DACollapseItem.h>
 #include <DACollapseWidget.h>
+#include <DAItemListEditWidget.h>
 #include <DAItemListPickDialog.h>
 #include <DAStringListEditWidget.h>
 
@@ -111,6 +112,42 @@ static QWidget *createForcedListContent(QWidget *parent)
                          .arg(entriesText(check->checkedEntries())));
     };
     QObject::connect(check, &DA::DACheckListWidget::checkedEntriesChanged, log, update);
+    update();
+    return w;
+}
+
+// ============================================================
+// DAItemListEditWidget —— 已选条目列表（可排序）
+// ============================================================
+static QWidget *createItemListEditContent(QWidget *parent)
+{
+    auto *w = new QWidget(parent);
+    auto *v = new QVBoxLayout(w);
+    v->setContentsMargins(8, 4, 8, 4);
+
+    auto *desc = new QLabel(
+        QStringLiteral("从候选里挑条目：添加按钮箭头下拉候选、主体打开勾选对话框；"
+                       "setReorderEnabled(true) 显示 Up/Down 按钮（不用拖拽）。"), w);
+    desc->setWordWrap(true);
+    v->addWidget(desc);
+
+    auto *edit = new DA::DAItemListEditWidget(w);
+    const auto candidates = makeEntries({ QStringLiteral("列 A"), QStringLiteral("列 B"),
+                                          QStringLiteral("列 C"), QStringLiteral("列 D") });
+    edit->setAvailableItems(candidates);
+    QVector< DAItemEntry > selected;
+    selected << candidates.at(1) << candidates.at(3);
+    edit->setSelectedItems(selected);
+    edit->setReorderEnabled(true);
+    v->addWidget(edit, 1);
+
+    auto *log = makeLog(w);
+    v->addWidget(log);
+    auto update = [ log, edit ]() {
+        log->setText(QStringLiteral("已选: %1")
+                         .arg(entriesText(edit->selectedItems())));
+    };
+    QObject::connect(edit, &DA::DAItemListEditWidget::selectedItemsChanged, log, update);
     update();
     return w;
 }
@@ -222,9 +259,11 @@ QWidget *createItemSelectionTab(QWidget *parent)
         ->setContentWidget(createCheckListContent(collapse));
     collapse->addItem(QStringLiteral("DACheckListWidget — 子 Agent 工具白名单（forced）"), QStringLiteral("2"))
         ->setContentWidget(createForcedListContent(collapse));
-    collapse->addItem(QStringLiteral("DAItemListPickDialog — 条目勾选对话框"), QStringLiteral("3"))
+    collapse->addItem(QStringLiteral("DAItemListEditWidget — 已选条目列表（可排序）"), QStringLiteral("3"))
+        ->setContentWidget(createItemListEditContent(collapse));
+    collapse->addItem(QStringLiteral("DAItemListPickDialog — 条目勾选对话框"), QStringLiteral("4"))
         ->setContentWidget(createPickDialogContent(collapse));
-    collapse->addItem(QStringLiteral("DAStringListEditWidget — 纯字符串列表"), QStringLiteral("4"))
+    collapse->addItem(QStringLiteral("DAStringListEditWidget — 纯字符串列表"), QStringLiteral("5"))
         ->setContentWidget(createStringListContent(collapse));
     collapse->setActiveNames({ QStringLiteral("1") });
 

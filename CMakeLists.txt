@@ -180,6 +180,7 @@ if(DAWIDGETS_BUILD_TESTS)
     add_subdirectory(tests/filter_proxy_test)
     add_subdirectory(tests/undo_history_test)
     add_subdirectory(tests/overlay_test)
+    add_subdirectory(tests/item_list_edit_test)
 endif()
 
 # ---- Install ----

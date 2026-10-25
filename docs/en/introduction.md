@@ -1,4 +1,4 @@
----
+﻿---
 title: DAWidgets Introduction
 description: DAWidgets is a Qt QWidget supplement library inspired by Element UI, bringing Web-style component interactions to desktop applications.
 keywords: [DAWidgets, Qt widget library, Element UI, QWidget, desktop controls]
@@ -66,7 +66,7 @@ Matches Element UI's `el-collapse` / `el-collapse-item`.
 | Class | Description |
 |-------|-------------|
 | `DAItemEntry` | Generic candidate/selected entry: display text + identifying data (falls back to text equality) |
-| `DAItemListEditWidget` | Selected-items list editor: inline remove, candidate-menu/pick-dialog add, remove-all |
+| `DAItemListEditWidget` | Selected-items list editor: inline remove, candidate-menu/pick-dialog add, remove-all, optional up/down reorder |
 | `DAItemListPickDialog` | Item check dialog: search filter (state preserved) + multi-select list |
 | `DACheckListWidget` | Checkable list with search and optional Select All/Invert (forced entries stay checked; filtering keeps state) |
 | `DAStringListEditWidget` | Plain string-list editor (Inline/External add modes, remove, up/down, max count) |

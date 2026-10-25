@@ -1,4 +1,4 @@
----
+﻿---
 title: DAWidgets 简介
 description: DAWidgets 是一个受 Element UI 启发的 Qt QWidget 补充控件库，为桌面应用带来 Web 风格的组件交互。
 keywords: [DAWidgets, Qt 控件库, Element UI, QWidget, 桌面控件]
@@ -66,7 +66,7 @@ Qt 原生 Widgets 提供了基础的控件集，但在现代 UI 交互方面存�
 | 类 | 说明 |
 |----|------|
 | `DAItemEntry` | 通用候选/选中条目：展示文本 + 标识数据（无效时按文本判同） |
-| `DAItemListEditWidget` | 已选条目列表编辑器：行内删除 + 候选菜单/勾选对话框添加 + 移除所有 |
+| `DAItemListEditWidget` | 已选条目列表编辑器：行内删除 + 候选菜单/勾选对话框添加 + 移除所有 + 可选上下移动 |
 | `DAItemListPickDialog` | 条目勾选对话框：搜索过滤（过滤不丢勾选状态）+ 多选列表 |
 | `DACheckListWidget` | 带搜索的勾选列表（可选全选/反选；forced 条目不可取消，过滤不改勾选） |
 | `DAStringListEditWidget` | 纯字符串列表编辑器（Inline/External 两种 Add 模式、删除、上下移动、数量上限） |

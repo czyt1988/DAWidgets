@@ -64,7 +64,7 @@ Source files live directly under `src/` (flat, no subdirectory). SVG icons live 
 | Class | Role |
 |-------|------|
 | `DAItemEntry` | Generic candidate/selected entry: display `text` + identifying `data` (falls back to text equality when `data` is invalid). |
-| `DAItemListEditWidget` | "Selected items" list editor: rows with an inline remove button; a `MenuButtonPopup` add tool button (arrow = candidate dropdown menu, body = pick dialog); remove-all with confirmation. Emits `selectedItemsChanged()` on every mutation. Typical reuse: table column selection. |
+| `DAItemListEditWidget` | "Selected items" list editor: rows with an inline remove button; a `MenuButtonPopup` add tool button (arrow = candidate dropdown menu, body = pick dialog); remove-all with confirmation; optional Up/Down reorder buttons (`setReorderEnabled`). Emits `selectedItemsChanged()` on every mutation. Typical reuse: table column selection. |
 | `DAItemListPickDialog` | Item check dialog: search filter (substring, state preserved across filtering) + checkable list; `checkedEntries()` returns the batch to add. A thin shell over `DACheckListWidget`. |
 | `DACheckListWidget` | Checkable list with search + optional Select All / Invert. Forced-checked entries can never be unchecked (select-all/invert skip them); filtering only hides rows, never changes check state. |
 | `DAStringListEditWidget` | Plain `QStringList` editor: inline editable rows (`AddMode::Inline`) or caller-supplied add (`AddMode::External` + `addRequested()`), optional remove/up/down, max count, placeholder. |

@@ -58,7 +58,7 @@ Qt **QWidget** 界面补充库，灵感来源于 [Element UI](https://element.el
 | 类 | 说明 |
 |----|------|
 | `DAItemEntry` | 通用候选/选中条目：展示文本 `text` + 标识数据 `data`（`data` 无效时按文本判同） |
-| `DAItemListEditWidget` | 已选条目列表编辑器：行内删除按钮 + 带候选菜单/勾选对话框的添加按钮 + 二次确认的移除所有 |
+| `DAItemListEditWidget` | 已选条目列表编辑器：行内删除按钮 + 带候选菜单/勾选对话框的添加按钮 + 二次确认的移除所有 + 可选 Up/Down 排序 |
 | `DAItemListPickDialog` | 条目勾选对话框：搜索过滤（过滤不丢勾选状态）+ 多选列表；`DACheckListWidget` 的对话框壳 |
 | `DACheckListWidget` | 带搜索的勾选列表，可选全选/反选；forced 条目永远勾选、全选/反选不动它，过滤只隐藏行不改勾选 |
 | `DAStringListEditWidget` | 纯字符串列表编辑器：Inline 追加可编辑空行 / External 由调用方追加（`addRequested()`），可选删除与上下移动、数量上限、空状态提示 |

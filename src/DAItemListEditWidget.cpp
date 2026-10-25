@@ -45,11 +45,18 @@ public:
     void onAddButtonClicked();
     // 移除所有（二次确认）
     void onRemoveAllClicked();
+    // 当前行上移/下移（按钮点击）
+    void moveCurrent(int offset);
+    // 刷新 Up/Down 按钮的显隐与可用状态
+    void updateReorderButtons();
 
     QListWidget* mList { nullptr };
     QToolButton* mAddButton { nullptr };
     QMenu* mAddMenu { nullptr };
+    QPushButton* mUpButton { nullptr };
+    QPushButton* mDownButton { nullptr };
     QPushButton* mRemoveAllButton { nullptr };
+    bool mReorderEnabled { false };      ///< 是否显示 Up/Down 按钮
     QVector< DAItemEntry > mAvailable;  ///< 候选条目
     QString mAddText;                  ///< 添加按钮文案
     QString mRemoveAllText;            ///< 移除所有按钮文案
@@ -72,6 +79,7 @@ void DAItemListEditWidget::PrivateData::init()
     QVBoxLayout* root = new QVBoxLayout(q);
     root->setContentsMargins(0, 0, 0, 0);
     mList = new QListWidget(q);
+    mList->setObjectName(QStringLiteral("itemList"));
     mList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     root->addWidget(mList, 1);
 
@@ -85,11 +93,23 @@ void DAItemListEditWidget::PrivateData::init()
     QObject::connect(mAddMenu, &QMenu::aboutToShow, q, [ this ]() { rebuildAddMenu(); });
     QObject::connect(mAddButton, &QToolButton::clicked, q, [ this ]() { onAddButtonClicked(); });
     bar->addWidget(mAddButton);
+    mUpButton = new QPushButton(q->tr("Up"), q);  // cn:上移
+    mUpButton->setObjectName(QStringLiteral("upButton"));
+    mUpButton->setVisible(false);
+    QObject::connect(mUpButton, &QPushButton::clicked, q, [ this ]() { moveCurrent(-1); });
+    bar->addWidget(mUpButton);
+    mDownButton = new QPushButton(q->tr("Down"), q);  // cn:下移
+    mDownButton->setObjectName(QStringLiteral("downButton"));
+    mDownButton->setVisible(false);
+    QObject::connect(mDownButton, &QPushButton::clicked, q, [ this ]() { moveCurrent(1); });
+    bar->addWidget(mDownButton);
     mRemoveAllButton = new QPushButton(mRemoveAllText, q);
     QObject::connect(mRemoveAllButton, &QPushButton::clicked, q, [ this ]() { onRemoveAllClicked(); });
     bar->addWidget(mRemoveAllButton);
     bar->addStretch(1);
     root->addLayout(bar);
+    QObject::connect(mList, &QListWidget::currentRowChanged, q, [ this ](int) { updateReorderButtons(); });
+    updateReorderButtons();
 }
 
 void DAItemListEditWidget::PrivateData::appendRow(const DAItemEntry& entry)
@@ -123,6 +143,7 @@ void DAItemListEditWidget::PrivateData::appendRow(const DAItemEntry& entry)
     rl->addWidget(close);
     mList->addItem(item);
     mList->setItemWidget(item, row);
+    updateReorderButtons();
 }
 
 void DAItemListEditWidget::PrivateData::removeRow(int row)
@@ -137,6 +158,45 @@ void DAItemListEditWidget::PrivateData::removeRow(int row)
     if (w) {
         w->deleteLater();
     }
+    updateReorderButtons();
+}
+
+void DAItemListEditWidget::PrivateData::moveCurrent(int offset)
+{
+    DA_Q(DAItemListEditWidget, q);
+    const int row = mList->currentRow();
+    const int dst = row + offset;
+    if (row < 0 || dst < 0 || dst >= mList->count()) {
+        return;
+    }
+    QListWidgetItem* item = mList->takeItem(row);
+    if (!item) {
+        return;
+    }
+    // takeItem 会解除 itemWidget 关联，重插后需重新挂回行控件
+    QWidget* w = mList->itemWidget(item);
+    if (w) {
+        mList->removeItemWidget(item);
+    }
+    mList->insertItem(dst, item);
+    if (w) {
+        mList->setItemWidget(item, w);
+    }
+    mList->setCurrentRow(dst);
+    updateReorderButtons();
+    Q_EMIT q->selectedItemsChanged();
+}
+
+void DAItemListEditWidget::PrivateData::updateReorderButtons()
+{
+    if (!mUpButton || !mDownButton) {
+        return;
+    }
+    mUpButton->setVisible(mReorderEnabled);
+    mDownButton->setVisible(mReorderEnabled);
+    const int row = mList->currentRow();
+    mUpButton->setEnabled(mReorderEnabled && row > 0);
+    mDownButton->setEnabled(mReorderEnabled && row >= 0 && row < mList->count() - 1);
 }
 
 bool DAItemListEditWidget::PrivateData::contains(const DAItemEntry& entry) const
@@ -259,6 +319,27 @@ QVector< DAItemEntry > DAItemListEditWidget::selectedItems() const
         res.append(DAItemEntry { item->text(), item->data(Qt::UserRole) });
     }
     return res;
+}
+
+/**
+ * @brief 显示 Up/Down 按钮（按钮移动当前行，不使用拖拽）
+ * @param on 是否启用排序
+ */
+void DAItemListEditWidget::setReorderEnabled(bool on)
+{
+    DA_D(d);
+    d->mReorderEnabled = on;
+    d->updateReorderButtons();
+}
+
+/**
+ * @brief 是否启用排序
+ * @return true = 显示 Up/Down 按钮
+ */
+bool DAItemListEditWidget::isReorderEnabled() const
+{
+    DA_DC(d);
+    return d->mReorderEnabled;
 }
 
 void DAItemListEditWidget::setAddButtonText(const QString& t)
