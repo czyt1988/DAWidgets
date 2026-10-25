@@ -59,7 +59,15 @@ Qt 原生 Widgets 提供了基础的控件集，但在现代 UI 交互方面存�
 | `DAAligmentEditWidget` | 对齐方式编辑（左/右/上/下/居中） |
 | `DAAligmentPositionEditWidget` | 九宫格对齐位置编辑 |
 | `DAFilePathEditWidget` | 文件路径选择（LineEdit + 打开按钮） |
-| `DARecentFilesManager` | 最近文件管理，菜单集成，持久化到 QSettings |
+
+### 条目选择与预览家族
+
+| 类 | 说明 |
+|----|------|
+| `DAItemEntry` | 通用候选/选中条目：展示文本 + 标识数据（无效时按文本判同） |
+| `DAItemListEditWidget` | 已选条目列表编辑器：行内删除 + 候选菜单/勾选对话框添加 + 移除所有 |
+| `DAItemListPickDialog` | 条目勾选对话框：搜索过滤（过滤不丢勾选状态）+ 多选列表 |
+| `DAColorScalePreviewWidget` | 2/3 色横向线性渐变预览条 |
 
 ### 样式编辑家族
 

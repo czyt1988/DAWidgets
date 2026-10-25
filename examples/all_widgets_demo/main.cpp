@@ -57,6 +57,9 @@ int main(int argc, char **argv)
     tabs.addTab(createDrawingStyleTab(&tabs),  QStringLiteral("绘图样式"));
     tabs.addTab(createAlignmentTab(&tabs),     QStringLiteral("对齐"));
     tabs.addTab(createUtilityTab(&tabs),       QStringLiteral("工具组件"));
+    tabs.addTab(createItemSelectionTab(&tabs), QStringLiteral("条目选择"));
+    tabs.addTab(createTextTab(&tabs),          QStringLiteral("文本"));
+    tabs.addTab(createFilterTab(&tabs),        QStringLiteral("过滤"));
 
     tabs.resize(720, 640);
     tabs.show();

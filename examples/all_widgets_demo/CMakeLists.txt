@@ -5,6 +5,9 @@ add_executable(dawidgets_all_widgets_demo
     TabDrawingStyle.cpp
     TabAlignment.cpp
     TabUtility.cpp
+    TabItemSelection.cpp
+    TabText.cpp
+    TabFilter.cpp
 )
 target_link_libraries(dawidgets_all_widgets_demo
     PRIVATE
@@ -13,3 +16,4 @@ target_link_libraries(dawidgets_all_widgets_demo
 )
 # 保持控制台输出可见（便于打印信号日志）
 set_target_properties(dawidgets_all_widgets_demo PROPERTIES WIN32_EXECUTABLE OFF)
+dawidgets_copy_runtime_dll(dawidgets_all_widgets_demo)

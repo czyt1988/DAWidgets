@@ -7,3 +7,6 @@ QWidget *createColorTab(QWidget *parent);          // 颜色相关
 QWidget *createDrawingStyleTab(QWidget *parent);  // 绘图样式编辑器
 QWidget *createAlignmentTab(QWidget *parent);      // 对齐编辑器
 QWidget *createUtilityTab(QWidget *parent);        // 工具组件
+QWidget *createItemSelectionTab(QWidget *parent);  // 勾选列表 + 字符串列表
+QWidget *createTextTab(QWidget *parent);           // 文本编辑器
+QWidget *createFilterTab(QWidget *parent);         // 树 + 过滤代理

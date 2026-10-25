@@ -117,6 +117,19 @@ else()
 endif()
 add_library(DA::DAWidgets ALIAS DAWidgets)
 
+# Windows 下把共享库 DLL 复制到每个可执行目标旁边：
+# ctest 与 demo 直接从构建目录运行时，Windows 不会搜索兄弟目录，
+# 缺这步会以 0xc0000135（DLL not found）失败。
+function(dawidgets_copy_runtime_dll target)
+    if(WIN32 AND DAWIDGETS_BUILD_SHARED)
+        add_custom_command(TARGET ${target} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:DAWidgets> $<TARGET_FILE_DIR:${target}>
+            COMMENT "Copy DAWidgets runtime DLL next to ${target}"
+        )
+    endif()
+endfunction()
+
 target_include_directories(DAWidgets
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
@@ -142,6 +155,9 @@ endif()
 
 # ---- Tests ----
 if(DAWIDGETS_BUILD_TESTS)
+    # add_test() 只有 enable_testing() 之后才会生成 CTestTestfile.cmake，
+    # 否则 ctest 会报 "No tests were found!!!"（构建通过但测试从未被登记）
+    enable_testing()
     add_subdirectory(tests/logic_test)
     add_subdirectory(tests/combobox_test)
     add_subdirectory(tests/collapse_test)

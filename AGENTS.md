@@ -56,7 +56,6 @@ Source files live directly under `src/` (flat, no subdirectory). SVG icons live 
 | `DATimeFormatEditWidget` | Time format string editor with preset format options. |
 | `DAFilePathEditWidget` | File path editor: line edit + browse button. |
 | `DAPropertyItemWidget` | Property row wrapper: label + editor in `InlineLayout` or `BelowLayout` mode. |
-| `DARecentFilesManager` | Recent files list manager. Persists to QSettings, auto-filters invalid paths. |
 | `DACursorScoped` / `DAWaitCursorScoped` | RAII cursor guards (exception-safe). |
 
 ### Item Selection & Preview Family
@@ -74,6 +73,31 @@ Source files live directly under `src/` (flat, no subdirectory). SVG icons live 
 |------|------|
 | `DAWidgetsGlobals.h` | Hand-written export macros (`DAWIDGETS_EXPORT`) and PIMPL macros (`DA_DECLARE_PRIVATE`, `DA_DECLARE_PUBLIC`, `DA_D`, `DA_Q`). |
 | `DAQt5Qt6Compat.h` | Qt5/Qt6 compatibility macros (`pos()`/`position()`, `width`/`horizontalAdvance`, `buttonClicked`/`idClicked`). |
+
+## Change Workflow (read before touching DAWidgets)
+
+DAWidgets is consumed by the main project as a **prebuilt** shared library. A change is only finished when all four steps are done, in this order:
+
+0. **Run the module tests and smoke the demo** (this step is the responsibility of the person changing DAWidgets):
+   ```powershell
+   cmake -S src/3rdparty/DAWidgets -B build-dawidgets -G "Visual Studio 16 2019" -A x64 `
+         -DCMAKE_PREFIX_PATH="C:/Qt/6.7.3/msvc2019_64" `
+         -DDAWIDGETS_BUILD_TESTS=ON -DDAWIDGETS_BUILD_DEMO=ON
+   cmake --build build-dawidgets --config Release --parallel
+   ctest --test-dir build-dawidgets -C Release --output-on-failure
+   ./build-dawidgets/examples/all_widgets_demo/Release/dawidgets_all_widgets_demo.exe
+   ```
+1. Commit in the DAWidgets submodule.
+2. Rebuild the 3rdparty tree in the **main worktree** and `cmake --install` (never install from a task worktree — `bin_*` is shared).
+3. Sync the submodule commit into the task worktree and commit the submodule pointer there.
+
+Rules:
+
+- **The 3rdparty build and CI do not run these tests and do not build the demo** (`DAWIDGETS_BUILD_TESTS` / `DAWIDGETS_BUILD_DEMO` are forced `OFF` in `src/3rdparty/CMakeLists.txt`). The module tests and demo are the modifier's own quality gate.
+- Every new/migrated class ships with tests in `tests/<name>_test/` (registered in the `DAWIDGETS_BUILD_TESTS` block) **in the same commit** — no "add tests later".
+- Every new/extended widget must have a visible entry in `examples/all_widgets_demo` (a section inside an existing tab or a new `Tab*.cpp` registered in `main.cpp`). Tests cover logic/API; the demo covers visuals/interaction. Both are required.
+- Each test covers at least: construction, the key API, signals, and one boundary. Pure visual widgets may use `grab()` as a smoke test.
+- New UI strings use `tr("English") //cn:中文`; add the translation string to the main project's `.ts` by hand (never run lupdate over the whole tree).
 
 ## Build
 

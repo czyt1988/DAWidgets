@@ -59,7 +59,15 @@ Matches Element UI's `el-collapse` / `el-collapse-item`.
 | `DAAligmentEditWidget` | Alignment editor (left/right/top/bottom/center) |
 | `DAAligmentPositionEditWidget` | 9-grid alignment position editor |
 | `DAFilePathEditWidget` | File path selector (LineEdit + browse button) |
-| `DARecentFilesManager` | Recent files manager with menu integration |
+
+### Item Selection & Preview Family
+
+| Class | Description |
+|-------|-------------|
+| `DAItemEntry` | Generic candidate/selected entry: display text + identifying data (falls back to text equality) |
+| `DAItemListEditWidget` | Selected-items list editor: inline remove, candidate-menu/pick-dialog add, remove-all |
+| `DAItemListPickDialog` | Item check dialog: search filter (state preserved) + multi-select list |
+| `DAColorScalePreviewWidget` | 2/3-color horizontal linear gradient preview bar |
 
 ### Style Edit Family
 

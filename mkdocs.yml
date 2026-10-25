@@ -87,7 +87,6 @@ plugins:
                     - 对齐编辑器: use-guide/alignment-edit.md
                     - 文件路径编辑器: use-guide/file-path-edit.md
                     - 时间格式编辑器: use-guide/time-format-edit.md
-                    - 最近文件管理器: use-guide/recent-files.md
                 - 样式编辑家族:
                     - 颜色网格与调色板: use-guide/color-grid.md
                     - 颜色菜单与拾取按钮: use-guide/color-menu.md
@@ -128,7 +127,6 @@ plugins:
                     - Alignment Editor: use-guide/alignment-edit.md
                     - File Path Editor: use-guide/file-path-edit.md
                     - Time Format Editor: use-guide/time-format-edit.md
-                    - Recent Files Manager: use-guide/recent-files.md
                 - Style Edit Family:
                     - Color Grid & Palette: use-guide/color-grid.md
                     - Color Menu & Picker: use-guide/color-menu.md

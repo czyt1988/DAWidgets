@@ -48,8 +48,18 @@ Qt **QWidget** 界面补充库，灵感来源于 [Element UI](https://element.el
 | `DATimeFormatEditWidget` | 时间格式字符串编辑器（含预设格式） |
 | `DAFilePathEditWidget` | 文件路径编辑器：文本框 + 浏览按钮 |
 | `DAPropertyItemWidget` | 属性行控件：标签 + 编辑器的带标签包装器 |
-| `DARecentFilesManager` | 最近文件管理器：持久化到 QSettings，自动过滤无效路径 |
 | `DACursorScoped` / `DAWaitCursorScoped` | RAII 光标守卫，异常安全 |
+
+### 条目选择与预览（Item Selection & Preview）
+
+面向「从一组候选中挑选若干条」与「条目列表编辑」的通用控件。
+
+| 类 | 说明 |
+|----|------|
+| `DAItemEntry` | 通用候选/选中条目：展示文本 `text` + 标识数据 `data`（`data` 无效时按文本判同） |
+| `DAItemListEditWidget` | 已选条目列表编辑器：行内删除按钮 + 带候选菜单/勾选对话框的添加按钮 + 二次确认的移除所有 |
+| `DAItemListPickDialog` | 条目勾选对话框：搜索过滤（过滤不丢勾选状态）+ 多选列表 |
+| `DAColorScalePreviewWidget` | 2/3 色横向线性渐变预览条（无效颜色时显示空状态） |
 
 > 后续会持续补充其它 Qt 缺失的界面组件。
 
