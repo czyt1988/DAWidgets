@@ -1,5 +1,6 @@
-#include <QListWidget>
+#include <QAbstractItemModel>
 #include <QLineEdit>
+#include <QListView>
 #include <QPushButton>
 #include <QtTest/QtTest>
 
@@ -21,8 +22,11 @@ private Q_SLOTS:
 
 private:
     static QVector< DAItemEntry > makeEntries(const QStringList& texts);
-    static QListWidget* listOf(DACheckListWidget& w);
+    static QListView* listOf(DACheckListWidget& w);
+    static QAbstractItemModel* modelOf(DACheckListWidget& w);
     static QPushButton* buttonOf(DACheckListWidget& w, const QString& name);
+    static Qt::CheckState checkStateOf(QAbstractItemModel* m, int row);
+    static void setCheckStateOf(QAbstractItemModel* m, int row, Qt::CheckState state);
 };
 
 QVector< DAItemEntry > DaCheckListWidgetTest::makeEntries(const QStringList& texts)
@@ -35,14 +39,30 @@ QVector< DAItemEntry > DaCheckListWidgetTest::makeEntries(const QStringList& tex
     return res;
 }
 
-QListWidget* DaCheckListWidgetTest::listOf(DACheckListWidget& w)
+QListView* DaCheckListWidgetTest::listOf(DACheckListWidget& w)
 {
-    return w.findChild< QListWidget* >(QStringLiteral("checkList"));
+    return w.findChild< QListView* >(QStringLiteral("checkList"));
+}
+
+QAbstractItemModel* DaCheckListWidgetTest::modelOf(DACheckListWidget& w)
+{
+    QListView* view = listOf(w);
+    return view ? view->model() : nullptr;
 }
 
 QPushButton* DaCheckListWidgetTest::buttonOf(DACheckListWidget& w, const QString& name)
 {
     return w.findChild< QPushButton* >(name);
+}
+
+Qt::CheckState DaCheckListWidgetTest::checkStateOf(QAbstractItemModel* m, int row)
+{
+    return static_cast< Qt::CheckState >(m->index(row, 0).data(Qt::CheckStateRole).toInt());
+}
+
+void DaCheckListWidgetTest::setCheckStateOf(QAbstractItemModel* m, int row, Qt::CheckState state)
+{
+    m->setData(m->index(row, 0), state, Qt::CheckStateRole);
 }
 
 void DaCheckListWidgetTest::testForcedCannotBeUnchecked()
@@ -55,10 +75,10 @@ void DaCheckListWidgetTest::testForcedCannotBeUnchecked()
     QVERIFY(w.checkedEntries().first() == b);
 
     // 模拟用户取消 forced 条目：控件应立刻恢复勾选
-    QListWidget* list = listOf(w);
-    QVERIFY(list);
-    list->item(1)->setCheckState(Qt::Unchecked);
-    QCOMPARE(list->item(1)->checkState(), Qt::Checked);
+    QAbstractItemModel* m = modelOf(w);
+    QVERIFY(m);
+    setCheckStateOf(m, 1, Qt::Unchecked);
+    QCOMPARE(checkStateOf(m, 1), Qt::Checked);
     QCOMPARE(w.checkedCount(), 1);
 }
 
@@ -111,14 +131,15 @@ void DaCheckListWidgetTest::testFilterKeepsChecked()
     QLineEdit* search = w.findChild< QLineEdit* >(QStringLiteral("searchEdit"));
     QVERIFY(search);
     search->setText(QStringLiteral("ban"));
-    // 过滤只隐藏行，勾选状态保留
+    // 过滤只影响可见行，勾选状态保留
     QCOMPARE(w.checkedCount(), 2);
-    QVERIFY(listOf(w)->isRowHidden(0));
-    QVERIFY(!listOf(w)->isRowHidden(1));
-    QVERIFY(listOf(w)->isRowHidden(2));
+    QAbstractItemModel* m = modelOf(w);
+    QCOMPARE(m->rowCount(), 1);
+    QCOMPARE(m->index(0, 0).data(Qt::DisplayRole).toString(), QStringLiteral("Banana"));
 
     search->clear();
     QCOMPARE(w.checkedCount(), 2);
+    QCOMPARE(modelOf(w)->rowCount(), 3);
 }
 
 void DaCheckListWidgetTest::testSetItemsDoesNotEmit()
@@ -135,7 +156,7 @@ void DaCheckListWidgetTest::testUserChangeEmitsOnce()
     DACheckListWidget w;
     w.setItems(makeEntries({ "a", "b" }));
     QSignalSpy spy(&w, &DACheckListWidget::checkedEntriesChanged);
-    listOf(w)->item(0)->setCheckState(Qt::Checked);
+    setCheckStateOf(modelOf(w), 0, Qt::Checked);
     QCOMPARE(spy.count(), 1);
     // 全选合并为一次信号
     QPushButton* selectAll = buttonOf(w, QStringLiteral("selectAllButton"));
@@ -151,7 +172,8 @@ void DaCheckListWidgetTest::testUncheckableIsNeverChecked()
     w.setEntryCheckable(a, false);
     w.setCheckedEntries({ a });
     QCOMPARE(w.checkedCount(), 0);
-    QVERIFY(!listOf(w)->item(0)->flags().testFlag(Qt::ItemIsUserCheckable));
+    QAbstractItemModel* m = modelOf(w);
+    QVERIFY(!(m->flags(m->index(0, 0)) & Qt::ItemIsUserCheckable));
 }
 
 QTEST_MAIN(DaCheckListWidgetTest)

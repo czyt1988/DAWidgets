@@ -59,6 +59,7 @@ Matches Element UI's `el-collapse` / `el-collapse-item`.
 | `DAAligmentEditWidget` | Alignment editor (left/right/top/bottom/center) |
 | `DAAligmentPositionEditWidget` | 9-grid alignment position editor |
 | `DAFilePathEditWidget` | File/directory path selector (line edit + browse; open/save/directory modes) |
+| `DATextEditWidget` | Plain-text viewer/editor (read-only, monospace, wrap, placeholder, injected actions) |
 
 ### Item Selection & Preview Family
 
@@ -70,6 +71,14 @@ Matches Element UI's `el-collapse` / `el-collapse-item`.
 | `DACheckListWidget` | Checkable list with search and optional Select All/Invert (forced entries stay checked; filtering keeps state) |
 | `DAStringListEditWidget` | Plain string-list editor (Inline/External add modes, remove, up/down, max count) |
 | `DAColorScalePreviewWidget` | 2/3-color horizontal linear gradient preview bar |
+| `DAStringFilterProxyModel` | Generic display-text filter proxy for list/tree models (case, column, parent inclusion) |
+
+### Utility Family
+
+| Class | Description |
+|-------|-------------|
+| `DAUndoHistoryWidget` | Undo history panel (`QUndoView` + undo-depth spin box) |
+| `DAAbstractWidgetOverlay` | Abstract widget overlay base class |
 
 ### Style Edit Family
 

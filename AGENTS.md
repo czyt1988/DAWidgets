@@ -55,6 +55,7 @@ Source files live directly under `src/` (flat, no subdirectory). SVG icons live 
 | `DAAligmentPositionEditWidget` | 9-grid alignment position editor. |
 | `DATimeFormatEditWidget` | Time format string editor with preset format options. |
 | `DAFilePathEditWidget` | File/directory path editor: line edit + browse button. Modes `OpenFile` / `SaveFile` / `ExistingDirectory`, plus start directory, name filters and default suffix. |
+| `DATextEditWidget` | Plain-text viewer/editor: read-only, monospace, line wrap, placeholder and caller-injected toolbar actions. Does not own OK/Cancel. |
 | `DAPropertyItemWidget` | Property row wrapper: label + editor in `InlineLayout` or `BelowLayout` mode. |
 | `DACursorScoped` / `DAWaitCursorScoped` | RAII cursor guards (exception-safe). |
 
@@ -68,6 +69,14 @@ Source files live directly under `src/` (flat, no subdirectory). SVG icons live 
 | `DACheckListWidget` | Checkable list with search + optional Select All / Invert. Forced-checked entries can never be unchecked (select-all/invert skip them); filtering only hides rows, never changes check state. |
 | `DAStringListEditWidget` | Plain `QStringList` editor: inline editable rows (`AddMode::Inline`) or caller-supplied add (`AddMode::External` + `addRequested()`), optional remove/up/down, max count, placeholder. |
 | `DAColorScalePreviewWidget` | 2/3-color horizontal linear gradient preview bar (paints stops at 0 / 0.5 / 1); blank state when colors are invalid. |
+| `DAStringFilterProxyModel` | Display-text filter proxy for list/tree models: case sensitivity, single/all columns, and optional "include parents of matches" for trees. |
+
+### Utility Widgets
+
+| Class | Role |
+|-------|------|
+| `DAUndoHistoryWidget` | Undo history panel: `QUndoView` following a `QUndoGroup` plus an undo-depth spin box that emits `undoLimitChangeRequested` (persistence stays in the caller). |
+| `DAAbstractWidgetOverlay` | Abstract overlay base for painting on top of another widget (mask modes `NoMask`/`MaskHint`/`AlphaMask`, render modes); subclasses implement `drawOverlay()`. |
 
 ### Infrastructure
 

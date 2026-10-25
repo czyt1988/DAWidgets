@@ -92,6 +92,14 @@ set(_DAWIDGETS_SOURCES
     src/DACheckListWidget.cpp
     src/DAStringListEditWidget.h
     src/DAStringListEditWidget.cpp
+    src/DATextEditWidget.h
+    src/DATextEditWidget.cpp
+    src/DAStringFilterProxyModel.h
+    src/DAStringFilterProxyModel.cpp
+    src/DAUndoHistoryWidget.h
+    src/DAUndoHistoryWidget.cpp
+    src/DAAbstractWidgetOverlay.h
+    src/DAAbstractWidgetOverlay.cpp
     src/DAColorScalePreviewWidget.h
     src/DAColorScalePreviewWidget.cpp
     src/DAPenEditWidget.h
@@ -168,6 +176,10 @@ if(DAWIDGETS_BUILD_TESTS)
     add_subdirectory(tests/file_path_edit_test)
     add_subdirectory(tests/check_list_test)
     add_subdirectory(tests/string_list_test)
+    add_subdirectory(tests/text_edit_test)
+    add_subdirectory(tests/filter_proxy_test)
+    add_subdirectory(tests/undo_history_test)
+    add_subdirectory(tests/overlay_test)
 endif()
 
 # ---- Install ----

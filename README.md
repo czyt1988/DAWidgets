@@ -47,6 +47,7 @@ Qt **QWidget** 界面补充库，灵感来源于 [Element UI](https://element.el
 | `DAAligmentPositionEditWidget` | 九宫格位置对齐编辑器 |
 | `DATimeFormatEditWidget` | 时间格式字符串编辑器（含预设格式） |
 | `DAFilePathEditWidget` | 文件/目录路径编辑器：文本框 + 浏览按钮，支持打开文件 / 保存文件 / 选择目录三种模式 |
+| `DATextEditWidget` | 纯文本编辑/查看控件：只读、等宽、换行、占位提示、调用方注入工具动作；不拥有 OK/Cancel |
 | `DAPropertyItemWidget` | 属性行控件：标签 + 编辑器的带标签包装器 |
 | `DACursorScoped` / `DAWaitCursorScoped` | RAII 光标守卫，异常安全 |
 
@@ -62,6 +63,14 @@ Qt **QWidget** 界面补充库，灵感来源于 [Element UI](https://element.el
 | `DACheckListWidget` | 带搜索的勾选列表，可选全选/反选；forced 条目永远勾选、全选/反选不动它，过滤只隐藏行不改勾选 |
 | `DAStringListEditWidget` | 纯字符串列表编辑器：Inline 追加可编辑空行 / External 由调用方追加（`addRequested()`），可选删除与上下移动、数量上限、空状态提示 |
 | `DAColorScalePreviewWidget` | 2/3 色横向线性渐变预览条（无效颜色时显示空状态） |
+| `DAStringFilterProxyModel` | 列表/树通用文本过滤代理：大小写策略、单列/所有列、子节点命中放行父节点 |
+
+### 工具组件（Utility）
+
+| 类 | 说明 |
+|----|------|
+| `DAUndoHistoryWidget` | 撤销历史面板：`QUndoView` 跟随 `QUndoGroup`，附撤销深度 SpinBox（只发 `undoLimitChangeRequested`，持久化在调用方） |
+| `DAAbstractWidgetOverlay` | 控件遮罩层抽象基类（`NoMask`/`MaskHint`/`AlphaMask` 与渲染模式），子类实现 `drawOverlay()` |
 
 > 后续会持续补充其它 Qt 缺失的界面组件。
 

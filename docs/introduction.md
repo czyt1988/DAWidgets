@@ -59,6 +59,7 @@ Qt 原生 Widgets 提供了基础的控件集，但在现代 UI 交互方面存�
 | `DAAligmentEditWidget` | 对齐方式编辑（左/右/上/下/居中） |
 | `DAAligmentPositionEditWidget` | 九宫格对齐位置编辑 |
 | `DAFilePathEditWidget` | 文件/目录路径选择（行编辑 + 浏览按钮，打开/保存/目录三种模式） |
+| `DATextEditWidget` | 纯文本编辑/查看（只读/等宽/换行/占位提示/注入工具动作） |
 
 ### 条目选择与预览家族
 
@@ -70,6 +71,14 @@ Qt 原生 Widgets 提供了基础的控件集，但在现代 UI 交互方面存�
 | `DACheckListWidget` | 带搜索的勾选列表（可选全选/反选；forced 条目不可取消，过滤不改勾选） |
 | `DAStringListEditWidget` | 纯字符串列表编辑器（Inline/External 两种 Add 模式、删除、上下移动、数量上限） |
 | `DAColorScalePreviewWidget` | 2/3 色横向线性渐变预览条 |
+| `DAStringFilterProxyModel` | 列表/树通用文本过滤代理（大小写、列、父节点放行） |
+
+### 工具组件家族
+
+| 类 | 说明 |
+|----|------|
+| `DAUndoHistoryWidget` | 撤销历史面板（`QUndoView` + 撤销深度 SpinBox） |
+| `DAAbstractWidgetOverlay` | 控件遮罩层抽象基类 |
 
 ### 样式编辑家族
 

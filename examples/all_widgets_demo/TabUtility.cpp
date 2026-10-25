@@ -10,18 +10,25 @@
 #include <QMenuBar>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPainter>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSpinBox>
 #include <QTextEdit>
 #include <QTimer>
+#include <QUndoCommand>
+#include <QUndoGroup>
+#include <QUndoStack>
 #include <QVBoxLayout>
+#include <memory>
 
+#include <DAAbstractWidgetOverlay.h>
 #include <DACollapseItem.h>
 #include <DACollapseWidget.h>
 #include <DAFilePathEditWidget.h>
 #include <DAPropertyItemWidget.h>
 #include <DATimeFormatEditWidget.h>
+#include <DAUndoHistoryWidget.h>
 #include <DAWaitCursorScoped.h>
 
 // ============================================================
@@ -221,6 +228,166 @@ static QWidget *createWaitCursorContent(QWidget *parent)
 }
 
 // ============================================================
+// DAUndoHistoryWidget —— 撤销历史 + 深度调节
+// ============================================================
+namespace
+{
+class DemoAddCommand : public QUndoCommand
+{
+public:
+    DemoAddCommand(int *value, int delta)
+        : mValue(value), mDelta(delta)
+    {
+        setText(QStringLiteral("加 %1").arg(delta));
+    }
+    void undo() override
+    {
+        *mValue -= mDelta;
+    }
+    void redo() override
+    {
+        *mValue += mDelta;
+    }
+
+private:
+    int *mValue { nullptr };
+    int mDelta { 0 };
+};
+
+class DemoOverlay : public DA::DAAbstractWidgetOverlay
+{
+public:
+    explicit DemoOverlay(QWidget *parent) : DAAbstractWidgetOverlay(parent)
+    {
+    }
+
+protected:
+    void drawOverlay(QPainter *painter) const override
+    {
+        painter->fillRect(rect(), QColor(64, 158, 255, 90));
+        painter->setPen(QColor(64, 158, 255));
+        painter->drawRect(rect().adjusted(1, 1, -2, -2));
+        painter->drawText(rect(), Qt::AlignCenter, QStringLiteral("Overlay"));
+    }
+};
+}  // namespace
+
+static QWidget *createUndoHistoryContent(QWidget *parent)
+{
+    auto *w = new QWidget(parent);
+    auto *v = new QVBoxLayout(w);
+    v->setContentsMargins(8, 4, 8, 4);
+
+    auto *desc = new QLabel(
+        QStringLiteral("QUndoView 跟随 QUndoGroup 的激活栈；深度 SpinBox 只发"
+                       " undoLimitChangeRequested，由调用方持久化并施加到各栈。"), w);
+    desc->setWordWrap(true);
+    v->addWidget(desc);
+
+    auto *value = new QLabel(w);
+    value->setStyleSheet(QStringLiteral("color:#909399;"));
+    // 用 shared_ptr 持有计数器：命令与 lambda 都可能比本函数活得久
+    auto counter = std::make_shared< int >(0);
+    auto refresh = [value, counter]() {
+        value->setText(QStringLiteral("当前值: %1").arg(*counter));
+    };
+    refresh();
+
+    auto *stack = new QUndoStack(w);
+    auto *group = new QUndoGroup(w);
+    group->addStack(stack);
+
+    auto *history = new DA::DAUndoHistoryWidget(w);
+    history->setUndoGroup(group);
+    v->addWidget(history, 1);
+
+    auto *btns = new QHBoxLayout();
+    auto *plus = new QPushButton(QStringLiteral("+1"), w);
+    auto *minus = new QPushButton(QStringLiteral("-1"), w);
+    btns->addWidget(plus);
+    btns->addWidget(minus);
+    btns->addWidget(value);
+    btns->addStretch(1);
+    v->addLayout(btns);
+
+    QObject::connect(plus, &QPushButton::clicked, w, [stack, counter, refresh]() {
+        stack->push(new DemoAddCommand(counter.get(), 1));
+        refresh();
+    });
+    QObject::connect(minus, &QPushButton::clicked, w, [stack, counter, refresh]() {
+        stack->push(new DemoAddCommand(counter.get(), -1));
+        refresh();
+    });
+    QObject::connect(history, &DA::DAUndoHistoryWidget::undoLimitChangeRequested, value,
+                     [value](int limit) {
+                         value->setText(QStringLiteral("请求撤销深度: %1（当前值见上方）").arg(limit));
+                     });
+    return w;
+}
+
+// ============================================================
+// DAAbstractWidgetOverlay —— 半透明遮罩
+// ============================================================
+static QWidget *createOverlayContent(QWidget *parent)
+{
+    auto *w = new QWidget(parent);
+    auto *v = new QVBoxLayout(w);
+    v->setContentsMargins(8, 4, 8, 4);
+
+    auto *desc = new QLabel(
+        QStringLiteral("遮罩层叠在目标控件上，父控件 resize 时自动跟随；切换 MaskMode/"
+                       "RenderMode 后调用 updateOverlay() 重算遮罩。"), w);
+    desc->setWordWrap(true);
+    v->addWidget(desc);
+
+    auto *target = new QLabel(QStringLiteral("被遮罩的控件（QLabel）"), w);
+    target->setAlignment(Qt::AlignCenter);
+    target->setMinimumSize(360, 120);
+    target->setStyleSheet(QStringLiteral("background:#f5f7fa;border:1px solid #dcdfe6;"));
+    v->addWidget(target);
+
+    auto *overlay = new DemoOverlay(target);
+    overlay->resize(target->size());
+    overlay->show();
+    overlay->raise();
+
+    auto *maskCombo = new QComboBox(w);
+    maskCombo->addItem(QStringLiteral("NoMask"), static_cast<int>(DA::DAAbstractWidgetOverlay::NoMask));
+    maskCombo->addItem(QStringLiteral("MaskHint"), static_cast<int>(DA::DAAbstractWidgetOverlay::MaskHint));
+    maskCombo->addItem(QStringLiteral("AlphaMask"), static_cast<int>(DA::DAAbstractWidgetOverlay::AlphaMask));
+    maskCombo->setCurrentIndex(1);
+
+    auto *renderCombo = new QComboBox(w);
+    renderCombo->addItem(QStringLiteral("AutoRenderMode"),
+                         static_cast<int>(DA::DAAbstractWidgetOverlay::AutoRenderMode));
+    renderCombo->addItem(QStringLiteral("CopyAlphaMask"),
+                         static_cast<int>(DA::DAAbstractWidgetOverlay::CopyAlphaMask));
+    renderCombo->addItem(QStringLiteral("DrawOverlay"), static_cast<int>(DA::DAAbstractWidgetOverlay::DrawOverlay));
+
+    auto *row = new QHBoxLayout();
+    row->addWidget(new QLabel(QStringLiteral("MaskMode:"), w));
+    row->addWidget(maskCombo);
+    row->addWidget(new QLabel(QStringLiteral("RenderMode:"), w));
+    row->addWidget(renderCombo);
+    row->addStretch(1);
+    v->addLayout(row);
+
+    QObject::connect(maskCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), w,
+                     [overlay, maskCombo](int) {
+                         overlay->setMaskMode(static_cast<DA::DAAbstractWidgetOverlay::MaskMode>(
+                             maskCombo->currentData().toInt()));
+                         overlay->updateOverlay();
+                     });
+    QObject::connect(renderCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), w,
+                     [overlay, renderCombo](int) {
+                         overlay->setRenderMode(static_cast<DA::DAAbstractWidgetOverlay::RenderMode>(
+                             renderCombo->currentData().toInt()));
+                         overlay->updateOverlay();
+                     });
+    return w;
+}
+
+// ============================================================
 // 入口
 // ============================================================
 QWidget *createUtilityTab(QWidget *parent)
@@ -238,7 +405,11 @@ QWidget *createUtilityTab(QWidget *parent)
         ->setContentWidget(createTimeFormatContent(collapse));
     collapse->addItem(QStringLiteral("DAPropertyItemWidget — 属性项组件"), QStringLiteral("3"))
         ->setContentWidget(createPropertyItemContent(collapse));
-    collapse->addItem(QStringLiteral("DAWaitCursorScoped — RAII 等待光标守卫"), QStringLiteral("5"))
+    collapse->addItem(QStringLiteral("DAUndoHistoryWidget — 撤销历史"), QStringLiteral("4"))
+        ->setContentWidget(createUndoHistoryContent(collapse));
+    collapse->addItem(QStringLiteral("DAAbstractWidgetOverlay — 遮罩层"), QStringLiteral("5"))
+        ->setContentWidget(createOverlayContent(collapse));
+    collapse->addItem(QStringLiteral("DAWaitCursorScoped — RAII 等待光标守卫"), QStringLiteral("6"))
         ->setContentWidget(createWaitCursorContent(collapse));
     collapse->setActiveNames({ QStringLiteral("1") });
 

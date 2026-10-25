@@ -1,11 +1,12 @@
 #include "DACheckListWidget.h"
+#include "DAStringFilterProxyModel.h"
 #include <QHBoxLayout>
 #include <QLineEdit>
-#include <QListWidget>
+#include <QListView>
 #include <QPushButton>
-#include <QSignalBlocker>
+#include <QStandardItem>
+#include <QStandardItemModel>
 #include <QVBoxLayout>
-#include <utility>
 
 namespace DA
 {
@@ -23,23 +24,24 @@ class DACheckListWidget::PrivateData
 public:
     PrivateData(DACheckListWidget* p);
     void init();
-    // 搜索过滤：只隐藏行，不动勾选状态
+    // 搜索过滤：由通用代理模型完成（只影响可见行，不改勾选状态）
     void applyFilter(const QString& key);
     // 按条目查找列表项（DAItemEntry 相等语义）
-    QListWidgetItem* findItem(const DAItemEntry& e) const;
-    DAItemEntry entryOf(const QListWidgetItem* item) const;
-    bool itemForced(const QListWidgetItem* item) const;
-    bool itemCheckable(const QListWidgetItem* item) const;
-    bool itemUsable(const QListWidgetItem* item) const;
-    bool rowVisible(int row) const;
-    void setCheckedSilently(QListWidgetItem* item, bool on);
-    // 全选/反选：只作用于可见 + 可勾选 + 非 forced + 可用的条目
+    QStandardItem* findItem(const DAItemEntry& e) const;
+    DAItemEntry entryOf(const QStandardItem* item) const;
+    bool itemForced(const QStandardItem* item) const;
+    bool itemCheckable(const QStandardItem* item) const;
+    bool itemUsable(const QStandardItem* item) const;
+    void setCheckedSilently(QStandardItem* item, bool on);
+    // 全选/反选：只作用于代理当前可见 + 可勾选 + 非 forced + 可用的条目
     void selectAllVisible();
     void invertVisible();
-    void onItemChanged(QListWidgetItem* item);
+    void onItemChanged(QStandardItem* item);
 
     QLineEdit* mSearch { nullptr };
-    QListWidget* mList { nullptr };
+    QListView* mList { nullptr };
+    QStandardItemModel* mModel { nullptr };
+    DAStringFilterProxyModel* mProxy { nullptr };
     QPushButton* mSelectAll { nullptr };
     QPushButton* mInvert { nullptr };
     bool mUpdating { false };  ///< 程序化改动期间屏蔽 itemChanged 回环
@@ -62,8 +64,12 @@ void DACheckListWidget::PrivateData::init()
     mSearch->setClearButtonEnabled(true);
     root->addWidget(mSearch);
 
-    mList = new QListWidget(q);
+    mModel = new QStandardItemModel(q);
+    mProxy = new DAStringFilterProxyModel(q);
+    mProxy->setSourceModel(mModel);
+    mList = new QListView(q);
     mList->setObjectName(QStringLiteral("checkList"));
+    mList->setModel(mProxy);
     // 勾选即选择，避免选中态干扰
     mList->setSelectionMode(QAbstractItemView::NoSelection);
     root->addWidget(mList, 1);
@@ -82,55 +88,46 @@ void DACheckListWidget::PrivateData::init()
     QObject::connect(mSearch, &QLineEdit::textChanged, q, [ this ](const QString& t) { applyFilter(t); });
     QObject::connect(mSelectAll, &QPushButton::clicked, q, [ this ]() { selectAllVisible(); });
     QObject::connect(mInvert, &QPushButton::clicked, q, [ this ]() { invertVisible(); });
-    QObject::connect(mList, &QListWidget::itemChanged, q, [ this ](QListWidgetItem* item) { onItemChanged(item); });
+    QObject::connect(mModel, &QStandardItemModel::itemChanged, q, [ this ](QStandardItem* item) { onItemChanged(item); });
 }
 
 void DACheckListWidget::PrivateData::applyFilter(const QString& key)
 {
-    const QString k = key.trimmed().toLower();
-    for (int i = 0; i < mList->count(); ++i) {
-        const bool hit = k.isEmpty() || mList->item(i)->text().toLower().contains(k);
-        mList->setRowHidden(i, !hit);
-    }
+    mProxy->setFilterText(key.trimmed());
 }
 
-QListWidgetItem* DACheckListWidget::PrivateData::findItem(const DAItemEntry& e) const
+QStandardItem* DACheckListWidget::PrivateData::findItem(const DAItemEntry& e) const
 {
-    for (int i = 0; i < mList->count(); ++i) {
-        QListWidgetItem* item = mList->item(i);
-        if (entryOf(item) == e) {
+    for (int i = 0; i < mModel->rowCount(); ++i) {
+        QStandardItem* item = mModel->item(i);
+        if (item && entryOf(item) == e) {
             return item;
         }
     }
     return nullptr;
 }
 
-DAItemEntry DACheckListWidget::PrivateData::entryOf(const QListWidgetItem* item) const
+DAItemEntry DACheckListWidget::PrivateData::entryOf(const QStandardItem* item) const
 {
     return DAItemEntry { item->text(), item->data(Qt::UserRole) };
 }
 
-bool DACheckListWidget::PrivateData::itemForced(const QListWidgetItem* item) const
+bool DACheckListWidget::PrivateData::itemForced(const QStandardItem* item) const
 {
     return item->data(kForcedRole).toBool();
 }
 
-bool DACheckListWidget::PrivateData::itemCheckable(const QListWidgetItem* item) const
+bool DACheckListWidget::PrivateData::itemCheckable(const QStandardItem* item) const
 {
     return item->data(kCheckableRole).toBool();
 }
 
-bool DACheckListWidget::PrivateData::itemUsable(const QListWidgetItem* item) const
+bool DACheckListWidget::PrivateData::itemUsable(const QStandardItem* item) const
 {
     return item->flags().testFlag(Qt::ItemIsEnabled);
 }
 
-bool DACheckListWidget::PrivateData::rowVisible(int row) const
-{
-    return !mList->isRowHidden(row);
-}
-
-void DACheckListWidget::PrivateData::setCheckedSilently(QListWidgetItem* item, bool on)
+void DACheckListWidget::PrivateData::setCheckedSilently(QStandardItem* item, bool on)
 {
     const Qt::CheckState target = on ? Qt::Checked : Qt::Unchecked;
     if (item->checkState() == target) {
@@ -146,11 +143,11 @@ void DACheckListWidget::PrivateData::selectAllVisible()
 {
     DA_Q(DACheckListWidget, q);
     bool changed = false;
-    for (int i = 0; i < mList->count(); ++i) {
-        if (!rowVisible(i)) {
+    for (int i = 0; i < mProxy->rowCount(); ++i) {
+        QStandardItem* item = mModel->itemFromIndex(mProxy->mapToSource(mProxy->index(i, 0)));
+        if (!item) {
             continue;
         }
-        QListWidgetItem* item = mList->item(i);
         if (itemForced(item) || !itemCheckable(item) || !itemUsable(item)) {
             continue;
         }
@@ -168,11 +165,11 @@ void DACheckListWidget::PrivateData::invertVisible()
 {
     DA_Q(DACheckListWidget, q);
     bool changed = false;
-    for (int i = 0; i < mList->count(); ++i) {
-        if (!rowVisible(i)) {
+    for (int i = 0; i < mProxy->rowCount(); ++i) {
+        QStandardItem* item = mModel->itemFromIndex(mProxy->mapToSource(mProxy->index(i, 0)));
+        if (!item) {
             continue;
         }
-        QListWidgetItem* item = mList->item(i);
         if (itemForced(item) || !itemCheckable(item) || !itemUsable(item)) {
             continue;
         }
@@ -184,10 +181,10 @@ void DACheckListWidget::PrivateData::invertVisible()
     }
 }
 
-void DACheckListWidget::PrivateData::onItemChanged(QListWidgetItem* item)
+void DACheckListWidget::PrivateData::onItemChanged(QStandardItem* item)
 {
     DA_Q(DACheckListWidget, q);
-    if (mUpdating) {
+    if (mUpdating || !item) {
         return;
     }
     // forced 条目永远勾选：用户取消后立即恢复，不发信号
@@ -233,14 +230,15 @@ void DACheckListWidget::setItems(const QVector< DAItemEntry >& items)
 {
     DA_D(d);
     d->mUpdating = true;
-    d->mList->clear();
+    d->mModel->clear();
     for (const DAItemEntry& e : items) {
-        QListWidgetItem* item = new QListWidgetItem(e.text, d->mList);
-        item->setData(Qt::UserRole, e.data);
-        item->setData(kForcedRole, false);
-        item->setData(kCheckableRole, true);
+        QStandardItem* item = new QStandardItem(e.text);
+        item->setData(e.data, Qt::UserRole);
+        item->setData(false, kForcedRole);
+        item->setData(true, kCheckableRole);
         item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable);
         item->setCheckState(Qt::Unchecked);
+        d->mModel->appendRow(item);
     }
     d->mUpdating = false;
     // 新条目也要遵守当前搜索条件
@@ -255,9 +253,9 @@ QVector< DAItemEntry > DACheckListWidget::items() const
 {
     DA_DC(d);
     QVector< DAItemEntry > res;
-    res.reserve(d->mList->count());
-    for (int i = 0; i < d->mList->count(); ++i) {
-        res.append(d->entryOf(d->mList->item(i)));
+    res.reserve(d->mModel->rowCount());
+    for (int i = 0; i < d->mModel->rowCount(); ++i) {
+        res.append(d->entryOf(d->mModel->item(i)));
     }
     return res;
 }
@@ -271,15 +269,15 @@ void DACheckListWidget::setCheckedEntries(const QVector< DAItemEntry >& entries)
 {
     DA_D(d);
     d->mUpdating = true;
-    for (int i = 0; i < d->mList->count(); ++i) {
-        QListWidgetItem* item = d->mList->item(i);
+    for (int i = 0; i < d->mModel->rowCount(); ++i) {
+        QStandardItem* item = d->mModel->item(i);
         // forced 优先：永远勾选
         if (d->itemForced(item)) {
             d->setCheckedSilently(item, true);
             continue;
         }
-        bool matched = false;
-        const DAItemEntry cur = d->entryOf(item);
+        bool matched           = false;
+        const DAItemEntry cur  = d->entryOf(item);
         for (const DAItemEntry& e : entries) {
             if (e == cur) {
                 matched = true;
@@ -299,9 +297,9 @@ QVector< DAItemEntry > DACheckListWidget::checkedEntries() const
 {
     DA_DC(d);
     QVector< DAItemEntry > res;
-    for (int i = 0; i < d->mList->count(); ++i) {
-        const QListWidgetItem* item = d->mList->item(i);
-        if (item->checkState() == Qt::Checked && d->itemCheckable(item)) {
+    for (int i = 0; i < d->mModel->rowCount(); ++i) {
+        const QStandardItem* item = d->mModel->item(i);
+        if (item && item->checkState() == Qt::Checked && d->itemCheckable(item)) {
             res.append(d->entryOf(item));
         }
     }
@@ -316,7 +314,7 @@ QVector< DAItemEntry > DACheckListWidget::checkedEntries() const
 void DACheckListWidget::setEntryEnabled(const DAItemEntry& e, bool enabled)
 {
     DA_D(d);
-    QListWidgetItem* item = d->findItem(e);
+    QStandardItem* item = d->findItem(e);
     if (!item) {
         return;
     }
@@ -339,12 +337,12 @@ void DACheckListWidget::setEntryEnabled(const DAItemEntry& e, bool enabled)
 void DACheckListWidget::setEntryCheckable(const DAItemEntry& e, bool checkable)
 {
     DA_D(d);
-    QListWidgetItem* item = d->findItem(e);
+    QStandardItem* item = d->findItem(e);
     if (!item) {
         return;
     }
     d->mUpdating = true;
-    item->setData(kCheckableRole, checkable);
+    item->setData(checkable, kCheckableRole);
     Qt::ItemFlags flags = item->flags();
     if (checkable) {
         flags |= Qt::ItemIsUserCheckable;
@@ -367,12 +365,12 @@ void DACheckListWidget::setEntryCheckable(const DAItemEntry& e, bool checkable)
 void DACheckListWidget::setEntryForcedChecked(const DAItemEntry& e, bool on)
 {
     DA_D(d);
-    QListWidgetItem* item = d->findItem(e);
+    QStandardItem* item = d->findItem(e);
     if (!item) {
         return;
     }
     d->mUpdating = true;
-    item->setData(kForcedRole, on);
+    item->setData(on, kForcedRole);
     if (on) {
         d->setCheckedSilently(item, true);
     }
@@ -426,7 +424,7 @@ void DACheckListWidget::setInvertVisible(bool on)
 int DACheckListWidget::itemCount() const
 {
     DA_DC(d);
-    return d->mList->count();
+    return d->mModel->rowCount();
 }
 
 /**
