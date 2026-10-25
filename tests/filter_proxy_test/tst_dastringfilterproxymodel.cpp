@@ -14,6 +14,7 @@ private Q_SLOTS:
     void testCaseSensitivity();
     void testColumnFilter();
     void testFilterRole();
+    void testMatchesText();
     void testIncludeParentsOfMatches();
     void testClearFilterRestoresAll();
 
@@ -136,6 +137,13 @@ void DaStringFilterProxyModelTest::testClearFilterRestoresAll()
     QCOMPARE(proxy.rowCount(), 1);
     proxy.setFilterText(QString());
     QCOMPARE(proxy.rowCount(), 2);
+}
+
+void DaStringFilterProxyModelTest::testMatchesText()
+{
+    QVERIFY(DAStringFilterProxyModel::matchesText(QStringLiteral("Save Project"), QString(), Qt::CaseInsensitive));
+    QVERIFY(DAStringFilterProxyModel::matchesText(QStringLiteral("Save Project"), QStringLiteral("save"), Qt::CaseInsensitive));
+    QVERIFY(!DAStringFilterProxyModel::matchesText(QStringLiteral("Save Project"), QStringLiteral("save"), Qt::CaseSensitive));
 }
 
 QTEST_MAIN(DaStringFilterProxyModelTest)

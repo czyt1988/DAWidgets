@@ -132,6 +132,14 @@ bool DAStringFilterProxyModel::includeParentsOfMatches() const
  * @param source_parent 源父索引
  * @return 是否保留该行
  */
+bool DAStringFilterProxyModel::matchesText(const QString& text, const QString& filter, Qt::CaseSensitivity cs)
+{
+    if (filter.isEmpty()) {
+        return true;
+    }
+    return text.contains(filter, cs);
+}
+
 bool DAStringFilterProxyModel::filterAcceptsRow(int source_row, const QModelIndex& source_parent) const
 {
     if (mFilterText.isEmpty()) {
@@ -167,13 +175,13 @@ bool DAStringFilterProxyModel::rowMatches(int source_row, const QModelIndex& sou
 {
     if (mFilterColumn >= 0) {
         const QModelIndex index = sourceModel()->index(source_row, mFilterColumn, source_parent);
-        const QString text      = index.isValid() ? index.data(mFilterRole).toString() : QString();
-        return text.contains(mFilterText, filterCaseSensitivity());
+        const QString text = index.isValid() ? index.data(mFilterRole).toString() : QString();
+        return matchesText(text, mFilterText, filterCaseSensitivity());
     }
     const int columns = sourceModel()->columnCount(source_parent);
     for (int c = 0; c < columns; ++c) {
         const QModelIndex index = sourceModel()->index(source_row, c, source_parent);
-        if (index.isValid() && index.data(mFilterRole).toString().contains(mFilterText, filterCaseSensitivity())) {
+        if (index.isValid() && matchesText(index.data(mFilterRole).toString(), mFilterText, filterCaseSensitivity())) {
             return true;
         }
     }

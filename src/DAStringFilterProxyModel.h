@@ -44,6 +44,9 @@ public:
     void setIncludeParentsOfMatches(bool on);
     bool includeParentsOfMatches() const;
 
+    // 单段文本的匹配语义（空过滤恒为 true）；供不能挂代理的视图复用同一实现
+    static bool matchesText(const QString& text, const QString& filter, Qt::CaseSensitivity cs);
+
 protected:
     bool filterAcceptsRow(int source_row, const QModelIndex& source_parent) const override;
 
