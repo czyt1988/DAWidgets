@@ -13,6 +13,7 @@ private Q_SLOTS:
     void testFlatFilter();
     void testCaseSensitivity();
     void testColumnFilter();
+    void testFilterRole();
     void testIncludeParentsOfMatches();
     void testClearFilterRestoresAll();
 
@@ -90,6 +91,24 @@ void DaStringFilterProxyModelTest::testColumnFilter()
     proxy.setFilterText(QStringLiteral("bob"));
     QCOMPARE(proxy.rowCount(), 1);
     QCOMPARE(proxy.index(0, 1).data().toString(), QStringLiteral("Designer"));
+}
+
+void DaStringFilterProxyModelTest::testFilterRole()
+{
+    auto* src  = new QStandardItemModel;
+    auto* item = new QStandardItem(QStringLiteral("Visible"));
+    item->setData(QStringLiteral("secret-id"), Qt::UserRole + 5);
+    src->appendRow(item);
+    QScopedPointer< QStandardItemModel > guard(src);
+
+    DAStringFilterProxyModel proxy;
+    proxy.setSourceModel(src);
+    proxy.setFilterRole(Qt::UserRole + 5);
+    proxy.setFilterText(QStringLiteral("secret"));
+    QCOMPARE(proxy.rowCount(), 1);
+    // 显示文本不参与匹配
+    proxy.setFilterText(QStringLiteral("visible"));
+    QCOMPARE(proxy.rowCount(), 0);
 }
 
 void DaStringFilterProxyModelTest::testIncludeParentsOfMatches()

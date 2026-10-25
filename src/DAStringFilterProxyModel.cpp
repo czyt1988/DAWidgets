@@ -83,6 +83,28 @@ int DAStringFilterProxyModel::filterColumn() const
 }
 
 /**
+ * @brief 设置过滤使用的数据角色
+ * @param role 数据角色（默认 Qt::DisplayRole）
+ */
+void DAStringFilterProxyModel::setFilterRole(int role)
+{
+    if (mFilterRole == role) {
+        return;
+    }
+    mFilterRole = role;
+    invalidateFilter();
+}
+
+/**
+ * @brief 获取过滤数据角色
+ * @return 数据角色
+ */
+int DAStringFilterProxyModel::filterRole() const
+{
+    return mFilterRole;
+}
+
+/**
  * @brief 设置子节点命中时是否放行父节点
  * @param on 是否放行
  */
@@ -145,13 +167,13 @@ bool DAStringFilterProxyModel::rowMatches(int source_row, const QModelIndex& sou
 {
     if (mFilterColumn >= 0) {
         const QModelIndex index = sourceModel()->index(source_row, mFilterColumn, source_parent);
-        const QString text      = index.isValid() ? index.data(Qt::DisplayRole).toString() : QString();
+        const QString text      = index.isValid() ? index.data(mFilterRole).toString() : QString();
         return text.contains(mFilterText, filterCaseSensitivity());
     }
     const int columns = sourceModel()->columnCount(source_parent);
     for (int c = 0; c < columns; ++c) {
         const QModelIndex index = sourceModel()->index(source_row, c, source_parent);
-        if (index.isValid() && index.data(Qt::DisplayRole).toString().contains(mFilterText, filterCaseSensitivity())) {
+        if (index.isValid() && index.data(mFilterRole).toString().contains(mFilterText, filterCaseSensitivity())) {
             return true;
         }
     }

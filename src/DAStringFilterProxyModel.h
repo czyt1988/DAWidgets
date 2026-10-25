@@ -36,6 +36,10 @@ public:
     void setFilterColumn(int column);
     int filterColumn() const;
 
+    // 过滤使用的数据角色（默认 Qt::DisplayRole）
+    void setFilterRole(int role);
+    int filterRole() const;
+
     // 子节点命中时是否放行父节点（树形模型用，默认 false）
     void setIncludeParentsOfMatches(bool on);
     bool includeParentsOfMatches() const;
@@ -49,6 +53,7 @@ private:
 
     QString mFilterText;
     int mFilterColumn { -1 };
+    int mFilterRole { Qt::DisplayRole };
     bool mIncludeParents { false };
 };
 
