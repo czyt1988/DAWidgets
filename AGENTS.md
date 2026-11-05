@@ -52,6 +52,7 @@ Source files live directly under `src/` (flat, no subdirectory). SVG icons live 
 | `DAFontEditPannelWidget` | Font editing panel: family + size + bold/italic/underline + color. Two layout modes: `TwoRowsLayout` (default) / `SingleRowLayout` (all controls in one row, for toolbar embedding). |
 | `DAShapeEditPannelWidget` | Shape editor: composes `DABrushEditWidget` + `DAPenEditWidget`. |
 | `DAAligmentEditWidget` | Alignment editor (horizontal/vertical). |
+| `DATextAlignmentEditWidget` | Text alignment editor with two independent exclusive rows: horizontal (left/center/right) + vertical (top/middle/bottom); value is a combined `Qt::Alignment`. |
 | `DAAligmentPositionEditWidget` | 9-grid alignment position editor. |
 | `DATimeFormatEditWidget` | Time format string editor with preset format options. |
 | `DAFilePathEditWidget` | File/directory path editor: line edit + browse button. Modes `OpenFile` / `SaveFile` / `ExistingDirectory`, plus start directory, name filters and default suffix. |

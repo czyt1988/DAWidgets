@@ -1,6 +1,34 @@
 # 对齐编辑器
 
-`DAAligmentEditWidget` 和 `DAAligmentPositionEditWidget` 提供对齐方式的编辑控件。前者通过按钮组选择水平/垂直对齐，后者通过九宫格选择对齐位置。
+`DATextAlignmentEditWidget`、`DAAligmentEditWidget` 和 `DAAligmentPositionEditWidget` 提供对齐方式的编辑控件。`DATextAlignmentEditWidget` 用两行互斥按钮组分别设置水平/垂直对齐，`DAAligmentEditWidget` 通过单个按钮组选择水平/垂直对齐，`DAAligmentPositionEditWidget` 通过九宫格选择对齐位置。
+
+## DATextAlignmentEditWidget
+
+### 核心特性
+
+- ✅ 水平一组（左/居中/右）+ 垂直一组（顶端/居中/底端），两组独立互斥
+- ✅ 值以 `Qt::Alignment` 组合表示（可同时「右对齐 + 顶端对齐」）
+- ✅ 信号通知：`alignmentChanged(Qt::Alignment)`，值未变化不发信号
+- ✅ 默认值为左对齐 + 垂直居中（`AlignLeft | AlignVCenter`）
+
+### 用法
+
+```cpp
+#include "DATextAlignmentEditWidget.h"
+
+auto *edit = new DA::DATextAlignmentEditWidget(parent);
+
+// 设置当前对齐（只给水平位/垂直位时，另一半保持当前值）
+edit->setAlignment(Qt::AlignRight | Qt::AlignTop);
+
+// 监听变化
+QObject::connect(edit, &DA::DATextAlignmentEditWidget::alignmentChanged,
+    [](Qt::Alignment align) {
+        qDebug() << "对齐方式:" << align;
+    });
+```
+
+与 `DAAligmentEditWidget` 的区别：后者是单选语义（水平垂直共用一个按钮组，选中「居中」即两个方向都居中）；本控件把水平与垂直拆成两组，可以分别设置。
 
 ## DAAligmentEditWidget
 

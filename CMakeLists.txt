@@ -69,6 +69,8 @@ set(_DAWIDGETS_SOURCES
     src/DAAligmentPositionEditWidget.h
     src/DAAligmentPositionEditWidget.cpp
     src/DAAligmentPositionEditWidget.ui
+    src/DATextAlignmentEditWidget.h
+    src/DATextAlignmentEditWidget.cpp
     src/DAFilePathEditWidget.h
     src/DAFilePathEditWidget.cpp
     src/DAFilePathEditWidget.ui
@@ -181,6 +183,7 @@ if(DAWIDGETS_BUILD_TESTS)
     add_subdirectory(tests/undo_history_test)
     add_subdirectory(tests/overlay_test)
     add_subdirectory(tests/item_list_edit_test)
+    add_subdirectory(tests/text_alignment_test)
 endif()
 
 # ---- Install ----

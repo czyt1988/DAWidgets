@@ -1,6 +1,34 @@
 # Alignment Editor
 
-`DAAligmentEditWidget` and `DAAligmentPositionEditWidget` provide alignment editing controls. The former selects horizontal/vertical alignment via a button group; the latter selects an alignment position via a 9-grid layout.
+`DATextAlignmentEditWidget`, `DAAligmentEditWidget` and `DAAligmentPositionEditWidget` provide alignment editing controls. `DATextAlignmentEditWidget` uses two independent exclusive button rows (horizontal / vertical); `DAAligmentEditWidget` selects horizontal/vertical alignment via a single button group; `DAAligmentPositionEditWidget` selects an alignment position via a 9-grid layout.
+
+## DATextAlignmentEditWidget
+
+### Key Features
+
+- ✅ Horizontal row (Left / Center / Right) + vertical row (Top / Middle / Bottom), independent exclusive groups
+- ✅ Value is a `Qt::Alignment` combination (e.g. "Align Right + Align Top")
+- ✅ Signal notification: `alignmentChanged(Qt::Alignment)`; not emitted when the value does not change
+- ✅ Defaults to `AlignLeft | AlignVCenter`
+
+### Usage
+
+```cpp
+#include "DATextAlignmentEditWidget.h"
+
+auto *edit = new DA::DATextAlignmentEditWidget(parent);
+
+// Set the current alignment (a missing horizontal/vertical bit keeps the current half)
+edit->setAlignment(Qt::AlignRight | Qt::AlignTop);
+
+// Listen for changes
+QObject::connect(edit, &DA::DATextAlignmentEditWidget::alignmentChanged,
+    [](Qt::Alignment align) {
+        qDebug() << "Alignment:" << align;
+    });
+```
+
+Difference from `DAAligmentEditWidget`: the latter is single-selection (horizontal and vertical share one button group); this widget splits the two axes so they can be set independently.
 
 ## DAAligmentEditWidget
 
