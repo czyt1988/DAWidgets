@@ -4,6 +4,10 @@
 
 ## DAColorMenu
 
+![DAColorMenu：主题色板、None、Custom Color 与自定义色记录](../images/gallery/widgets/color-menu-popup.png)
+
+上图为展开后的颜色菜单：顶部主题色板 → `None` → `Custom Color` → 最近自定义色记录。选择颜色后菜单自动关闭并发射 `selectedColor`；选择 `Custom Color` 会弹出 `QColorDialog`。
+
 ### 核心特性
 
 - ✅ **完整菜单结构**：标题 → 主题色板 → "None" Action → "Custom Color" Action → 自定义色网格
@@ -36,6 +40,10 @@ menu->exec(QCursor::pos());
 ```
 
 ## DAColorPickerButton
+
+![DAColorPickerButton：WithColorMenu、NoColorMenu 与无效色三种状态](../images/gallery/widgets/color-picker-button.png)
+
+上图依次展示三种状态：带菜单的蓝色色块、无菜单的绿色色块，以及 `QColor()` 无效色（红色斜线）。前两种点击行为不同，无效色会通过 `paintNoneColor()` 的语义绘制为「无颜色」。
 
 ### 核心特性
 

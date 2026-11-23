@@ -1,6 +1,9 @@
 add_executable(dawidgets_all_widgets_demo
     main.cpp
+    DemoScene.cpp
+    GalleryExport.cpp
     TabSelector.cpp
+    TabCollapse.cpp
     TabColor.cpp
     TabDrawingStyle.cpp
     TabAlignment.cpp

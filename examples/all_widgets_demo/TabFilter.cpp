@@ -1,15 +1,14 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
-#include <QScrollArea>
 #include <QStandardItem>
 #include <QStandardItemModel>
 #include <QTreeView>
 #include <QVBoxLayout>
 
-#include <DACollapseItem.h>
-#include <DACollapseWidget.h>
 #include <DAStringFilterProxyModel.h>
+
+#include "TabPages.h"
 
 // ============================================================
 // DAStringFilterProxyModel —— 树/列表过滤
@@ -77,24 +76,12 @@ static QWidget *createFilterContent(QWidget *parent)
 }
 
 // ============================================================
-// 入口
+// 场景列表（tab 与截图导出共用）
 // ============================================================
-QWidget *createFilterTab(QWidget *parent)
+QVector< DemoScene > filterScenes()
 {
-    auto *scroll = new QScrollArea(parent);
-    scroll->setWidgetResizable(true);
-    auto *content = new QWidget;
-    auto *v = new QVBoxLayout(content);
-    v->setSpacing(12);
-
-    auto *collapse = new DA::DACollapseWidget(content);
-    collapse->addItem(QStringLiteral("DAStringFilterProxyModel — 树过滤"), QStringLiteral("1"))
-        ->setContentWidget(createFilterContent(collapse));
-    collapse->setActiveNames({ QStringLiteral("1") });
-
-    v->addWidget(collapse);
-    v->addStretch(1);
-
-    scroll->setWidget(content);
-    return scroll;
+    return {
+        { QStringLiteral("filter-tree"), QStringLiteral("DAStringFilterProxyModel — 树过滤"),
+          createFilterContent, 340 },
+    };
 }

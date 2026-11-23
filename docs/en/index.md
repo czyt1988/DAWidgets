@@ -28,6 +28,7 @@ bringing Web-style component interactions to desktop applications.
 
 <div class="daw-hero-actions">
 <a href="introduction/" class="daw-btn daw-btn-primary">Get Started</a>
+<a href="gallery/" class="daw-btn daw-btn-ghost">Gallery</a>
 <a href="https://github.com/czyt1988/DAWidgets" class="daw-btn daw-btn-ghost">GitHub</a>
 </div>
 

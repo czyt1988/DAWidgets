@@ -59,6 +59,7 @@ plugins:
           build: true
           nav:
             - 首页: index.md
+            - 控件画廊: gallery.md
             - 入门指南:
                 - 概述:
                     - DAWidgets 简介: introduction.md
@@ -80,6 +81,7 @@ plugins:
                 - Collapse 折叠面板:
                     - DACollapse 折叠容器: use-guide/collapse.md
                     - DACollapseItem 折叠条目: use-guide/collapse-item.md
+                - 条目选择与预览: use-guide/item-selection.md
                 - 光标工具:
                     - 光标守卫类: use-guide/cursor-scoped.md
                 - 属性编辑家族:
@@ -94,11 +96,16 @@ plugins:
                     - 画刷样式编辑: use-guide/brush-edit.md
                     - 字体编辑面板: use-guide/font-edit.md
                     - 形状编辑面板: use-guide/shape-edit.md
+                - 文本与过滤:
+                    - DATextEditWidget 文本编辑: use-guide/text-edit.md
+                    - DAStringFilterProxyModel 过滤: use-guide/filter-proxy.md
+                - 撤销历史与遮罩层: use-guide/undo-overlay.md
         - locale: en
           name: English
           build: true
           nav:
             - Home: index.md
+            - Gallery: gallery.md
             - Getting Started:
                 - Overview:
                     - Introduction: introduction.md
@@ -120,6 +127,7 @@ plugins:
                 - Collapse:
                     - DACollapse: use-guide/collapse.md
                     - DACollapseItem: use-guide/collapse-item.md
+                - Item Selection & Preview: use-guide/item-selection.md
                 - Cursor Utils:
                     - Cursor Guard Classes: use-guide/cursor-scoped.md
                 - Property Edit Family:
@@ -134,6 +142,10 @@ plugins:
                     - Brush Style Editor: use-guide/brush-edit.md
                     - Font Edit Panel: use-guide/font-edit.md
                     - Shape Edit Panel: use-guide/shape-edit.md
+                - Text & Filtering:
+                    - DATextEditWidget: use-guide/text-edit.md
+                    - DAStringFilterProxyModel: use-guide/filter-proxy.md
+                - Undo History & Overlay: use-guide/undo-overlay.md
 
 # Markdown 扩展
 markdown_extensions:

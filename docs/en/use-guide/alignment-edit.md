@@ -4,6 +4,10 @@
 
 ## DATextAlignmentEditWidget
 
+![DATextAlignmentEditWidget: independent horizontal and vertical rows](../images/gallery/widgets/text-alignment-edit.png)
+
+Two independent exclusive button rows: horizontal (left/center/right) and vertical (top/middle/bottom) can be set separately. The label on the right shows the combined `Qt::Alignment` value.
+
 ### Key Features
 
 - ✅ Horizontal row (Left / Center / Right) + vertical row (Top / Middle / Bottom), independent exclusive groups
@@ -32,6 +36,10 @@ Difference from `DAAligmentEditWidget`: the latter is single-selection (horizont
 
 ## DAAligmentEditWidget
 
+![DAAligmentEditWidget: single-selection horizontal/vertical alignment buttons](../images/gallery/widgets/alignment-edit.png)
+
+This button group merges horizontal and vertical alignment into one single-selection semantic: clicking "Center" centers on both axes. It suits panels that only care about one overall alignment direction.
+
 ### Key Features
 
 - ✅ Horizontal alignment: Left / Right / Center
@@ -56,6 +64,10 @@ QObject::connect(alignEdit, &DA::DAAligmentEditWidget::alignmentChanged,
 ```
 
 ## DAAligmentPositionEditWidget
+
+![DAAligmentPositionEditWidget: 9-grid alignment position](../images/gallery/widgets/alignment-position-edit.png)
+
+The 9-grid selector maps its nine buttons to top-left through bottom-right; each click returns a combined `Qt::Alignment`.
 
 ### Key Features
 

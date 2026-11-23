@@ -2,6 +2,14 @@
 
 `DASelectComboBox` is a multi-tag dropdown selector that mirrors Element UI's `el-select` (`multiple + filterable + allow-create`). It inherits `QComboBox`, retaining the native arrow, border, and keyboard mnemonics, while replacing the edit field with `DAChipsEdit`.
 
+## Preview
+
+![DASelectComboBox: edit field with the Qt and C++ tags](../images/gallery/widgets/select-combobox.png)
+
+![DASelectComboBox: open candidate list with selected tags removed and the first item highlighted](../images/gallery/widgets/select-combobox-popup.png)
+
+The first image shows the edit field: `Qt` and `C++` rendered as chips, a placeholder input, and the native dropdown arrow. The second shows the open candidate list: already-selected tags are removed, the first item is highlighted (`default-first-option`), and typing filters the list live.
+
 ## Key Features
 
 - ✅ **Multi-tag selection**: Selected items are displayed as chips in the edit field

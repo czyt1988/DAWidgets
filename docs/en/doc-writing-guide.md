@@ -91,7 +91,7 @@ For complex concepts, use the following to aid explanation:
 - **Mermaid UML diagrams**: Show class relationships and inheritance hierarchies
 - **Mermaid flowcharts**: Show workflows
 - **ASCII structure diagrams**: Show structural diagrams
-- **Screenshots**: Actual effect screenshots
+- **Screenshots**: Actual effect screenshots (exported from the demo via `--export-gallery`)
 
 ### 5. Note Format
 
@@ -155,6 +155,15 @@ flowchart TD
     E -->|Yes| F[Emit optionSelected]
     E -->|No| G[Emit created]
 ```
+
+### 3. Widget Screenshots
+
+Every widget page needs a real screenshot in a "Preview" section near the top:
+
+- Export screenshots from the demo instead of capturing them by hand: `dawidgets_all_widgets_demo --export-gallery docs/images/gallery`
+- Chinese pages reference `../images/gallery/widgets/<scene-id>.png`; English pages use the same relative path and the images are mirrored to `docs/en/images/gallery/`
+- Popup-based widgets (dropdown list, color menu, pick dialog) use the `*-popup.png` / `*-window.png` close-ups
+- Re-export after changing widget styling so the docs do not drift from the implementation; see the [Gallery](gallery.md)
 
 ## Document Template
 

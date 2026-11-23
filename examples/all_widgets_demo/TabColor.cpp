@@ -3,15 +3,15 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QPushButton>
-#include <QScrollArea>
+#include <QSize>
 #include <QVBoxLayout>
 
-#include <DACollapseItem.h>
-#include <DACollapseWidget.h>
 #include <DAColorGridWidget.h>
 #include <DAColorMenu.h>
 #include <DAColorPaletteGridWidget.h>
 #include <DAColorPickerButton.h>
+
+#include "TabPages.h"
 
 // ============================================================
 // DAColorPickerButton —— 颜色选择按钮
@@ -88,6 +88,7 @@ static QWidget *createPaletteContent(QWidget *parent)
 
     auto *palette = new DA::DAColorPaletteGridWidget(w);
     palette->setColorCheckable(true);
+    palette->setColorIconSize(QSize(20, 20));
     v->addWidget(palette);
 
     auto *log = new QLabel(w);
@@ -126,7 +127,10 @@ static QWidget *createColorGridContent(QWidget *parent)
         QColor(255, 20, 147), QColor(0, 255, 255), QColor(255, 215, 0),
     });
     grid->setColorCheckable(true);
-    v->addWidget(grid);
+    auto *gridRow = new QHBoxLayout;
+    gridRow->addWidget(grid);
+    gridRow->addStretch(1);
+    v->addLayout(gridRow);
 
     auto *log = new QLabel(w);
     log->setStyleSheet(QStringLiteral("color:#909399;"));
@@ -180,30 +184,18 @@ static QWidget *createColorMenuContent(QWidget *parent)
 }
 
 // ============================================================
-// 入口
+// 场景列表（tab 与截图导出共用）
 // ============================================================
-QWidget *createColorTab(QWidget *parent)
+QVector< DemoScene > colorScenes()
 {
-    auto *scroll = new QScrollArea(parent);
-    scroll->setWidgetResizable(true);
-    auto *content = new QWidget;
-    auto *v = new QVBoxLayout(content);
-    v->setSpacing(12);
-
-    auto *collapse = new DA::DACollapseWidget(content);
-    collapse->addItem(QStringLiteral("DAColorPickerButton — 自绘颜色选择按钮"), QStringLiteral("1"))
-        ->setContentWidget(createColorPickerContent(collapse));
-    collapse->addItem(QStringLiteral("DAColorPaletteGridWidget — Office 风格调色板"), QStringLiteral("2"))
-        ->setContentWidget(createPaletteContent(collapse));
-    collapse->addItem(QStringLiteral("DAColorGridWidget — 基础颜色网格"), QStringLiteral("3"))
-        ->setContentWidget(createColorGridContent(collapse));
-    collapse->addItem(QStringLiteral("DAColorMenu — 颜色选择弹出菜单"), QStringLiteral("4"))
-        ->setContentWidget(createColorMenuContent(collapse));
-    collapse->setActiveNames({ QStringLiteral("1") });
-
-    v->addWidget(collapse);
-    v->addStretch(1);
-
-    scroll->setWidget(content);
-    return scroll;
+    return {
+        { QStringLiteral("color-picker-button"),
+          QStringLiteral("DAColorPickerButton — 自绘颜色选择按钮"), createColorPickerContent, 0 },
+        { QStringLiteral("color-palette"),
+          QStringLiteral("DAColorPaletteGridWidget — Office 风格调色板"), createPaletteContent, 0 },
+        { QStringLiteral("color-grid"), QStringLiteral("DAColorGridWidget — 基础颜色网格"),
+          createColorGridContent, 0 },
+        { QStringLiteral("color-menu"), QStringLiteral("DAColorMenu — 颜色选择弹出菜单"),
+          createColorMenuContent, 0 },
+    };
 }

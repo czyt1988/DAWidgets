@@ -75,7 +75,7 @@ combo->setAllowCreate(true);                // 允许创建新标签
 - **Mermaid UML 图**：展示类关系和继承层次
 - **Mermaid 流程图**：展示工作流程
 - **ASCII 结构图**：展示结构图
-- **截图**：实际效果截图
+- **截图**：实际效果截图（统一由 `--export-gallery` 从示例程序导出）
 
 ### 5. 注意事项格式
 
@@ -139,6 +139,15 @@ flowchart TD
     E -->|是| F[发射 optionSelected]
     E -->|否| G[发射 created]
 ```
+
+### 3. 控件截图
+
+控件文档必须有一张实际运行截图，放在页面开头的「效果预览」章节：
+
+- 截图统一由示例程序导出，不手工截图：`dawidgets_all_widgets_demo --export-gallery docs/images/gallery`
+- 中文文档引用 `../images/gallery/widgets/<scene-id>.png`；英文文档引用同一相对路径，图片镜像到 `docs/en/images/gallery/`
+- 弹层类控件（下拉列表、颜色菜单、勾选对话框）使用 `*-popup.png` / `*-window.png` 特写
+- 修改控件样式后重新导出截图，避免文档与实现脱节；画廊总览见 [控件画廊](gallery.md)
 
 ## 多语言文档
 

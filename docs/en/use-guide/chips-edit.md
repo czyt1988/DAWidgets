@@ -2,6 +2,12 @@
 
 `DAChipsEdit` is a flow-layout multi-tag input box that can be used independently. Users commit tags via Enter or separator characters, and Backspace removes the last tag. It supports deduplication, count limits, and custom separators.
 
+## Preview
+
+![DAChipsEdit: two committed tags with the input filling the remaining width](../images/gallery/widgets/chips-edit.png)
+
+The committed `Qt` and `C++` tags flow in order, and the trailing input fills the remaining width thanks to `DAFlowLayout`'s trailing expansion. Type and press Enter/comma/semicolon to append more tags; below is the `tagsChanged` echo plus duplicate and count controls used by the demo.
+
 ## Key Features
 
 - ✅ **Flow layout**: Tags wrap automatically

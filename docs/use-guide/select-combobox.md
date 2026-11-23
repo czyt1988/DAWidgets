@@ -2,6 +2,14 @@
 
 `DASelectComboBox` 是对标 Element UI `el-select`（`multiple + filterable + allow-create`）的多标签下拉选择框。继承 `QComboBox`，保留原生箭头/边框/键盘助记符，将编辑字段替换为 `DAChipsEdit`。
 
+## 效果预览
+
+![DASelectComboBox：已选 Qt、C++ 两个标签的编辑区](../images/gallery/widgets/select-combobox.png)
+
+![DASelectComboBox：展开的候选列表，已选项被剔除、首项高亮](../images/gallery/widgets/select-combobox-popup.png)
+
+第一张图是编辑区：已选 `Qt`、`C++` 以标签展示，输入框带占位提示与原生下拉箭头。第二张图是点击箭头后的候选列表：已选标签自动从候选中剔除，首项以浅蓝高亮（`default-first-option`），继续输入即可实时过滤。
+
 ## 核心特性
 
 **特性**

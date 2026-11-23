@@ -2,6 +2,12 @@
 
 `DACursorScoped` 和 `DAWaitCursorScoped` 是 RAII 风格的光标管理类，确保作用域结束时光标自动恢复，即使发生异常也安全。
 
+## 效果预览
+
+![DAWaitCursorScoped 演示场景：等待光标为临时状态，静态截图只保留触发按钮](../images/gallery/widgets/wait-cursor.png)
+
+等待光标只在耗时操作执行期间出现，静态截图无法呈现光标本身；上图是演示程序中的触发按钮，点击后进入 2 秒等待光标作用域，结束后自动恢复。
+
 ## 核心特性
 
 **特性**

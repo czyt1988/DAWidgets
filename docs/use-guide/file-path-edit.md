@@ -2,6 +2,12 @@
 
 `DAFilePathEditWidget` 提供文件路径选择控件，由 LineEdit + 打开按钮组成，支持文件过滤器。
 
+## 效果预览
+
+![DAFilePathEditWidget：打开文件、保存文件、选择目录三种模式](../images/gallery/widgets/file-path-edit.png)
+
+截图中三种模式共用同一控件：`OpenFile` 选择已有文件、`SaveFile` 带默认后缀保存、`ExistingDirectory` 选择目录。右侧按钮的图标会随模式切换，选择结果通过 `selectedPath` 信号返回。
+
 ## 核心特性
 
 **特性**

@@ -2,6 +2,12 @@
 
 `DACollapseItem` is a collapsible item that mirrors Element UI's `el-collapse-item`. It consists of a title bar and a content area. Clicking the title bar toggles between expanded and collapsed states, with optional animation.
 
+## Preview
+
+![DACollapseItem: default title, disabled item, custom title widget, and animation disabled](../images/gallery/widgets/collapse-item.png)
+
+The screenshot walks through four forms: a default expanded item, a grayed-out disabled item that ignores clicks, a blue custom title installed via `setTitleWidget()`, and an item that expands instantly with animation disabled. `contentLayout()` accepts arbitrary widgets.
+
 ## Key Features
 
 - ✅ **Animated expand/collapse**: Content area animates from 0 height to its natural height

@@ -2,6 +2,12 @@
 
 `DAFontEditPannelWidget` provides a complete font editing panel, including font selection, font size, bold/italic/underline toggles, and font color.
 
+## Preview
+
+![DAFontEditPannelWidget: two-row and single-row layouts](../images/gallery/widgets/font-edit.png)
+
+The upper part is the default two-row layout (family/size on one row, bold/italic/underline plus color on the next); the lower part uses `SingleRowLayout`, which fits height-constrained toolbars. The bottom line is a live preview using the selected font and color.
+
 ## Key Features
 
 - ✅ **Font selection**: QFontComboBox

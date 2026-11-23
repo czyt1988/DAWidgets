@@ -2,6 +2,12 @@
 
 `DAShapeEditPannelWidget` combines a brush editor and a pen editor to provide complete shape style editing (background brush + border pen).
 
+## Preview
+
+![DAShapeEditPannelWidget: background brush + border pen](../images/gallery/widgets/shape-edit.png)
+
+The background fill (brush) and border (pen) editors are stacked vertically. They emit `backgroundBrushChanged` and `borderPenChanged` independently, so a property panel can react to each separately.
+
 ## Key Features
 
 - ✅ **Background brush**: Integrates `DABrushEditWidget`

@@ -3,15 +3,15 @@
 #include <QGroupBox>
 #include <QLabel>
 #include <QPushButton>
-#include <QScrollArea>
 #include <QVBoxLayout>
 
 #include <DACheckListWidget.h>
-#include <DACollapseItem.h>
-#include <DACollapseWidget.h>
+#include <DAColorScalePreviewWidget.h>
 #include <DAItemListEditWidget.h>
 #include <DAItemListPickDialog.h>
 #include <DAStringListEditWidget.h>
+
+#include "TabPages.h"
 
 using DA::DAItemEntry;
 
@@ -244,32 +244,59 @@ static QWidget *createStringListContent(QWidget *parent)
 }
 
 // ============================================================
-// 入口
+// DAColorScalePreviewWidget —— 2/3 色渐变预览条
 // ============================================================
-QWidget *createItemSelectionTab(QWidget *parent)
+static QWidget *createColorScalePreviewContent(QWidget *parent)
 {
-    auto *scroll = new QScrollArea(parent);
-    scroll->setWidgetResizable(true);
-    auto *content = new QWidget;
-    auto *v = new QVBoxLayout(content);
-    v->setSpacing(12);
+    auto *w = new QWidget(parent);
+    auto *v = new QVBoxLayout(w);
+    v->setContentsMargins(8, 4, 8, 4);
 
-    auto *collapse = new DA::DACollapseWidget(content);
-    collapse->addItem(QStringLiteral("DACheckListWidget — 普通勾选（全选/反选）"), QStringLiteral("1"))
-        ->setContentWidget(createCheckListContent(collapse));
-    collapse->addItem(QStringLiteral("DACheckListWidget — 子 Agent 工具白名单（forced）"), QStringLiteral("2"))
-        ->setContentWidget(createForcedListContent(collapse));
-    collapse->addItem(QStringLiteral("DAItemListEditWidget — 已选条目列表（可排序）"), QStringLiteral("3"))
-        ->setContentWidget(createItemListEditContent(collapse));
-    collapse->addItem(QStringLiteral("DAItemListPickDialog — 条目勾选对话框"), QStringLiteral("4"))
-        ->setContentWidget(createPickDialogContent(collapse));
-    collapse->addItem(QStringLiteral("DAStringListEditWidget — 纯字符串列表"), QStringLiteral("5"))
-        ->setContentWidget(createStringListContent(collapse));
-    collapse->setActiveNames({ QStringLiteral("1") });
+    auto *desc = new QLabel(
+        QStringLiteral("条件格式色阶的效果预览：两色在首尾之间线性渐变，三色时中点色停在 0.5。\n"
+                       "颜色数不是 2/3 或含无效色时显示空白态。"), w);
+    desc->setWordWrap(true);
+    v->addWidget(desc);
 
-    v->addWidget(collapse);
-    v->addStretch(1);
+    auto *two = new DA::DAColorScalePreviewWidget(w);
+    two->setColors({ QColor(QStringLiteral("#67C23A")), QColor(QStringLiteral("#F56C6C")) });
+    v->addWidget(new QLabel(QStringLiteral("两色：#67C23A → #F56C6C"), w));
+    v->addWidget(two);
 
-    scroll->setWidget(content);
-    return scroll;
+    auto *three = new DA::DAColorScalePreviewWidget(w);
+    three->setColors({ QColor(QStringLiteral("#409EFF")), QColor(QStringLiteral("#FFFFFF")),
+                       QColor(QStringLiteral("#F56C6C")) });
+    v->addWidget(new QLabel(QStringLiteral("三色：#409EFF → #FFFFFF → #F56C6C"), w));
+    v->addWidget(three);
+
+    auto *empty = new DA::DAColorScalePreviewWidget(w);
+    empty->setColors({ QColor(QStringLiteral("#409EFF")) });
+    v->addWidget(new QLabel(QStringLiteral("空白态（只有一个颜色）"), w));
+    v->addWidget(empty);
+
+    return w;
+}
+
+// ============================================================
+// 场景列表（tab 与截图导出共用）
+// ============================================================
+QVector< DemoScene > itemSelectionScenes()
+{
+    return {
+        { QStringLiteral("check-list"),
+          QStringLiteral("DACheckListWidget — 普通勾选（全选/反选）"), createCheckListContent, 300 },
+        { QStringLiteral("check-list-forced"),
+          QStringLiteral("DACheckListWidget — 子 Agent 工具白名单（forced）"), createForcedListContent,
+          300 },
+        { QStringLiteral("item-list-edit"),
+          QStringLiteral("DAItemListEditWidget — 已选条目列表（可排序）"), createItemListEditContent,
+          220 },
+        { QStringLiteral("pick-dialog"),
+          QStringLiteral("DAItemListPickDialog — 条目勾选对话框"), createPickDialogContent, 0 },
+        { QStringLiteral("string-list-edit"),
+          QStringLiteral("DAStringListEditWidget — 纯字符串列表"), createStringListContent, 380 },
+        { QStringLiteral("color-scale-preview"),
+          QStringLiteral("DAColorScalePreviewWidget — 2/3 色渐变预览条"),
+          createColorScalePreviewContent, 0 },
+    };
 }

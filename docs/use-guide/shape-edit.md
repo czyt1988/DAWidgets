@@ -2,6 +2,12 @@
 
 `DAShapeEditPannelWidget` 组合画刷编辑器和画笔编辑器，提供完整的形状样式编辑（背景画刷 + 边框画笔）。
 
+## 效果预览
+
+![DAShapeEditPannelWidget：背景画刷 + 边框画笔](../images/gallery/widgets/shape-edit.png)
+
+上图把背景填充（画刷）和边框（画笔）两组编辑器纵向组合；两者各自发射 `backgroundBrushChanged` / `borderPenChanged`，便于属性面板分别响应。
+
 ## 核心特性
 
 **特性**

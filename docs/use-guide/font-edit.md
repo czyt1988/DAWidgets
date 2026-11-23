@@ -2,6 +2,12 @@
 
 `DAFontEditPannelWidget` 提供完整的字体编辑面板，包含字体选择、字号、粗体/斜体/下划线、字体颜色。
 
+## 效果预览
+
+![DAFontEditPannelWidget：双行布局与单行布局](../images/gallery/widgets/font-edit.png)
+
+截图上半部分是默认的双行布局（字体族/字号一行，粗斜体下划线与颜色一行），下半部分是 `SingleRowLayout` 单行布局，适合嵌进工具栏等高度受限的位置；最底部是应用当前字体后的实时预览。
+
 ## 核心特性
 
 **特性**

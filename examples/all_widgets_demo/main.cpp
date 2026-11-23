@@ -1,8 +1,10 @@
 #include <QApplication>
+#include <QDebug>
 #include <QTabWidget>
 #include <QTimer>
 
-#include "TabPages.h"
+#include "DemoScene.h"
+#include "GalleryExport.h"
 
 // 全局样式：合并三个已有 demo 的 qss，并补充 TabWidget 自身样式
 static const char *kStyle = R"(
@@ -46,29 +48,58 @@ QFrame#DACollapseItemContent { background:#ffffff; }
 QLabel#sectionTitle { font-size: 14px; font-weight: bold; color: #303133; }
 )";
 
+// 打印命令行帮助
+static void printUsage(const QString &exe)
+{
+    qInfo().noquote() << "Usage:" << exe << "[options]";
+    qInfo().noquote() << "  (no option)                    open the all-widgets demo window";
+    qInfo().noquote() << "  --shot <png> [tabIndex]        grab one tab and exit";
+    qInfo().noquote()
+        << "  --export-gallery [outputDir]   export tab/widget/popup screenshots (default docs/images/gallery)";
+    qInfo().noquote() << "Example:" << exe << "--export-gallery docs/images/gallery";
+}
+
 int main(int argc, char **argv)
 {
     QApplication app(argc, argv);
+    app.setApplicationName(QStringLiteral("dawidgets_all_widgets_demo"));
     app.setStyleSheet(QString::fromLatin1(kStyle));
+
+    const QStringList args = app.arguments();
+
+    // 一键导出文档画廊截图（不打开主窗口，导出完直接退出）
+    const int galleryArg = args.indexOf(QStringLiteral("--export-gallery"));
+    if (galleryArg >= 0) {
+        QString outputDir = QStringLiteral("docs/images/gallery");
+        if (galleryArg + 1 < args.size() && !args.at(galleryArg + 1).startsWith(QLatin1String("--"))) {
+            outputDir = args.at(galleryArg + 1);
+        }
+        QString error;
+        if (!exportDemoGallery(outputDir, &error)) {
+            qCritical().noquote() << "Export failed:" << error;
+            return 1;
+        }
+        return 0;
+    }
+
+    if (args.contains(QStringLiteral("--help")) || args.contains(QStringLiteral("-h"))) {
+        printUsage(args.value(0));
+        return 0;
+    }
 
     QTabWidget tabs;
     tabs.setWindowTitle(QStringLiteral("DAWidgets 全控件演示 — 一个窗口体验所有组件"));
-    tabs.addTab(createSelectorTab(&tabs),      QStringLiteral("选择器 / 标签"));
-    tabs.addTab(createColorTab(&tabs),         QStringLiteral("颜色"));
-    tabs.addTab(createDrawingStyleTab(&tabs),  QStringLiteral("绘图样式"));
-    tabs.addTab(createAlignmentTab(&tabs),     QStringLiteral("对齐"));
-    tabs.addTab(createUtilityTab(&tabs),       QStringLiteral("工具组件"));
-    tabs.addTab(createItemSelectionTab(&tabs), QStringLiteral("条目选择"));
-    tabs.addTab(createTextTab(&tabs),          QStringLiteral("文本"));
-    tabs.addTab(createFilterTab(&tabs),        QStringLiteral("过滤"));
+    const QVector< DemoTab > demos = demoTabs();
+    for (const DemoTab &tab : demos) {
+        tabs.addTab(createSceneTab(tab.scenes, &tabs), tab.title);
+    }
 
     tabs.resize(720, 640);
     tabs.show();
 
     // 截图模式（用于验收留档/回归对比，不参与正常交互）：
     //   dawidgets_all_widgets_demo.exe --shot <png> [tabIndex]
-    const QStringList args = app.arguments();
-    const int shotArg       = args.indexOf(QStringLiteral("--shot"));
+    const int shotArg = args.indexOf(QStringLiteral("--shot"));
     if (shotArg >= 0 && shotArg + 1 < args.size()) {
         const QString shotPath = args.at(shotArg + 1);
         const int tabIndex     = (shotArg + 2 < args.size()) ? args.at(shotArg + 2).toInt() : 0;

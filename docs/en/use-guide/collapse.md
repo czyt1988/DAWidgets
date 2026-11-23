@@ -2,6 +2,12 @@
 
 `DACollapse` is a collapsible panel container that mirrors Element UI's `el-collapse`. It vertically arranges multiple `DACollapseItem` instances, coordinating expand/collapse states, and supports both accordion mode and multi-expand mode.
 
+## Preview
+
+![DACollapseWidget: accordion on the left, multi-expand on the right](../images/gallery/widgets/collapse.png)
+
+The left panel is in accordion mode (expanding "Account" collapses the others); the right panel is non-accordion, keeping "Basic" and "Advanced" open at the same time. Every toggle animates the height while `activeNames` stays in sync.
+
 ## Key Features
 
 - ✅ **Accordion mode**: Only one panel can be expanded at a time

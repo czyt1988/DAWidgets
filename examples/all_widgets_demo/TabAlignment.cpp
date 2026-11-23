@@ -1,13 +1,12 @@
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QScrollArea>
 #include <QVBoxLayout>
 
-#include <DACollapseItem.h>
-#include <DACollapseWidget.h>
 #include <DAAligmentEditWidget.h>
 #include <DAAligmentPositionEditWidget.h>
 #include <DATextAlignmentEditWidget.h>
+
+#include "TabPages.h"
 
 // ============================================================
 // DATextAlignmentEditWidget —— 水平/垂直两组独立的文本对齐编辑器
@@ -113,28 +112,17 @@ static QWidget *createAlignmentPositionContent(QWidget *parent)
 }
 
 // ============================================================
-// 入口
+// 场景列表（tab 与截图导出共用）
 // ============================================================
-QWidget *createAlignmentTab(QWidget *parent)
+QVector< DemoScene > alignmentScenes()
 {
-    auto *scroll = new QScrollArea(parent);
-    scroll->setWidgetResizable(true);
-    auto *content = new QWidget;
-    auto *v = new QVBoxLayout(content);
-    v->setSpacing(12);
-
-    auto *collapse = new DA::DACollapseWidget(content);
-    collapse->addItem(QStringLiteral("DATextAlignmentEditWidget — 水平/垂直独立对齐"), QStringLiteral("0"))
-        ->setContentWidget(createTextAlignmentContent(collapse));
-    collapse->addItem(QStringLiteral("DAAligmentEditWidget — 对齐方式编辑器"), QStringLiteral("1"))
-        ->setContentWidget(createAlignmentContent(collapse));
-    collapse->addItem(QStringLiteral("DAAligmentPositionEditWidget — 九宫格对齐位置"), QStringLiteral("2"))
-        ->setContentWidget(createAlignmentPositionContent(collapse));
-    collapse->setActiveNames({ QStringLiteral("0") });
-
-    v->addWidget(collapse);
-    v->addStretch(1);
-
-    scroll->setWidget(content);
-    return scroll;
+    return {
+        { QStringLiteral("text-alignment-edit"),
+          QStringLiteral("DATextAlignmentEditWidget — 水平/垂直独立对齐"), createTextAlignmentContent, 0 },
+        { QStringLiteral("alignment-edit"), QStringLiteral("DAAligmentEditWidget — 对齐方式编辑器"),
+          createAlignmentContent, 0 },
+        { QStringLiteral("alignment-position-edit"),
+          QStringLiteral("DAAligmentPositionEditWidget — 九宫格对齐位置"), createAlignmentPositionContent,
+          0 },
+    };
 }

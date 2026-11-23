@@ -2,15 +2,14 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
-#include <QScrollArea>
 #include <QVBoxLayout>
 
-#include <DACollapseItem.h>
-#include <DACollapseWidget.h>
 #include <DAChip.h>
 #include <DAChipsEdit.h>
 #include <DAFlowLayout.h>
 #include <DASelectComboBox.h>
+
+#include "TabPages.h"
 
 // ============================================================
 // DAChip —— 单个可关闭标签
@@ -193,30 +192,17 @@ static QWidget *createSelectComboBoxContent(QWidget *parent)
 }
 
 // ============================================================
-// 入口
+// 场景列表（tab 与截图导出共用）
 // ============================================================
-QWidget *createSelectorTab(QWidget *parent)
+QVector< DemoScene > selectorScenes()
 {
-    auto *scroll = new QScrollArea(parent);
-    scroll->setWidgetResizable(true);
-    auto *content = new QWidget;
-    auto *v = new QVBoxLayout(content);
-    v->setSpacing(12);
-
-    auto *collapse = new DA::DACollapseWidget(content);
-    collapse->addItem(QStringLiteral("DAChip — 单个可关闭标签"), QStringLiteral("1"))
-        ->setContentWidget(createChipContent(collapse));
-    collapse->addItem(QStringLiteral("DAChipsEdit — 流式标签输入框"), QStringLiteral("2"))
-        ->setContentWidget(createChipsEditContent(collapse));
-    collapse->addItem(QStringLiteral("DAFlowLayout — 流式自动换行布局"), QStringLiteral("3"))
-        ->setContentWidget(createFlowLayoutContent(collapse));
-    collapse->addItem(QStringLiteral("DASelectComboBox — 多标签下拉选择器"), QStringLiteral("4"))
-        ->setContentWidget(createSelectComboBoxContent(collapse));
-    collapse->setActiveNames({ QStringLiteral("1") });
-
-    v->addWidget(collapse);
-    v->addStretch(1);
-
-    scroll->setWidget(content);
-    return scroll;
+    return {
+        { QStringLiteral("chip"), QStringLiteral("DAChip — 单个可关闭标签"), createChipContent, 0 },
+        { QStringLiteral("chips-edit"), QStringLiteral("DAChipsEdit — 流式标签输入框"),
+          createChipsEditContent, 0 },
+        { QStringLiteral("flow-layout"), QStringLiteral("DAFlowLayout — 流式自动换行布局"),
+          createFlowLayoutContent, 0 },
+        { QStringLiteral("select-combobox"), QStringLiteral("DASelectComboBox — 多标签下拉选择器"),
+          createSelectComboBoxContent, 0 },
+    };
 }

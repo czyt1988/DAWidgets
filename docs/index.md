@@ -28,6 +28,7 @@ hide:
 
 <div class="daw-hero-actions">
 <a href="introduction/" class="daw-btn daw-btn-primary">快速开始</a>
+<a href="gallery/" class="daw-btn daw-btn-ghost">控件画廊</a>
 <a href="https://github.com/czyt1988/DAWidgets" class="daw-btn daw-btn-ghost">GitHub</a>
 </div>
 

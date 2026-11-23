@@ -1,4 +1,4 @@
-﻿# QWEN.md
+# QWEN.md
 
 ## Project Overview
 
@@ -186,7 +186,7 @@ All graphical assets are managed via Qt RCC (`src/resources/dawidgetsicons.qrc`)
 
 | Directory | Description |
 |-----------|-------------|
-| `examples/all_widgets_demo/` | Comprehensive multi-tab demo exercising every public widget (Selector, Color, DrawingStyle, Alignment, Utility, ItemSelection, Text, Filter). `DACollapseWidget` is used as a per-section collapsible organizer within each tab. Pass `--shot <png> [tabIndex]` to save a screenshot of one tab. |
+| `examples/all_widgets_demo/` | Comprehensive multi-tab demo exercising every public widget (Selector, Collapse, Color, DrawingStyle, Alignment, Utility, ItemSelection, Text, Filter). Each tab is built from a `DemoScene` list in `Tab*.cpp`, and `DACollapseWidget` is used as a per-section organizer. Pass `--export-gallery <dir>` to export all tab/widget/popup screenshots used by the docs, or `--shot <png> [tabIndex]` to save one tab. |
 
 ## Documentation (mkdocs)
 

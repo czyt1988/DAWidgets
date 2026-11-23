@@ -2,6 +2,12 @@
 
 `DACollapse` 是对标 Element UI `el-collapse` 的折叠面板容器。纵向排列多个 `DACollapseItem`，协调展开/折叠状态，支持手风琴模式和多展开模式。
 
+## 效果预览
+
+![DACollapseWidget：左侧手风琴模式一次只展开一项，右侧可同时展开多项](../images/gallery/widgets/collapse.png)
+
+上图左侧是手风琴模式（展开「账号信息」时其余项自动收起），右侧是非手风琴模式（「基本信息」和「高级设置」可同时展开）。每个面板的展开/收起都带高度动画，`activeNames` 会随交互同步变化。
+
 ## 核心特性
 
 **特性**

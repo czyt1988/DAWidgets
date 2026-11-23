@@ -12,7 +12,6 @@
 #include <QMessageBox>
 #include <QPainter>
 #include <QPushButton>
-#include <QScrollArea>
 #include <QSpinBox>
 #include <QTextEdit>
 #include <QTimer>
@@ -23,13 +22,13 @@
 #include <memory>
 
 #include <DAAbstractWidgetOverlay.h>
-#include <DACollapseItem.h>
-#include <DACollapseWidget.h>
 #include <DAFilePathEditWidget.h>
 #include <DAPropertyItemWidget.h>
 #include <DATimeFormatEditWidget.h>
 #include <DAUndoHistoryWidget.h>
 #include <DAWaitCursorScoped.h>
+
+#include "TabPages.h"
 
 // ============================================================
 // DAFilePathEditWidget —— 文件路径编辑器（三种模式）
@@ -296,9 +295,15 @@ static QWidget *createUndoHistoryContent(QWidget *parent)
     auto *stack = new QUndoStack(w);
     auto *group = new QUndoGroup(w);
     group->addStack(stack);
+    group->setActiveStack(stack);
 
     auto *history = new DA::DAUndoHistoryWidget(w);
     history->setUndoGroup(group);
+    // 预置几条命令，让历史列表在截图/首次打开时就有内容
+    stack->push(new DemoAddCommand(counter.get(), 2));
+    stack->push(new DemoAddCommand(counter.get(), 3));
+    stack->push(new DemoAddCommand(counter.get(), 5));
+    refresh();
     v->addWidget(history, 1);
 
     auto *btns = new QHBoxLayout();
@@ -388,34 +393,22 @@ static QWidget *createOverlayContent(QWidget *parent)
 }
 
 // ============================================================
-// 入口
+// 场景列表（tab 与截图导出共用）
 // ============================================================
-QWidget *createUtilityTab(QWidget *parent)
+QVector< DemoScene > utilityScenes()
 {
-    auto *scroll = new QScrollArea(parent);
-    scroll->setWidgetResizable(true);
-    auto *content = new QWidget;
-    auto *v = new QVBoxLayout(content);
-    v->setSpacing(12);
-
-    auto *collapse = new DA::DACollapseWidget(content);
-    collapse->addItem(QStringLiteral("DAFilePathEditWidget — 文件路径编辑器"), QStringLiteral("1"))
-        ->setContentWidget(createFilePathContent(collapse));
-    collapse->addItem(QStringLiteral("DATimeFormatEditWidget — 时间格式编辑器"), QStringLiteral("2"))
-        ->setContentWidget(createTimeFormatContent(collapse));
-    collapse->addItem(QStringLiteral("DAPropertyItemWidget — 属性项组件"), QStringLiteral("3"))
-        ->setContentWidget(createPropertyItemContent(collapse));
-    collapse->addItem(QStringLiteral("DAUndoHistoryWidget — 撤销历史"), QStringLiteral("4"))
-        ->setContentWidget(createUndoHistoryContent(collapse));
-    collapse->addItem(QStringLiteral("DAAbstractWidgetOverlay — 遮罩层"), QStringLiteral("5"))
-        ->setContentWidget(createOverlayContent(collapse));
-    collapse->addItem(QStringLiteral("DAWaitCursorScoped — RAII 等待光标守卫"), QStringLiteral("6"))
-        ->setContentWidget(createWaitCursorContent(collapse));
-    collapse->setActiveNames({ QStringLiteral("1") });
-
-    v->addWidget(collapse);
-    v->addStretch(1);
-
-    scroll->setWidget(content);
-    return scroll;
+    return {
+        { QStringLiteral("file-path-edit"), QStringLiteral("DAFilePathEditWidget — 文件路径编辑器"),
+          createFilePathContent, 0 },
+        { QStringLiteral("time-format-edit"), QStringLiteral("DATimeFormatEditWidget — 时间格式编辑器"),
+          createTimeFormatContent, 0 },
+        { QStringLiteral("property-item"), QStringLiteral("DAPropertyItemWidget — 属性项组件"),
+          createPropertyItemContent, 0 },
+        { QStringLiteral("undo-history"), QStringLiteral("DAUndoHistoryWidget — 撤销历史"),
+          createUndoHistoryContent, 320 },
+        { QStringLiteral("overlay"), QStringLiteral("DAAbstractWidgetOverlay — 遮罩层"),
+          createOverlayContent, 0 },
+        { QStringLiteral("wait-cursor"), QStringLiteral("DAWaitCursorScoped — RAII 等待光标守卫"),
+          createWaitCursorContent, 0 },
+    };
 }

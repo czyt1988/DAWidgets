@@ -2,6 +2,12 @@
 
 `DAPropertyItemWidget` 是属性编辑面板的基础容器控件，提供属性名称、描述和编辑器区域的统一布局，支持 Inline（名称与编辑器同行）和 Below（名称在上、编辑器在下）两种布局模式。
 
+## 效果预览
+
+![DAPropertyItemWidget：InlineLayout 与 BelowLayout 两种属性行](../images/gallery/widgets/property-item.png)
+
+截图上半部分是 `InlineLayout`：属性名在左、编辑器在右，适合输入框、SpinBox 等简单编辑器；下半部分是 `BelowLayout`：属性名在上、编辑器在下，适合多行文本、颜色面板等较宽的编辑器。
+
 ## 核心特性
 
 **特性**

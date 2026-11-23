@@ -1,8 +1,24 @@
-﻿# DAWidgets
+# DAWidgets
 
 Qt **QWidget** 界面补充库，灵感来源于 [Element UI](https://element.eleme.io/)。目标是补齐 Qt Widgets 原生控件缺失的常见交互形态，让桌面端也能用上 Web 端习以为常的组件体验。
 
 支持 **Qt5 / Qt6**，使用 **CMake** 构建，纯 C++ 实现。所有公开类以 `DA` 前缀命名。
+
+![DAWidgets 全控件演示窗口](docs/images/gallery/all-widgets-demo.png)
+
+> 上图为 `examples/all_widgets_demo` 的真实运行截图。所有文档截图均由该示例程序通过 `--export-gallery` 一键生成，详见 [控件画廊](docs/gallery.md)。
+
+## 控件画廊
+
+9 个标签页覆盖全部公开控件，每个标签页内部再用 `DACollapseWidget` 分组，点击图片可查看大图：
+
+| 选择器 / 标签 | 折叠面板 | 颜色 |
+|:---:|:---:|:---:|
+| [![选择器](docs/images/gallery/tabs/01-selector.png)](docs/images/gallery/tabs/01-selector.png) | [![折叠](docs/images/gallery/tabs/02-collapse.png)](docs/images/gallery/tabs/02-collapse.png) | [![颜色](docs/images/gallery/tabs/03-color.png)](docs/images/gallery/tabs/03-color.png) |
+| [![绘图样式](docs/images/gallery/tabs/04-drawing-style.png)](docs/images/gallery/tabs/04-drawing-style.png) | [![对齐](docs/images/gallery/tabs/05-alignment.png)](docs/images/gallery/tabs/05-alignment.png) | [![工具组件](docs/images/gallery/tabs/06-utility.png)](docs/images/gallery/tabs/06-utility.png) |
+| [![条目选择](docs/images/gallery/tabs/07-item-selection.png)](docs/images/gallery/tabs/07-item-selection.png) | [![文本](docs/images/gallery/tabs/08-text.png)](docs/images/gallery/tabs/08-text.png) | [![过滤](docs/images/gallery/tabs/09-filter.png)](docs/images/gallery/tabs/09-filter.png) |
+
+每个控件的效果特写、关键交互与 API 说明见 [docs/gallery.md](docs/gallery.md) 和各控件的使用指南。
 
 ## 当前组件
 
@@ -182,7 +198,26 @@ CMake 自动链接 **Qt::Svg** 模块以支持 SVG 渲染。
 
 | 目录 | 说明 |
 |------|------|
-| `examples/all_widgets_demo/` | 全组件综合演示（多标签页：选择器、颜色、绘图样式、对齐、工具；各 tab 内使用 `DACollapseWidget` 分区折叠） |
+| `examples/all_widgets_demo/` | 全组件综合演示（9 个标签页：选择器、折叠、颜色、绘图样式、对齐、工具、条目选择、文本、过滤；各 tab 内使用 `DACollapseWidget` 分区折叠） |
+
+### 一键导出截图
+
+示例程序内置截图导出模式，用于生成 README 与 `docs/` 中的全部配图：
+
+```bash
+# 在仓库根目录执行；Windows 下先把 Qt 的 bin 目录加入 PATH
+dawidgets_all_widgets_demo --export-gallery docs/images/gallery
+```
+
+输出 `all-widgets-demo.png`、`tabs/`（每个标签页）与 `widgets/`（每个控件场景及弹出层）。新增控件时在对应 `Tab*.cpp` 的 `*Scenes()` 列表追加一条 `DemoScene`，演示界面和截图会同步生成。
+
+其他命令行选项：
+
+| 选项 | 说明 |
+|------|------|
+| `--export-gallery [目录]` | 导出全部截图（默认 `docs/images/gallery`） |
+| `--shot <png> [tabIndex]` | 只截取指定标签页 |
+| `--help` | 打印命令行帮助 |
 
 ## License
 

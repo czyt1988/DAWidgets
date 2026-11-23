@@ -2,6 +2,12 @@
 
 `DATimeFormatEditWidget` provides a time format setting control that allows the user to select or type a time display format string.
 
+## Preview
+
+![DATimeFormatEditWidget: preset format dropdown and live preview](../images/gallery/widgets/time-format-edit.png)
+
+The dropdown offers common date/time presets, and the format string remains editable. The demo renders the current time with the chosen format below so the result can be checked immediately.
+
 ## Key Features
 
 - ✅ **Format presets**: Provides common time format presets

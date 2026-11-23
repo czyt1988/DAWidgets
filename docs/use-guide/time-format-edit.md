@@ -2,6 +2,12 @@
 
 `DATimeFormatEditWidget` 提供时间格式设置控件，允许用户选择或输入时间显示格式。
 
+## 效果预览
+
+![DATimeFormatEditWidget：预设格式下拉框与当前格式预览](../images/gallery/widgets/time-format-edit.png)
+
+上图的下拉框提供常用日期/时间格式预设，也可以直接编辑格式字符串；演示程序用当前时间按所选格式实时渲染预览，便于确认格式效果。
+
 ## 核心特性
 
 **特性**

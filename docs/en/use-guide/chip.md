@@ -2,6 +2,12 @@
 
 `DAChip` is a closable tag/pill widget composed of a `QFrame` + label + close button. It supports qss styling and can be used independently.
 
+## Preview
+
+![DAChip: a read-only chip and a closable chip](../images/gallery/widgets/chip.png)
+
+Exported by `--export-gallery`: the first row is a non-closable read-only chip, the second is a chip with an `×` close button. Corner radius, background, and text color are all customizable through the `DA--DAChip` selector.
+
 ## Key Features
 
 - ✅ **Closable**: Built-in close button that emits `closeRequested` on click

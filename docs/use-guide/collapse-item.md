@@ -2,6 +2,12 @@
 
 `DACollapseItem` 是对标 Element UI `el-collapse-item` 的折叠条目。由标题栏和内容区两部分构成，点击标题栏在展开/折叠之间切换，支持动画过渡。
 
+## 效果预览
+
+![DACollapseItem：默认标题、禁用项、自定义标题控件与关闭动画的条目](../images/gallery/widgets/collapse-item.png)
+
+截图依次演示了四种形态：默认标题的展开项、灰显且不可点击的禁用项、用 `setTitleWidget()` 替换的蓝色自定义标题，以及关闭动画后瞬时展开的条目。内容区可以直接用 `contentLayout()` 追加任意控件。
+
 ## 核心特性
 
 **特性**

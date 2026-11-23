@@ -4,6 +4,10 @@
 
 ## DABrushStyleComboBox
 
+![DABrushStyleComboBox: dropdown with fill pattern icons](../images/gallery/widgets/brush-style-combo.png)
+
+The dropdown uses swatch icons to preview every `Qt::BrushStyle`. Use `setBrushColor()` to tint the icons and `setShowNoBrushStyle(false)` to hide the `NoBrush` entry.
+
 ### Key Features
 
 - ✅ **All fill styles**: Solid and various patterns (`Qt::BDiagPattern`, etc.)
@@ -23,6 +27,10 @@ Qt::BrushStyle style = combo->getCurrentBrushStyle();
 ```
 
 ## DABrushEditWidget
+
+![DABrushEditWidget: color button + brush style dropdown](../images/gallery/widgets/brush-edit.png)
+
+The brush editor combines a color button with a style dropdown to describe a `QBrush`, supporting solid, pattern, gradient, and texture fills; changes emit `brushChanged`.
 
 ### Key Features
 

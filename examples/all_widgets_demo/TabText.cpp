@@ -2,12 +2,11 @@
 #include <QCheckBox>
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QScrollArea>
 #include <QVBoxLayout>
 
-#include <DACollapseItem.h>
-#include <DACollapseWidget.h>
 #include <DATextEditWidget.h>
+
+#include "TabPages.h"
 
 // ============================================================
 // DATextEditWidget —— 文本编辑/查看
@@ -69,24 +68,12 @@ static QWidget *createTextEditContent(QWidget *parent)
 }
 
 // ============================================================
-// 入口
+// 场景列表（tab 与截图导出共用）
 // ============================================================
-QWidget *createTextTab(QWidget *parent)
+QVector< DemoScene > textScenes()
 {
-    auto *scroll = new QScrollArea(parent);
-    scroll->setWidgetResizable(true);
-    auto *content = new QWidget;
-    auto *v = new QVBoxLayout(content);
-    v->setSpacing(12);
-
-    auto *collapse = new DA::DACollapseWidget(content);
-    collapse->addItem(QStringLiteral("DATextEditWidget — 文本编辑/查看"), QStringLiteral("1"))
-        ->setContentWidget(createTextEditContent(collapse));
-    collapse->setActiveNames({ QStringLiteral("1") });
-
-    v->addWidget(collapse);
-    v->addStretch(1);
-
-    scroll->setWidget(content);
-    return scroll;
+    return {
+        { QStringLiteral("text-edit"), QStringLiteral("DATextEditWidget — 文本编辑/查看"),
+          createTextEditContent, 340 },
+    };
 }

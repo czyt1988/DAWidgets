@@ -2,6 +2,12 @@
 
 `DACursorScoped` and `DAWaitCursorScoped` are RAII-style cursor management classes that ensure automatic cursor restoration at scope exit, even if an exception is thrown.
 
+## Preview
+
+![DAWaitCursorScoped demo: the wait cursor is transient, so the static screenshot only shows the trigger button](../images/gallery/widgets/wait-cursor.png)
+
+A wait cursor only appears while a long-running operation executes, so a static screenshot shows the trigger button instead. Clicking it enters a two-second wait-cursor scope and restores the cursor afterwards.
+
 ## Key Features
 
 - ✅ **RAII guard**: Automatically restores the cursor when the scope ends

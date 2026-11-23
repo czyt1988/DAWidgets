@@ -2,6 +2,12 @@
 
 `DAPropertyItemWidget` is the base container widget for property editing panels. It provides a unified layout for the property name, description, and editor area, supporting both Inline (name and editor on the same row) and Below (name on top, editor below) layout modes.
 
+## Preview
+
+![DAPropertyItemWidget: InlineLayout and BelowLayout rows](../images/gallery/widgets/property-item.png)
+
+The upper half uses `InlineLayout` (name left, editor right) for simple editors such as line edits and spin boxes. The lower half uses `BelowLayout` (name above, editor below), which suits wide editors such as multi-line text or color panels.
+
 ## Key Features
 
 - ✅ **Dual layout modes**: InlineLayout / BelowLayout

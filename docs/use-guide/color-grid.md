@@ -4,6 +4,10 @@
 
 ## DAColorGridWidget
 
+![DAColorGridWidget：12 个色块、6 列网格](../images/gallery/widgets/color-grid.png)
+
+上图为基础颜色网格：色块按列数自动排布，支持 `checkable` 互斥选中；点击任意色块会发射 `colorClicked`，并在下方回显颜色值。
+
 ### 核心特性
 
 - ✅ **网格布局**：QGridLayout + QButtonGroup
@@ -39,6 +43,10 @@ QObject::connect(grid, &DA::DAColorGridWidget::colorClicked,
 ```
 
 ## DAColorPaletteGridWidget
+
+![DAColorPaletteGridWidget：主色行 + 自动生成的浅色/深色行](../images/gallery/widgets/color-palette.png)
+
+上图是 Office 风格调色板：第一行是主色，下方 5 行由 `setFactor()` 自动生成深浅变体（正值变浅、负值变深），点击色块同样发射 `colorClicked`。Office 的「主题色」面板就是这种结构。
 
 ### 核心特性
 

@@ -4,6 +4,10 @@
 
 ## DAColorMenu
 
+![DAColorMenu: theme palette, None, Custom Color, and custom color history](../images/gallery/widgets/color-menu-popup.png)
+
+The open menu shows the theme palette on top, followed by `None`, `Custom Color`, and the recent custom color row. Choosing a color closes the menu and emits `selectedColor`; `Custom Color` opens `QColorDialog`.
+
 ### Key Features
 
 - ✅ **Complete menu structure**: Title → theme palette → "None" action → "Custom Color" action → custom color grid
@@ -36,6 +40,10 @@ menu->exec(QCursor::pos());
 ```
 
 ## DAColorPickerButton
+
+![DAColorPickerButton: WithColorMenu, NoColorMenu, and invalid color states](../images/gallery/widgets/color-picker-button.png)
+
+Three states are shown: a blue swatch with a menu, a green swatch without a menu, and an invalid `QColor()` rendered as a red slash. The first two differ only in click behavior; the invalid state uses the same "none color" painting as `paintNoneColor()`.
 
 ### Key Features
 

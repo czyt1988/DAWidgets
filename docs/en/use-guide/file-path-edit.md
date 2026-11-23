@@ -2,6 +2,12 @@
 
 `DAFilePathEditWidget` provides a file path selection control, consisting of a LineEdit + a browse button, with support for file name filters.
 
+## Preview
+
+![DAFilePathEditWidget: OpenFile, SaveFile, and ExistingDirectory modes](../images/gallery/widgets/file-path-edit.png)
+
+All three modes share one widget: `OpenFile` picks an existing file, `SaveFile` saves with a default suffix, and `ExistingDirectory` picks a directory. The button icon follows the mode, and the chosen path is returned through `selectedPath`.
+
 ## Key Features
 
 - ✅ **Path input**: Type a path directly in the LineEdit

@@ -4,6 +4,10 @@
 
 ## DABrushStyleComboBox
 
+![DABrushStyleComboBox：带填充图案图标的下拉框](../images/gallery/widgets/brush-style-combo.png)
+
+上图的下拉框用色块图标展示 `Qt::BrushStyle`（纯色、各类图案），可以通过 `setBrushColor()` 指定图标颜色，并通过 `setShowNoBrushStyle(false)` 隐藏 `NoBrush` 选项。
+
 ### 核心特性
 
 - ✅ **所有填充样式**：纯色及各种图案（`Qt::BDiagPattern` 等）
@@ -23,6 +27,10 @@ Qt::BrushStyle style = combo->getCurrentBrushStyle();
 ```
 
 ## DABrushEditWidget
+
+![DABrushEditWidget：颜色按钮 + 画刷样式下拉框](../images/gallery/widgets/brush-edit.png)
+
+上图是画刷编辑器：左侧颜色按钮与右侧样式下拉框共同描述 `QBrush`，支持纯色、图案、渐变、纹理四种填充模式，变化时发射 `brushChanged`。
 
 ### 核心特性
 

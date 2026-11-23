@@ -1,16 +1,15 @@
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QScrollArea>
 #include <QVBoxLayout>
 
 #include <DABrushEditWidget.h>
 #include <DABrushStyleComboBox.h>
-#include <DACollapseItem.h>
-#include <DACollapseWidget.h>
 #include <DAFontEditPannelWidget.h>
 #include <DAPenEditWidget.h>
 #include <DAPenStyleComboBox.h>
 #include <DAShapeEditPannelWidget.h>
+
+#include "TabPages.h"
 
 // 辅助：将 QBrush 描述为文字
 static QString brushToString(const QBrush &b)
@@ -224,34 +223,22 @@ static QWidget *createFontEditContent(QWidget *parent)
 }
 
 // ============================================================
-// 入口
+// 场景列表（tab 与截图导出共用）
 // ============================================================
-QWidget *createDrawingStyleTab(QWidget *parent)
+QVector< DemoScene > drawingStyleScenes()
 {
-    auto *scroll = new QScrollArea(parent);
-    scroll->setWidgetResizable(true);
-    auto *content = new QWidget;
-    auto *v = new QVBoxLayout(content);
-    v->setSpacing(12);
-
-    auto *collapse = new DA::DACollapseWidget(content);
-    collapse->addItem(QStringLiteral("DABrushStyleComboBox — 画刷样式下拉框"), QStringLiteral("1"))
-        ->setContentWidget(createBrushStyleComboContent(collapse));
-    collapse->addItem(QStringLiteral("DABrushEditWidget — 画刷编辑器"), QStringLiteral("2"))
-        ->setContentWidget(createBrushEditContent(collapse));
-    collapse->addItem(QStringLiteral("DAPenStyleComboBox — 画笔样式下拉框"), QStringLiteral("3"))
-        ->setContentWidget(createPenStyleComboContent(collapse));
-    collapse->addItem(QStringLiteral("DAPenEditWidget — 画笔编辑器"), QStringLiteral("4"))
-        ->setContentWidget(createPenEditContent(collapse));
-    collapse->addItem(QStringLiteral("DAShapeEditPannelWidget — 形状编辑面板"), QStringLiteral("5"))
-        ->setContentWidget(createShapeEditContent(collapse));
-    collapse->addItem(QStringLiteral("DAFontEditPannelWidget — 字体编辑面板"), QStringLiteral("6"))
-        ->setContentWidget(createFontEditContent(collapse));
-    collapse->setActiveNames({ QStringLiteral("1") });
-
-    v->addWidget(collapse);
-    v->addStretch(1);
-
-    scroll->setWidget(content);
-    return scroll;
+    return {
+        { QStringLiteral("brush-style-combo"),
+          QStringLiteral("DABrushStyleComboBox — 画刷样式下拉框"), createBrushStyleComboContent, 0 },
+        { QStringLiteral("brush-edit"), QStringLiteral("DABrushEditWidget — 画刷编辑器"),
+          createBrushEditContent, 0 },
+        { QStringLiteral("pen-style-combo"), QStringLiteral("DAPenStyleComboBox — 画笔样式下拉框"),
+          createPenStyleComboContent, 0 },
+        { QStringLiteral("pen-edit"), QStringLiteral("DAPenEditWidget — 画笔编辑器"), createPenEditContent,
+          0 },
+        { QStringLiteral("shape-edit"), QStringLiteral("DAShapeEditPannelWidget — 形状编辑面板"),
+          createShapeEditContent, 0 },
+        { QStringLiteral("font-edit"), QStringLiteral("DAFontEditPannelWidget — 字体编辑面板"),
+          createFontEditContent, 0 },
+    };
 }

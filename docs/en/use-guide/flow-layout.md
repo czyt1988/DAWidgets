@@ -2,6 +2,12 @@
 
 `DAFlowLayout` is a flow layout that arranges child widgets left-to-right, top-to-bottom, automatically wrapping to the next line when the width is exceeded. The trailing item can be set to expand and fill the remaining space.
 
+## Preview
+
+![DAFlowLayout: ten buttons wrapping into rows](../images/gallery/widgets/flow-layout.png)
+
+Ten buttons automatically form two rows at this width. Narrow the window further and they keep wrapping; `heightForWidth()` reports the matching height so the container can grow.
+
 ## Key Features
 
 - ✅ **Auto-wrap**: Child widgets automatically wrap to the next line when exceeding container width

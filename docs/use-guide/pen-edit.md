@@ -4,6 +4,10 @@
 
 ## DAPenStyleComboBox
 
+![DAPenStyleComboBox：带线条图标预览的线型下拉框](../images/gallery/widgets/pen-style-combo.png)
+
+上图的下拉框为每种 `Qt::PenStyle` 生成线条图标，当前选中项同时显示图标与线型名称；切换后发射 `currentPenStyleChanged`。
+
 ### 核心特性
 
 - ✅ **所有线型**：实线、虚线、点线、点划线等
@@ -31,6 +35,10 @@ QObject::connect(combo, &DA::DAPenStyleComboBox::currentPenStyleChanged,
 ```
 
 ## DAPenEditWidget
+
+![DAPenEditWidget：颜色按钮 + 线型下拉框 + 线宽 SpinBox](../images/gallery/widgets/pen-edit.png)
+
+上图是完整的画笔编辑器：颜色拾取按钮、带图标的线型下拉框和线宽调节组合在一行，任何一项变化都会发射 `penChanged` 并回显完整 `QPen` 描述。
 
 ### 核心特性
 

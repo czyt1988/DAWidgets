@@ -4,6 +4,10 @@
 
 ## DATextAlignmentEditWidget
 
+![DATextAlignmentEditWidget：水平与垂直两组互斥按钮](../images/gallery/widgets/text-alignment-edit.png)
+
+上图为两行独立的互斥按钮组：水平方向（左/居中/右）与垂直方向（顶端/居中/底端）可分别点击，右侧日志实时显示组合后的 `Qt::Alignment` 值。
+
 ### 核心特性
 
 - ✅ 水平一组（左/居中/右）+ 垂直一组（顶端/居中/底端），两组独立互斥
@@ -32,6 +36,10 @@ QObject::connect(edit, &DA::DATextAlignmentEditWidget::alignmentChanged,
 
 ## DAAligmentEditWidget
 
+![DAAligmentEditWidget：单选语义的水平/垂直对齐按钮组](../images/gallery/widgets/alignment-edit.png)
+
+上图中的按钮组把水平与垂直对齐合并为单选：点「居中」表示水平垂直同时居中，适合只关心一个整体对齐方向的属性面板。
+
 ### 核心特性
 
 - ✅ 水平对齐：左/右/居中
@@ -56,6 +64,10 @@ QObject::connect(alignEdit, &DA::DAAligmentEditWidget::alignmentChanged,
 ```
 
 ## DAAligmentPositionEditWidget
+
+![DAAligmentPositionEditWidget：九宫格对齐位置](../images/gallery/widgets/alignment-position-edit.png)
+
+上图是九宫格位置选择器，九个按钮分别对应左上、上中、右上、左中、居中、右中、左下、下中、右下，点击后以 `Qt::Alignment` 组合返回。
 
 ### 核心特性
 
