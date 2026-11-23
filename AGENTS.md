@@ -10,6 +10,9 @@ Currently ships four component families:
 - **Property Editing** — a suite of property-panel editors (color, pen, brush, font, alignment, file path, etc.).
 - **Item Selection** — reusable "pick some entries from a candidate set" widgets (selected-list editor + search/multi-check dialog) plus small preview widgets (e.g. 2/3-color gradient bar).
 
+All public classes are declared in **`namespace DA`** and prefixed with `DA` (e.g. `DA::DASelectComboBox`).
+
+- **License:** MIT (see `LICENSE`)
 - **Language:** C++17
 - **Framework:** Qt Widgets + Qt Svg (Qt5 / Qt6 dual-compatible). Qt Svg is required for rendering SVG icons used by the property-editing widgets.
 - **Build system:** CMake (≥ 3.16)
@@ -229,9 +232,10 @@ CMake auto-detects Qt5 or Qt6 (prefers Qt6).
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `DAWIDGETS_BUILD_SHARED` | `OFF` | `ON` → shared lib (dll/so/dylib); `OFF` → static lib |
+| `DAWIDGETS_BUILD_SHARED` | `ON` | `ON` → shared lib (dll/so/dylib); `OFF` → static lib |
 | `DAWIDGETS_BUILD_DEMO`   | `ON`  | Build example applications under `examples/` |
 | `DAWIDGETS_BUILD_TESTS`  | `OFF` | Build tests under `tests/` |
+| `DAWIDGETS_BUILD_AMALGAMATE_DEMO` | `OFF` | Build `examples/amalgamate_demo` — compiles `src-amalgamate/DAWidgets.{h,cpp}` as a single translation unit without linking the library |
 
 Example:
 ```bash
@@ -252,16 +256,17 @@ Do not define `DA_BUILT_AS_STATIC=0` (a value of "0" still counts as defined and
 
 ## Test
 
-Tests use **QtTest** and live under `tests/`:
+Tests use **QtTest** and live under `tests/` (12 suites, all registered in the `DAWIDGETS_BUILD_TESTS` block):
 - `tests/logic_test/` — `DAChipsEdit` behavior (dedup, maxCount, keyboard commit, backspace removal).
 - `tests/combobox_test/` — `DASelectComboBox` behavior (filter/select, allow-create, height-mode switch, arrow geometry via pixel-render assertions).
 - `tests/collapse_test/` — `DACollapseWidget` behavior (accordion mode, expand/collapse, active names management).
+- `tests/file_path_edit_test/`, `tests/check_list_test/`, `tests/string_list_test/`, `tests/text_edit_test/`,
+  `tests/filter_proxy_test/`, `tests/undo_history_test/`, `tests/overlay_test/`,
+  `tests/item_list_edit_test/`, `tests/text_alignment_test/` — the matching widgets' API/signals/boundaries.
 
-Run after building:
+Run after building (all suites at once):
 ```bash
-build\tests\logic_test\Release\dawidgets_logic_test.exe
-build\tests\combobox_test\Release\dawidgets_combobox_test.exe
-build\tests\collapse_test\Release\dawidgets_collapse_test.exe
+ctest --test-dir build -C Release --output-on-failure
 ```
 
 `testArrowGeometry` renders the widget to a `QPixmap` and counts dark pixels in the arrow subcontrol rect — this is how GUI rendering regressions are caught without a human in the loop. Keep this pattern when adding GUI tests.
@@ -292,6 +297,45 @@ All graphical assets are managed via Qt RCC (`src/resources/dawidgetsicons.qrc`)
 | Directory | Description |
 |-----------|-------------|
 | `examples/all_widgets_demo/` | Comprehensive multi-tab demo exercising every public widget (Selector, Collapse, Color, DrawingStyle, Alignment, Utility, ItemSelection, Text, Filter). Each tab is built from a `DemoScene` list in `Tab*.cpp`, and `DACollapseWidget` is used as a per-section organizer. Pass `--export-gallery <dir>` to export all tab/widget/popup screenshots used by the docs, or `--shot <png> [tabIndex]` to save one tab. |
+| `examples/amalgamate_demo/` | Single-file build reference: compiles `src-amalgamate/DAWidgets.{h,cpp}` straight into an executable without linking the library. Enabled with `-DDAWIDGETS_BUILD_AMALGAMATE_DEMO=ON`; pass `--smoke` for a no-window CI smoke run. |
+
+## Single-file amalgamation (`src-amalgamate/`)
+
+Besides the normal CMake library, the whole library is merged into **one header + one source
+file** so consumers can drop it into a project without building/installing DAWidgets:
+
+| File | Meaning |
+|------|---------|
+| `src-amalgamate/DAWidgets.h` | every public header (`Q_OBJECT` declarations included) |
+| `src-amalgamate/DAWidgets.cpp` | every implementation + `uic` output + `rcc` icon resources |
+
+- The toolchain is copied from the reference project **qwt 7**: `tools/Amalgamate.exe`
+  (vinniefalco/Amalgamate) + templates under `tools/amalgamate/`, driven by
+  `tools/Amalgamate.ps1` (Windows) and `tools/Amalgamate.sh` (Git Bash/MSYS2).
+  See [`tools/Amalgamate.md`](./tools/Amalgamate.md) for the full description.
+- **Both output files are generated — never edit them by hand.** Regenerate with
+  `pwsh -File tools/Amalgamate.ps1` (or `./tools/Amalgamate.sh`). The script runs `uic`/`rcc`
+  first, then Amalgamate, then normalizes paths/line endings.
+- When adding/removing a source file, update
+  `tools/amalgamate/DAWidgetsAmalgamTemplatePublicHeaders.h` (headers) and
+  `tools/amalgamate/DAWidgetsAmalgamTemplate.cpp` (implementations) **in the same commit**.
+- Regeneration is part of the release checklist (see [§ Release process](#release-process-release)).
+- Verification: build `examples/amalgamate_demo` with `-DDAWIDGETS_BUILD_AMALGAMATE_DEMO=ON`
+  and run it with `--smoke`; the committed amalgamation is generated with Qt 6 and verified to
+  compile against Qt 6.7.3 and Qt 5.14.2.
+
+## CI / GitHub Actions
+
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| `.github/workflows/build.yml` | push/PR to `master`, manual | Builds the library and runs all QtTest suites on Windows (MSVC, Qt 6.8) and Linux (GCC, Qt 6.8) with `QT_QPA_PLATFORM=offscreen`. |
+| `.github/workflows/page.yml` | push to `master` touching `docs/**` or `mkdocs.yml`, manual | Builds the MkDocs site and deploys it to GitHub Pages. |
+| `.github/workflows/sync-gitee.yml` | GitHub Release published, manual | Pushes `master` + all tags to the Gitee mirror, creates the matching Gitee Release with the same bilingual body, and attaches `src-amalgamate/DAWidgets.{h,cpp}`. |
+
+Gitee sync requires two repository secrets: `GITEE_USERNAME` and `GITEE_TOKEN` (a Gitee
+personal access token with repository write access). Without them the workflow only emits a
+warning and skips, so a release still succeeds on GitHub; configure the secrets and re-run
+**Sync Release to Gitee** (workflow_dispatch, input = tag) to backfill.
 
 ## Documentation (mkdocs)
 
@@ -301,6 +345,82 @@ A full mkdocs documentation site lives under `docs/` with Chinese and English co
 pip install -r requirements-docs.txt
 mkdocs serve
 ```
+
+- Chinese site: <https://czyt1988.github.io/DAWidgets/> · English site: <https://czyt1988.github.io/DAWidgets/en/>
+- Deployed automatically by `.github/workflows/page.yml`; build it locally with `mkdocs build --clean` before pushing docs changes.
+- Use guides live under `docs/use-guide/` + `docs/en/use-guide/`; the single-file build is documented in
+  [`docs/use-guide/amalgamate.md`](./docs/use-guide/amalgamate.md) and
+  [`docs/en/use-guide/amalgamate.md`](./docs/en/use-guide/amalgamate.md).
+
+## Release process (Release)
+
+Version numbers follow **SemVer** (`MAJOR.MINOR.PATCH`): a notable feature addition bumps MINOR, a
+bug-fix-only release bumps PATCH. A release is complete only when every step below is done.
+
+1. **Bump the version** — `CMakeLists.txt` → `project(DAWidgets VERSION X.Y.Z ...)`. This version
+   flows into `find_package(DAWidgets X.Y)` via the generated `DAWidgetsConfigVersion.cmake`.
+2. **Finalize the changelog** — in both `CHANGELOG.md` and `CHANGELOG-CN.md`, replace the
+   `## Unreleased` heading with `## tag:vX.Y.Z (YYYY-MM-DD)` and make sure every commit since the
+   previous tag is covered (`git log --oneline --no-merges <previous-tag>..HEAD`), grouped under
+   `### New Features` / `### Bug Fixes` / `### Build` / `### Documentation`
+   (Chinese: `### 新功能` / `### Bug 修复` / `### 构建` / `### 文档`). The two files must keep
+   one-to-one identical sections and bullets. Move the now-empty `## Unreleased` back to the top.
+3. **Regenerate the amalgamation** — `pwsh -File tools/Amalgamate.ps1`, then compile-verify
+   `examples/amalgamate_demo` against both Qt 6 and Qt 5 (the committed files are generated with
+   Qt 6; they must still compile under Qt 5) and run it with `--smoke`.
+4. **Verify** — in the task worktree: `cmake --build build --config Release --parallel`,
+   `ctest --test-dir build -C Release --output-on-failure`, and smoke the demo. Merge the branch
+   into `master` with a clean worktree.
+5. **Tag and push** — on the release commit in `master`:
+   ```bash
+   git tag -a vX.Y.Z -m "DAWidgets vX.Y.Z"
+   git push github master --follow-tags    # GitHub (HTTPS)
+   git push origin master --follow-tags    # Gitee (SSH)
+   ```
+   Both remotes must end up with the same `master` and tag: `github` is the primary repository and
+   `origin` is the Gitee mirror.
+6. **Publish the GitHub Release** — title `DAWidgets vX.Y.Z`, `target_commitish=master`, body in
+   the bilingual format below. Gitee is updated automatically by
+   `.github/workflows/sync-gitee.yml` (branch, tags, Release body and the amalgamated files). If
+   the Gitee secrets are not configured yet, add them and re-run the workflow with the tag.
+
+### Release notes format
+
+Release notes are **mixed Chinese/English, English first**: the English part is the complete
+content of this version from `CHANGELOG.md`, the Chinese part is the complete content from
+`CHANGELOG-CN.md`, placed at the very bottom in a single collapsed `<details>` block whose summary
+is `中文说明（点击展开）`. There must be a blank line between the `<summary>` line and the Chinese
+Markdown, otherwise GitHub will not render it:
+
+```markdown
+## New Features
+...（English content, from CHANGELOG.md）...
+
+## Documentation
+...
+
+<details>
+<summary>中文说明（点击展开）</summary>
+
+## 新功能
+...（Chinese content, from CHANGELOG-CN.md）...
+
+## 文档
+...
+
+</details>
+```
+
+Section headings inside release notes use level 2 (`##`) because the release page has no
+`## tag:vX.Y.Z` heading level; the changelog files use level 3 (`###`) for the same sections.
+
+### Repository metadata
+
+Keep the GitHub repository **About** block in sync with the project: a one-sentence English
+description ("Qt Widgets supplement library inspired by Element UI — multi-select, collapse,
+property editors and more. Qt 5/6, CMake, MIT."), the docs homepage
+<https://czyt1988.github.io/DAWidgets/>, and the topics `qt`, `qt5`, `qt6`, `qt-widgets`,
+`widgets`, `element-ui`, `cpp`, `cmake`, `gui`, `component-library`.
 
 ## Build Environments
 

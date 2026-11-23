@@ -9,9 +9,10 @@
 
 | 构建选项 | 默认值 | 说明 |
 |---------|--------|------|
-| `DAWIDGETS_BUILD_SHARED` | `OFF` | `ON` 生成动态库（dll/so/dylib）；`OFF` 生成静态库 |
+| `DAWIDGETS_BUILD_SHARED` | `ON` | `ON` 生成动态库（dll/so/dylib）；`OFF` 生成静态库 |
 | `DAWIDGETS_BUILD_DEMO` | `ON` | 构建示例程序 |
 | `DAWIDGETS_BUILD_TESTS` | `OFF` | 构建测试程序 |
+| `DAWIDGETS_BUILD_AMALGAMATE_DEMO` | `OFF` | 构建单文件合并示例（编译 `src-amalgamate/DAWidgets.{h,cpp}`，不链接库目标） |
 
 ## 基本构建步骤
 

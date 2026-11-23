@@ -9,9 +9,10 @@ This document describes how to build the DAWidgets library, its examples, and te
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `DAWIDGETS_BUILD_SHARED` | `OFF` | `ON` builds a shared library (dll/so/dylib); `OFF` builds a static library |
+| `DAWIDGETS_BUILD_SHARED` | `ON` | `ON` builds a shared library (dll/so/dylib); `OFF` builds a static library |
 | `DAWIDGETS_BUILD_DEMO` | `ON` | Build example applications |
 | `DAWIDGETS_BUILD_TESTS` | `OFF` | Build test programs |
+| `DAWIDGETS_BUILD_AMALGAMATE_DEMO` | `OFF` | Build the single-file amalgamation example (compiles `src-amalgamate/DAWidgets.{h,cpp}` without linking the library target) |
 
 ## Basic Build Steps
 
