@@ -328,7 +328,7 @@ file** so consumers can drop it into a project without building/installing DAWid
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `.github/workflows/build.yml` | push/PR to `master`, manual | Builds the library and runs all QtTest suites on Windows (MSVC, Qt 6.8) and Linux (GCC, Qt 6.8) with `QT_QPA_PLATFORM=offscreen`. |
+| `.github/workflows/build.yml` | push/PR to `master`, manual | Builds the library and runs all QtTest suites on Windows (MSVC, Qt 6.8) and Linux (GCC, Qt 6.8) with `QT_QPA_PLATFORM=offscreen`; on Windows it also compiles `src-amalgamate/DAWidgets.{h,cpp}` via `examples/amalgamate_demo` and runs it with `--smoke`. |
 | `.github/workflows/page.yml` | push to `master` touching `docs/**` or `mkdocs.yml`, manual | Builds the MkDocs site and deploys it to GitHub Pages. |
 | `.github/workflows/sync-gitee.yml` | GitHub Release published, manual | Pushes `master` + all tags to the Gitee mirror, creates the matching Gitee Release with the same bilingual body, and attaches `src-amalgamate/DAWidgets.{h,cpp}`. |
 

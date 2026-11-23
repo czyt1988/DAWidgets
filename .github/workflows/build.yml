@@ -63,3 +63,20 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
+
+      # 单文件合并版是仓库提交的生成物，这里在 Windows 上额外编译并冒烟运行一次，
+      # 防止 src-amalgamate 与 src/ 失步（合并文件无法在 Linux 上重新生成，故只在 Windows 做）。
+      - name: Configure single-file amalgamation example (Windows)
+        if: runner.os == 'Windows'
+        run: >
+          cmake -S . -B build-amalgamate
+          -DCMAKE_PREFIX_PATH="${{ env.QT_ROOT_DIR }}"
+          -DDAWIDGETS_BUILD_DEMO=OFF
+          -DDAWIDGETS_BUILD_TESTS=OFF
+          -DDAWIDGETS_BUILD_AMALGAMATE_DEMO=ON
+
+      - name: Build and smoke-test amalgamated sources (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cmake --build build-amalgamate --config Release --target dawidgets_amalgamate_demo --parallel
+          .\build-amalgamate\examples\amalgamate_demo\Release\dawidgets_amalgamate_demo.exe --smoke
