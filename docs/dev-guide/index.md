@@ -10,6 +10,7 @@
 | [注释规范](comment-standards.md) | Doxygen 注释格式、注释放置规则等 |
 | [PIMPL 模式](pimpl-pattern.md) | PIMPL 设计模式的使用和宏定义 |
 | [Qt5/Qt6 兼容](qt5-qt6-compat.md) | Qt5/Qt6 差异兼容宏的使用 |
+| [多工作树并行开发](multi-worktree.md) | 每个编码任务一个 git 工作树，主工作树只负责集成 |
 | [文档编写指南](../doc-writing-guide.md) | 文档结构、内容、图表规范 |
 
 ## 开发流程概览

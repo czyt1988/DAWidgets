@@ -2,6 +2,9 @@
 
 This document describes how to build the DAWidgets library, its examples, and test programs using CMake.
 
+!!! tip "Parallel development"
+    Build and test each coding task in its own worktree and keep the main worktree for integration; see [Multi-Worktree Development](../dev-guide/multi-worktree.md).
+
 ## Build Options
 
 | Option | Default | Description |

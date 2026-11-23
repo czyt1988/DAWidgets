@@ -10,6 +10,7 @@ This section provides DAWidgets project contributors with detailed development s
 | [Comment Standards](comment-standards.md) | Doxygen comment format, comment placement rules, etc. |
 | [PIMPL Pattern](pimpl-pattern.md) | Usage of the PIMPL design pattern and its macro definitions |
 | [Qt5/Qt6 Compatibility](qt5-qt6-compat.md) | Usage of Qt5/Qt6 compatibility macros |
+| [Multi-Worktree Development](multi-worktree.md) | One git worktree per coding task; the main worktree only integrates |
 | [Documentation Writing Guide](../doc-writing-guide.md) | Document structure, content, and chart conventions |
 
 ## Development Workflow Overview

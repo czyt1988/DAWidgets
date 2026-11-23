@@ -16,6 +16,11 @@ Currently ships four component families:
 - **Compiler (verified):** MSVC 19.29 (Visual Studio 2019)
 - **Qt versions verified:** Qt 6.7.3 (msvc2019_64), Qt 5.14.2 (msvc2017_64)
 
+> **🔴 Mandatory for coding tasks: work in a dedicated git worktree under `.worktree/` — never
+> develop or commit on `master` in the main worktree.** Create one with
+> `pwsh -File scripts\worktree-add.ps1 feat/<scope>-<topic>` and follow
+> [§ Branch & Parallel Development (Git Worktrees)](#branch--parallel-development-git-worktrees).
+
 ## Architecture & Key Classes
 
 Source files live directly under `src/` (flat, no subdirectory). SVG icons live under `src/resources/`.
@@ -88,20 +93,25 @@ Source files live directly under `src/` (flat, no subdirectory). SVG icons live 
 
 ## Change Workflow (read before touching DAWidgets)
 
+> **Every change starts in a task worktree** — see [§ Branch & Parallel Development](#branch--parallel-development-git-worktrees).
+> The four steps below describe how a finished change reaches data-workbench. When you develop
+> DAWidgets itself in this repository, step 0 + a commit on the task branch + merge to `master`
+> is the definition of done; data-workbench then picks it up as a submodule-pointer bump.
+
 DAWidgets is consumed by the main project as a **prebuilt** shared library. A change is only finished when all four steps are done, in this order:
 
-0. **Run the module tests and smoke the demo** (this step is the responsibility of the person changing DAWidgets):
+0. **Run the module tests and smoke the demo** in the task worktree (this step is the responsibility of the person changing DAWidgets):
    ```powershell
-   cmake -S src/3rdparty/DAWidgets -B build-dawidgets -G "Visual Studio 16 2019" -A x64 `
-         -DCMAKE_PREFIX_PATH="C:/Qt/6.7.3/msvc2019_64" `
-         -DDAWIDGETS_BUILD_TESTS=ON -DDAWIDGETS_BUILD_DEMO=ON
-   cmake --build build-dawidgets --config Release --parallel
-   ctest --test-dir build-dawidgets -C Release --output-on-failure
-   ./build-dawidgets/examples/all_widgets_demo/Release/dawidgets_all_widgets_demo.exe
+   cmake --build build --config Release --parallel
+   ctest --test-dir build -C Release --output-on-failure
+   ./build/examples/all_widgets_demo/Release/dawidgets_all_widgets_demo.exe
    ```
-1. Commit in the DAWidgets submodule.
-2. Rebuild the 3rdparty tree in the **main worktree** and `cmake --install` (never install from a task worktree — `bin_*` is shared).
-3. Sync the submodule commit into the task worktree and commit the submodule pointer there.
+   `scripts\worktree-add.ps1` preconfigures `build/` with the main worktree's Qt path and
+   `DAWIDGETS_BUILD_TESTS=ON`; if you configure by hand, pass `-DDAWIDGETS_BUILD_TESTS=ON
+   -DDAWIDGETS_BUILD_DEMO=ON` (the 3rdparty build and CI force both `OFF`).
+1. Commit in the DAWidgets repository — the task worktree's branch here, or the submodule commit when working from data-workbench.
+2. Rebuild the 3rdparty tree in data-workbench's **main worktree** and `cmake --install` (never install from a task worktree — `bin_*` is shared).
+3. Sync the submodule commit into data-workbench's task worktree and commit the submodule pointer there.
 
 Rules:
 
@@ -110,6 +120,101 @@ Rules:
 - Every new/extended widget must have a visible entry in `examples/all_widgets_demo` (a section inside an existing tab or a new `Tab*.cpp` registered in `main.cpp`). Tests cover logic/API; the demo covers visuals/interaction. Both are required.
 - Each test covers at least: construction, the key API, signals, and one boundary. Pure visual widgets may use `grab()` as a smoke test.
 - New UI strings use `tr("English") //cn:中文`; add the translation string to the main project's `.ts` by hand (never run lupdate over the whole tree).
+
+## Branch & Parallel Development (Git Worktrees)
+
+> **🔴 Hard rule: every coding task runs in a worktree under `.worktree/`; never develop or commit on `master` in the main worktree.**
+
+Development often runs several agent sessions against this repository at once. Sharing one
+working tree means branch switches, staged files and uncommitted edits collide. Each task gets
+its own git worktree; the main worktree stays on `master` and is only used to integrate
+finished branches.
+
+### Branch model
+
+- `master` is the integration branch. This repository has no separate `dev`: data-workbench's
+  `dev` already plays that role, and this repo is consumed there as a submodule. `-Base`
+  therefore defaults to `master`.
+- Use `feat/<domain>-<topic>`, `fix/<topic>`, `docs/<topic>` or `chore/<topic>`; delete the
+  branch after merging it back to `master`.
+- The main worktree may contain the user's own in-flight edits — never commit, revert or stash
+  them on the user's behalf.
+
+### Create a worktree
+
+```powershell
+# From any worktree of this repo; directory = <main worktree>\.worktree\<branch, / -> ->
+pwsh -File scripts\worktree-add.ps1 feat/table-column-picker
+pwsh -File scripts\worktree-add.ps1 fix/collapse-jitter master   # explicit base branch
+pwsh -File scripts\worktree-add.ps1 -List                        # list worktrees
+pwsh -File scripts\worktree-add.ps1 -Remove feat-table-column-picker
+```
+
+Use the script instead of a hand-written `git worktree add`. It:
+
+- resolves the **main** worktree from wherever it runs, so new worktrees always land in
+  `<main worktree>/.worktree/` and never nest inside another worktree;
+- preconfigures the new worktree's `build/` from the main worktree's `build*/CMakeCache.txt`
+  (generator, VS instance, `CMAKE_PREFIX_PATH`, `DAWIDGETS_BUILD_*`), preferring a cache with
+  `DAWIDGETS_BUILD_TESTS=ON` so `ctest` works out of the box. Pass `-FromBase build-qt5` (any
+  configured build directory) to inherit another Qt/option set, or `-NoConfigure` to skip;
+- refuses to run inside a submodule checkout — a `data-workbench/src/3rdparty/DAWidgets`
+  worktree would pollute that project's source tree and its shared `bin_*` install flow;
+- removes safely on Windows: if `git worktree remove --force` leaves a locked shell directory,
+  it confirms git de-registered the tree before retrying, and it refuses to delete the main
+  worktree or directories it does not recognise as registered worktrees.
+
+`.worktree/` is git-ignored, so worktree directories and their build output never show up in
+`git status`.
+
+### Work inside the worktree
+
+Build and test exactly as in the main worktree (the script prints the inherited build directory):
+
+```powershell
+cmake --build <worktree>\build --config Release --parallel
+ctest --test-dir <worktree>\build -C Release --output-on-failure
+<worktree>\build\examples\all_widgets_demo\Release\dawidgets_all_widgets_demo.exe
+```
+
+- The first build in a fresh worktree is a full build; later builds are incremental.
+- The preconfigured `build/` inherits **one** Qt/option set. To verify Qt5 and Qt6 in the same
+  task, add a second build directory by hand (`cmake -S . -B build-qt5 -DCMAKE_PREFIX_PATH=<Qt5>`).
+- Never run `cmake --install` from a worktree: the install prefix is shared/global and is not
+  owned by the task. Install from the main worktree when needed.
+- New or extended widgets need tests and a demo entry in the same commit (see the rules above).
+
+### Finish: merge back and clean up
+
+1. Merge the latest `master` into the task branch early and again before finishing, so conflicts
+   surface while context is fresh.
+2. Rebuild and rerun the module tests in the task worktree — they are the quality gate.
+3. Merge into `master` from the main worktree (`git -C <main worktree> merge <branch>`). If
+   `master` is checked out somewhere dirty, use a temporary worktree or coordinate with the user;
+   never switch or clean someone else's tree.
+4. Delete the branch (`git branch -d <branch>`) and the worktree
+   (`pwsh -File scripts\worktree-add.ps1 -Remove <dir-name>`).
+
+**"Task done" includes "merged back to `master` and the worktree removed."** Do not leave
+conflicts, diverged branches or orphan worktrees for the next task.
+
+### Relationship to data-workbench
+
+When DAWidgets is changed from **inside data-workbench** (`src/3rdparty/DAWidgets`), that
+project's rules win: edit the submodule in its **main worktree**, commit the submodule, rebuild
+3rdparty and `cmake --install` there (a task worktree's `bin_*` is a shared junction — never
+install from it). Do not create a nested worktree inside the submodule checkout; this script
+refuses to, and the data-workbench `AGENTS.md` "Change Workflow" covers the four-step sync.
+
+### Commit conventions
+
+- Conventional Commits with Chinese descriptions: `type(scope): 中文描述`, where `type` is one
+  of `feat` / `fix` / `docs` / `style` / `refactor` / `perf` / `test` / `build` / `ci` / `chore`
+  / `revert`; `(scope)` is optional.
+- Commit only files that belong to the task — never `git add -A` (the main worktree can hold
+  other sessions' edits).
+- Prefer small atomic commits that build and pass tests on their own.
+- Push only when the user asks; the default remote is `origin` (`master`).
 
 ## Build
 

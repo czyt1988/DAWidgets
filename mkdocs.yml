@@ -71,6 +71,7 @@ plugins:
                     - 注释规范: dev-guide/comment-standards.md
                     - PIMPL 模式: dev-guide/pimpl-pattern.md
                     - Qt5/Qt6 兼容: dev-guide/qt5-qt6-compat.md
+                    - 多工作树并行开发: dev-guide/multi-worktree.md
                     - 文档编写指南: doc-writing-guide.md
             - 使用指南:
                 - Selector 选择器家族:
@@ -117,6 +118,7 @@ plugins:
                     - Comment Standards: dev-guide/comment-standards.md
                     - PIMPL Pattern: dev-guide/pimpl-pattern.md
                     - Qt5/Qt6 Compatibility: dev-guide/qt5-qt6-compat.md
+                    - Multi-Worktree Development: dev-guide/multi-worktree.md
                     - Doc Writing Guide: doc-writing-guide.md
             - User Guide:
                 - Selector Family:
