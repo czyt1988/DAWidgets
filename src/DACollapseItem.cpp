@@ -93,7 +93,7 @@ DACollapseItem::DACollapseItem(const QString& title, QWidget* parent) : QFrame(p
 void DACollapseItem::init()
 {
     DA_D(d);
-    Q_INIT_RESOURCE(dawidgetsicons);  // 静态库需显式注册 qrc 资源,否则被链接器丢弃
+    ensureResourcesInitialized();  // 静态库需显式注册 qrc 资源,否则被链接器丢弃
     setObjectName(QStringLiteral("DACollapseItem"));
     setFrameShape(QFrame::NoFrame);
     installEventFilter(this);

@@ -273,7 +273,7 @@ ctest --test-dir build -C Release --output-on-failure
 
 ## Resources
 
-All graphical assets are managed via Qt RCC (`src/resources/dawidgetsicons.qrc`), prefix `/DAWidgetsIcons`. Static-library consumers must call `Q_INIT_RESOURCE(dawidgetsicons)` to ensure the linker keeps the resources (see `DASelectComboBox`, `DACollapseItem`, `DAFilePathEditWidget` constructors for the pattern). CMake links **Qt::Svg** as a PUBLIC dependency to render SVGs at runtime.
+All graphical assets are managed via Qt RCC (`src/resources/dawidgetsicons.qrc`), prefix `/DAWidgetsIcons`. Resources are registered once through `DA::ensureResourcesInitialized()` (`src/DAWidgetsResources.cpp`), called from the constructors of the widgets that use icons; the `Q_INIT_RESOURCE(dawidgetsicons)` expansion lives in a **global-scope** helper there, because GCC/Clang would otherwise declare a `DA::qInitResources_dawidgetsicons()` symbol that static linking cannot resolve. Consumers do not need to call anything. CMake links **Qt::Svg** as a PUBLIC dependency to render SVGs at runtime.
 
 **To change/add a resource:**
 1. Add the SVG/PNG file to `src/resources/`.

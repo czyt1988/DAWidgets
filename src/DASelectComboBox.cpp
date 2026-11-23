@@ -1,4 +1,4 @@
-﻿#include "DASelectComboBox.h"
+#include "DASelectComboBox.h"
 
 #include "DAChipsEdit.h"
 
@@ -61,7 +61,7 @@ public:
 DASelectComboBox::DASelectComboBox(QWidget *parent) : QComboBox(parent), DA_PIMPL_CONSTRUCT
 {
     DA_D(d);
-    Q_INIT_RESOURCE(dawidgetsicons);  // 静态库需显式注册 qrc 资源,否则被链接器丢弃
+    ensureResourcesInitialized();  // 静态库需显式注册 qrc 资源,否则被链接器丢弃
     setObjectName(QStringLiteral("DASelectComboBox"));
 
     // 先创建 chips 和 container,sizeHint() 会访问它们,必须在 setEditable 之前就绪
@@ -123,7 +123,7 @@ DASelectComboBox::~DASelectComboBox() = default;
 /**
  * @brief 应用默认现代化样式
  * @details qss 直接引用 qrc 中的 SVG 箭头资源（:/DAWidgetsIcons/arrow-down.svg）。
- *          静态库通过 Q_INIT_RESOURCE(dawidgetsicons) 显式注册资源,确保被链接器保留。
+ *          静态库通过 ensureResourcesInitialized() 显式注册资源,确保被链接器保留。
  */
 void DASelectComboBox::applyDefaultStyle()
 {

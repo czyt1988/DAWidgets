@@ -23,6 +23,7 @@
 
 ### Bug 修复
 
+- **GCC/Clang 下静态库可以正常链接。** 三个控件构造函数里的 `Q_INIT_RESOURCE(dawidgetsicons)` 展开在 `namespace DA` 内，GCC/Clang 因此声明出 `DA::qInitResources_dawidgetsicons()`，而 rcc 生成的定义是全局符号，静态链接的使用者（包括 Linux CI）会报 undefined reference。现在资源注册统一走 `DA::ensureResourcesInitialized()`（`src/DAWidgetsResources.cpp`），其 `Q_INIT_RESOURCE` 展开位于全局命名空间，并且只执行一次。
 - **折叠面板展开/收起不再抖动或闪烁。** 内容高度改用 `heightForWidth()` 计算，自动换行内容能被正确测量，动画结束后再锁定高度；`DACollapseLayout` 按每个条目的自然 `sizeHint()` 布局，不再让 `QVBoxLayout` 在动画过程中压缩或拉伸各行。
 - **公开头文件可独立使用。** 此前每个公开头文件都会引用 CMake `GenerateExportHeader` 生成到构建目录中的 `DAWIDGETS_EXPORT.h`；现在导出宏定义在 `DAWidgetsGlobals.h` 里，公开包含路径中也去掉了构建目录，qmake 等其它构建系统可以直接使用这些头文件。
 - **过滤时不再丢失行内编辑器。** 给承载行内控件（例如 `QTreeWidget` 行内的 `QKeySequenceEdit`）的视图挂上 `DAStringFilterProxyModel`，此前过滤过程中这些编辑器会丢失。新增的静态方法 `matchesText()` 把代理的匹配规则开放出来，这类视图可以保留自己的模型，并用完全相同的语义进行过滤。

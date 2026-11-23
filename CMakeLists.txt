@@ -44,6 +44,7 @@ message(STATUS "DAWidgets: shared=${DAWIDGETS_BUILD_SHARED} demo=${DAWIDGETS_BUI
 set(_DAWIDGETS_SOURCES
     src/DAWidgetsGlobals.h
     src/DAQt5Qt6Compat.h
+    src/DAWidgetsResources.cpp
     src/DAFlowLayout.h
     src/DAFlowLayout.cpp
     src/DAChip.h

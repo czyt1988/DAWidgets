@@ -1089,7 +1089,7 @@ public:
 DASelectComboBox::DASelectComboBox(QWidget *parent) : QComboBox(parent), DA_PIMPL_CONSTRUCT
 {
 	DA_D(d);
-	Q_INIT_RESOURCE(dawidgetsicons);  // 静态库需显式注册 qrc 资源,否则被链接器丢弃
+	ensureResourcesInitialized();  // 静态库需显式注册 qrc 资源,否则被链接器丢弃
 	setObjectName(QStringLiteral("DASelectComboBox"));
 
 	// 先创建 chips 和 container,sizeHint() 会访问它们,必须在 setEditable 之前就绪
@@ -1151,7 +1151,7 @@ DASelectComboBox::~DASelectComboBox() = default;
 /**
  * @brief 应用默认现代化样式
  * @details qss 直接引用 qrc 中的 SVG 箭头资源（:/DAWidgetsIcons/arrow-down.svg）。
- *          静态库通过 Q_INIT_RESOURCE(dawidgetsicons) 显式注册资源,确保被链接器保留。
+ *          静态库通过 ensureResourcesInitialized() 显式注册资源,确保被链接器保留。
  */
 void DASelectComboBox::applyDefaultStyle()
 {
@@ -1982,7 +1982,7 @@ DACollapseItem::DACollapseItem(const QString& title, QWidget* parent) : QFrame(p
 void DACollapseItem::init()
 {
 	DA_D(d);
-	Q_INIT_RESOURCE(dawidgetsicons);  // 静态库需显式注册 qrc 资源,否则被链接器丢弃
+	ensureResourcesInitialized();  // 静态库需显式注册 qrc 资源,否则被链接器丢弃
 	setObjectName(QStringLiteral("DACollapseItem"));
 	setFrameShape(QFrame::NoFrame);
 	installEventFilter(this);
@@ -2730,6 +2730,31 @@ int DACollapseWidget::indexOf(QWidget* widget) const
 
 // ---- 光标 / 遮罩 / 撤销历史等工具组件 ----
 
+/*** Start of inlined file: DAWidgetsResources.cpp ***/
+#include <QtCore/QResource>
+
+// 必须位于全局作用域：Q_INIT_RESOURCE 在这里声明的是全局函数
+// qInitResources_dawidgetsicons()，与 rcc 生成的定义一致。
+static void initDawidgetsIconsResource()
+{
+	Q_INIT_RESOURCE(dawidgetsicons);
+}
+
+namespace DA {
+
+void ensureResourcesInitialized()
+{
+	// 函数内静态变量保证只注册一次（C++11 起线程安全）
+	static const bool initialized = (initDawidgetsIconsResource(), true);
+	Q_UNUSED(initialized)
+}
+
+}  // namespace DA
+
+/*** End of inlined file: DAWidgetsResources.cpp ***/
+
+
+
 /*** Start of inlined file: DACursorScoped.cpp ***/
 #include <QApplication>
 namespace DA
@@ -2773,7 +2798,6 @@ void DACursorScoped::release()
 }  // end namespace DA
 
 /*** End of inlined file: DACursorScoped.cpp ***/
-
 
 
 /*** Start of inlined file: DAWaitCursorScoped.cpp ***/
@@ -4755,7 +4779,7 @@ DAFilePathEditWidget::PrivateData::PrivateData(DAFilePathEditWidget* p) : q_ptr(
 DAFilePathEditWidget::DAFilePathEditWidget(QWidget* parent)
 	: QWidget(parent), DA_PIMPL_CONSTRUCT, ui(new Ui::DAFilePathEditWidget)
 {
-	Q_INIT_RESOURCE(dawidgetsicons);  // 静态库需显式注册 qrc 资源,否则被链接器丢弃
+	ensureResourcesInitialized();  // 静态库需显式注册 qrc 资源,否则被链接器丢弃
 	ui->setupUi(this);
 	connect(ui->toolButtonOpen, &QToolButton::clicked, this, &DAFilePathEditWidget::onToolButtonOpenClicked);
 	connect(ui->lineEdit, &QLineEdit::editingFinished, this, &DAFilePathEditWidget::onLineEditEditingFinished);

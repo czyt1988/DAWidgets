@@ -144,4 +144,16 @@
 #define DA_QC(classname, pointerName) const classname* pointerName = q_func()
 #endif
 
+namespace DA {
+
+/**
+ * @brief 注册 Qt RCC 图标资源（内部接口）
+ * @details 控件构造函数调用一次，保证静态库链接时 qrc 资源目标不会被丢弃。
+ *          Q_INIT_RESOURCE 的展开必须在全局作用域完成，故这里只做一层转发，
+ *          实现见 DAWidgetsResources.cpp。
+ */
+void ensureResourcesInitialized();
+
+}  // namespace DA
+
 #endif  // DAWIDGETSGLOBALS_H

@@ -33,6 +33,7 @@
 #include "../../src/DACollapseWidget.cpp"
 
 // ---- 光标 / 遮罩 / 撤销历史等工具组件 ----
+#include "../../src/DAWidgetsResources.cpp"
 #include "../../src/DACursorScoped.cpp"
 #include "../../src/DAWaitCursorScoped.cpp"
 #include "../../src/DAAbstractWidgetOverlay.cpp"

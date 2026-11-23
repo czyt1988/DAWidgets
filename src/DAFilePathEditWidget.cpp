@@ -34,7 +34,7 @@ DAFilePathEditWidget::PrivateData::PrivateData(DAFilePathEditWidget* p) : q_ptr(
 DAFilePathEditWidget::DAFilePathEditWidget(QWidget* parent)
     : QWidget(parent), DA_PIMPL_CONSTRUCT, ui(new Ui::DAFilePathEditWidget)
 {
-    Q_INIT_RESOURCE(dawidgetsicons);  // 静态库需显式注册 qrc 资源,否则被链接器丢弃
+    ensureResourcesInitialized();  // 静态库需显式注册 qrc 资源,否则被链接器丢弃
     ui->setupUi(this);
     connect(ui->toolButtonOpen, &QToolButton::clicked, this, &DAFilePathEditWidget::onToolButtonOpenClicked);
     connect(ui->lineEdit, &QLineEdit::editingFinished, this, &DAFilePathEditWidget::onLineEditEditingFinished);
