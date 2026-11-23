@@ -1,7 +1,7 @@
-﻿cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.16)
 
 project(DAWidgets
-    VERSION 0.1.0
+    VERSION 0.0.1
     DESCRIPTION "DAWidgets - Qt QWidget supplement library inspired by Element UI, for Qt5 and Qt6"
     LANGUAGES CXX
 )
@@ -16,6 +16,10 @@ set(CMAKE_AUTOUIC ON)
 option(DAWIDGETS_BUILD_SHARED "Build DAWidgets as a shared library (DLL/dylib/so); OFF=static" ON)
 option(DAWIDGETS_BUILD_DEMO   "Build DAWidgets demo applications" ON)
 option(DAWIDGETS_BUILD_TESTS  "Build DAWidgets tests" OFF)
+# 单文件合并示例：只编译 src-amalgamate/DAWidgets.{h,cpp}，不链接库目标。
+# 默认关闭，因为合成文件是数 MB 量级的单一翻译单元，日常开发不需要每次都编。
+option(DAWIDGETS_BUILD_AMALGAMATE_DEMO
+    "Build the single-file amalgamation example (src-amalgamate)" OFF)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
@@ -165,6 +169,11 @@ endif()
 # ---- Demo ----
 if(DAWIDGETS_BUILD_DEMO)
     add_subdirectory(examples/all_widgets_demo)
+endif()
+
+# ---- Single-file amalgamation example ----
+if(DAWIDGETS_BUILD_AMALGAMATE_DEMO)
+    add_subdirectory(examples/amalgamate_demo)
 endif()
 
 # ---- Tests ----
