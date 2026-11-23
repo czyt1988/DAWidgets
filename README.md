@@ -1,224 +1,272 @@
-# DAWidgets
+<div align="center">
+<img src="./docs/assets/brand/hero-en.png" alt="DAWidgets — Element UI patterns for Qt Widgets" width="100%">
 
-Qt **QWidget** 界面补充库，灵感来源于 [Element UI](https://element.eleme.io/)。目标是补齐 Qt Widgets 原生控件缺失的常见交互形态，让桌面端也能用上 Web 端习以为常的组件体验。
+<p><b>English</b> &nbsp;&middot;&nbsp; <a href="./README-CN.md">简体中文</a></p>
 
-支持 **Qt5 / Qt6**，使用 **CMake** 构建，纯 C++ 实现。所有公开类以 `DA` 前缀命名。
+<p>
+<a href="https://github.com/czyt1988/DAWidgets/releases/latest"><img src="https://img.shields.io/github/v/release/czyt1988/DAWidgets?style=flat-square&amp;label=release&amp;color=2563eb" alt="Latest release"></a>
+<a href="https://github.com/czyt1988/DAWidgets/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/czyt1988/DAWidgets/build.yml?style=flat-square&amp;label=build" alt="Build status"></a>
+<a href="https://github.com/czyt1988/DAWidgets/actions/workflows/page.yml"><img src="https://img.shields.io/github/actions/workflow/status/czyt1988/DAWidgets/page.yml?style=flat-square&amp;label=docs" alt="Documentation build"></a>
+<a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square" alt="MIT license"></a>
+</p>
 
-![DAWidgets 全控件演示窗口](docs/images/gallery/all-widgets-demo.png)
+<p>
+<a href="https://www.qt.io/"><img src="https://img.shields.io/badge/Qt-5%20%7C%206-41CD52?style=flat-square&amp;logo=qt&amp;logoColor=white" alt="Qt 5 / Qt 6"></a>
+<a href="https://en.cppreference.com/w/cpp/17"><img src="https://img.shields.io/badge/C%2B%2B-17-00599C?style=flat-square&amp;logo=cplusplus&amp;logoColor=white" alt="C++17"></a>
+<a href="https://github.com/czyt1988/DAWidgets/stargazers"><img src="https://img.shields.io/github/stars/czyt1988/DAWidgets?style=flat-square&amp;label=stars&amp;color=2563eb" alt="GitHub stars"></a>
+</p>
 
-> 上图为 `examples/all_widgets_demo` 的真实运行截图。所有文档截图均由该示例程序通过 `--export-gallery` 一键生成，详见 [控件画廊](docs/gallery.md)。
+<h3>Element UI patterns for Qt Widgets</h3>
+<p><sub>Multi-select, collapse, property editors and more — drop-in widgets for Qt desktop applications. No QML, no extra runtime, MIT licensed.</sub></p>
 
-## 控件画廊
+<p><a href="https://czyt1988.github.io/DAWidgets/en/"><b>Documentation</b></a> &nbsp;&middot;&nbsp; <a href="https://czyt1988.github.io/DAWidgets/">中文文档</a> &nbsp;&middot;&nbsp; <a href="#quick-start">Quick start</a> &nbsp;&middot;&nbsp; <a href="#gallery">Gallery</a> &nbsp;&middot;&nbsp; <a href="./CHANGELOG.md">Changelog</a></p>
+</div>
 
-9 个标签页覆盖全部公开控件，每个标签页内部再用 `DACollapseWidget` 分组，点击图片可查看大图：
+## Why DAWidgets?
 
-| 选择器 / 标签 | 折叠面板 | 颜色 |
+Qt Widgets is mature and stable, but it never grew the interaction patterns that web UI libraries have taken for granted: a multi-select field with removable tags and live filtering, an animated accordion, a ready-made property panel. Rebuilding those controls by hand is repetitive work that has little to do with the application you are actually writing.
+
+DAWidgets fills that gap with plain `QWidget` classes designed to feel like [Element UI](https://element.eleme.io/) components on the desktop — plugs into existing layouts, no Qt Quick/QML runtime, no extra dependency beyond Qt itself.
+
+- **Drop-in `QWidget` classes.** Every component is a normal widget: put it in a layout, a dock, a dialog or a `QMainWindow`. No scene graph, no new event loop, no QML engine.
+- **Element UI interaction model.** `DASelectComboBox` mirrors `el-select`'s `multiple + filterable + allow-create` form; `DACollapseWidget` mirrors `el-collapse` with animated panels, accordion mode and custom headers.
+- **A property-panel toolkit, not a single widget.** Color, palette, pen, brush, font, shape, alignment, time-format and file-path editors, plus reusable item-selection widgets with search and pick dialogs.
+- **One codebase for Qt 5 and Qt 6.** A small compatibility layer covers the API differences; verified with Qt 5.14.2 and Qt 6.7.3, and built in CI on Windows (MSVC) and Linux (GCC).
+- **MIT and easy to vendor.** No GPL/LGPL obligations, PIMPL-clean public headers, qss-styleable controls, and a single-file amalgamation for projects that cannot integrate a build dependency.
+
+## Feature highlights
+
+| Area | What you get |
+|:-----|:-------------|
+| **Selector** | `DASelectComboBox` — multi-tag dropdown with filtering, allow-create and two height modes; `DAChipsEdit` — stand-alone tag input; `DAChip`; `DAFlowLayout`. |
+| **Collapse** | `DACollapseWidget` + `DACollapseItem` with `QPropertyAnimation` expand/collapse, accordion or multi-open mode, disabled state, custom title and content widgets; `DACollapseLayout` keeps the animation jitter-free. |
+| **Property editing** | Color picker button and color menu, Office-style palette grid, pen/brush style combos and editors, font and shape panels, alignment and 9-grid position editors, time-format and file-path editors, property row wrapper, text editor, RAII cursor guards. |
+| **Item selection & preview** | `DAItemListEditWidget` (selected list with add menu, pick dialog and optional reorder), `DAItemListPickDialog`, `DACheckListWidget` (search, select-all/invert, forced entries), `DAStringListEditWidget`, `DAItemEntry`, `DAColorScalePreviewWidget`, `DAStringFilterProxyModel`. |
+| **Utility** | `DAUndoHistoryWidget` — undo view plus history-depth control; `DAAbstractWidgetOverlay` — base class for widgets painted on top of another widget. |
+| **Cross-cutting** | Qt 5 / Qt 6 dual support, PIMPL on public classes, hand-written static/shared export macros, qss styling (`DA--ClassName` selectors), single-file amalgamation, bilingual MkDocs site, a 9-tab demo with one-command screenshot export, and 12 QtTest suites. |
+
+## Gallery
+
+Nine tab screenshots cover the whole library. Click any image to open the full-size version.
+
+| | | |
 |:---:|:---:|:---:|
-| [![选择器](docs/images/gallery/tabs/01-selector.png)](docs/images/gallery/tabs/01-selector.png) | [![折叠](docs/images/gallery/tabs/02-collapse.png)](docs/images/gallery/tabs/02-collapse.png) | [![颜色](docs/images/gallery/tabs/03-color.png)](docs/images/gallery/tabs/03-color.png) |
-| [![绘图样式](docs/images/gallery/tabs/04-drawing-style.png)](docs/images/gallery/tabs/04-drawing-style.png) | [![对齐](docs/images/gallery/tabs/05-alignment.png)](docs/images/gallery/tabs/05-alignment.png) | [![工具组件](docs/images/gallery/tabs/06-utility.png)](docs/images/gallery/tabs/06-utility.png) |
-| [![条目选择](docs/images/gallery/tabs/07-item-selection.png)](docs/images/gallery/tabs/07-item-selection.png) | [![文本](docs/images/gallery/tabs/08-text.png)](docs/images/gallery/tabs/08-text.png) | [![过滤](docs/images/gallery/tabs/09-filter.png)](docs/images/gallery/tabs/09-filter.png) |
+| [![Selector tab](./docs/images/gallery/tabs/01-selector.png)](./docs/images/gallery/tabs/01-selector.png) | [![Collapse tab](./docs/images/gallery/tabs/02-collapse.png)](./docs/images/gallery/tabs/02-collapse.png) | [![Color tab](./docs/images/gallery/tabs/03-color.png)](./docs/images/gallery/tabs/03-color.png) |
+| **Selector** — multi-tag dropdown, chip input, flow layout | **Collapse** — accordion and animated panels | **Color** — picker button, palette, color menu |
+| [![Drawing style tab](./docs/images/gallery/tabs/04-drawing-style.png)](./docs/images/gallery/tabs/04-drawing-style.png) | [![Alignment tab](./docs/images/gallery/tabs/05-alignment.png)](./docs/images/gallery/tabs/05-alignment.png) | [![Utility tab](./docs/images/gallery/tabs/06-utility.png)](./docs/images/gallery/tabs/06-utility.png) |
+| **Drawing style** — pen/brush editors and font/shape panels | **Alignment** — alignment, text alignment, 9-grid position | **Utility** — file path, time format, property row, undo |
+| [![Item selection tab](./docs/images/gallery/tabs/07-item-selection.png)](./docs/images/gallery/tabs/07-item-selection.png) | [![Text tab](./docs/images/gallery/tabs/08-text.png)](./docs/images/gallery/tabs/08-text.png) | [![Filter tab](./docs/images/gallery/tabs/09-filter.png)](./docs/images/gallery/tabs/09-filter.png) |
+| **Item selection** — check list, selected list, pick dialog | **Text** — read-only, monospace and wrapped text editor | **Filter** — text filter proxy with parent pass-through |
 
-每个控件的效果特写、关键交互与 API 说明见 [docs/gallery.md](docs/gallery.md) 和各控件的使用指南。
+Every screenshot is exported by the demo application itself — `dawidgets_all_widgets_demo --export-gallery docs/images/gallery` — so it never goes stale when widgets change. Per-widget close-ups and popup captures are in the [gallery guide](./docs/gallery.md).
 
-## 当前组件
+## Requirements
 
-### 选择器（Selector）
+| Requirement | Details |
+|:------------|:--------|
+| Qt | Qt 5.12+ or Qt 6 (verified with Qt 5.14.2 and Qt 6.7.3; CI uses Qt 6.8) |
+| Qt modules | Qt Widgets and Qt Svg — Qt Svg renders the SVG icons used by the property editors |
+| Compiler | C++17: MSVC 2019+ (MSVC 19.29 verified), GCC or Clang |
+| Build system | CMake ≥ 3.16 (or drop in the amalgamated files) |
+| Platforms | Windows verified locally with MSVC; Windows (MSVC) and Linux (GCC) verified in CI. macOS has not been officially tested. |
 
-对标 Element UI 的 `el-select`（`multiple + filterable + allow-create`）。
+## Installation
 
-| 类 | 说明 |
-|----|------|
-| `DASelectComboBox` | 多标签下拉选择框，**继承 QComboBox**：保留原生箭头/边框/键盘助记键，编辑区替换为 `DAChipsEdit`；filterable 过滤 + allow-create 创建 + default-first-option；高度可随标签增高或固定滚动 |
-| `DAChipsEdit` | 流式多标签输入文本框：回车/分隔符提交、Backspace 删除、去重、限量、分隔符枚举+字符串双重载；可独立使用 |
-| `DAChip` | 单个可关闭的标签胶囊控件（可独立使用、可 qss 定制） |
-| `DAFlowLayout` | 流式布局，末尾可嵌入自适应宽度的输入框 |
+### Option A — install and use `find_package` (recommended)
 
-### 折叠面板（Collapse）
-
-对标 Element UI 的 `el-collapse`。
-
-| 类 | 说明 |
-|----|------|
-| `DACollapseWidget` | 折叠面板容器，管理多个 `DACollapseItem`；支持手风琴模式（仅展开一个）与非手风琴模式（多个同时展开） |
-| `DACollapseItem` | 单个折叠项：可点击标题栏 + 内容区域，展开/收起带高度动画；支持禁用、自定义标题控件、自定义内容控件 |
-| `DACollapseLayout` | 专为折叠容器设计的自定义 `QLayout`：每个项取其 `sizeHint` 自然高度，不压缩不拉伸，从根本上消除动画过程中的布局抖动 |
-
-### 属性编辑控件（Property Editing）
-
-一组用于属性面板的编辑控件，覆盖颜色、画笔、画刷、字体、对齐、文件路径等常见场景。
-
-| 类 | 说明 |
-|----|------|
-| `DAColorPickerButton` | 自绘颜色选择按钮，支持调色板菜单与无菜单两种模式 |
-| `DAColorMenu` | 颜色选择菜单：标准色板 + 自定义颜色对话框 + 最近使用记录 |
-| `DAColorPaletteGridWidget` | Office 风格调色板网格 |
-| `DAColorGridWidget` | 基础颜色网格控件 |
-| `DAPenEditWidget` | 画笔编辑器：颜色 + 线型 + 线宽 |
-| `DAPenStyleComboBox` | `Qt::PenStyle` 选择下拉框 |
-| `DABrushEditWidget` | 画刷编辑器：颜色 + 填充样式（实色/图案/渐变/纹理） |
-| `DABrushStyleComboBox` | `Qt::BrushStyle` 选择下拉框 |
-| `DAFontEditPannelWidget` | 字体编辑面板：字体 + 字号 + 粗斜体下划线 + 颜色 |
-| `DAShapeEditPannelWidget` | 形状编辑器：组合画刷（背景）+ 画笔（边框） |
-| `DAAligmentEditWidget` | 对齐方式编辑器（水平 + 垂直） |
-| `DAAligmentPositionEditWidget` | 九宫格位置对齐编辑器 |
-| `DATimeFormatEditWidget` | 时间格式字符串编辑器（含预设格式） |
-| `DAFilePathEditWidget` | 文件/目录路径编辑器：文本框 + 浏览按钮，支持打开文件 / 保存文件 / 选择目录三种模式 |
-| `DATextEditWidget` | 纯文本编辑/查看控件：只读、等宽、换行、占位提示、调用方注入工具动作；不拥有 OK/Cancel |
-| `DAPropertyItemWidget` | 属性行控件：标签 + 编辑器的带标签包装器 |
-| `DACursorScoped` / `DAWaitCursorScoped` | RAII 光标守卫，异常安全 |
-
-### 条目选择与预览（Item Selection & Preview）
-
-面向「从一组候选中挑选若干条」与「条目列表编辑」的通用控件。
-
-| 类 | 说明 |
-|----|------|
-| `DAItemEntry` | 通用候选/选中条目：展示文本 `text` + 标识数据 `data`（`data` 无效时按文本判同） |
-| `DAItemListEditWidget` | 已选条目列表编辑器：行内删除按钮 + 带候选菜单/勾选对话框的添加按钮 + 二次确认的移除所有 + 可选 Up/Down 排序 |
-| `DAItemListPickDialog` | 条目勾选对话框：搜索过滤（过滤不丢勾选状态）+ 多选列表；`DACheckListWidget` 的对话框壳 |
-| `DACheckListWidget` | 带搜索的勾选列表，可选全选/反选；forced 条目永远勾选、全选/反选不动它，过滤只隐藏行不改勾选 |
-| `DAStringListEditWidget` | 纯字符串列表编辑器：Inline 追加可编辑空行 / External 由调用方追加（`addRequested()`），可选删除与上下移动、数量上限、空状态提示 |
-| `DAColorScalePreviewWidget` | 2/3 色横向线性渐变预览条（无效颜色时显示空状态） |
-| `DAStringFilterProxyModel` | 列表/树通用文本过滤代理：大小写策略、单列/所有列、子节点命中放行父节点 |
-
-### 工具组件（Utility）
-
-| 类 | 说明 |
-|----|------|
-| `DAUndoHistoryWidget` | 撤销历史面板：`QUndoView` 跟随 `QUndoGroup`，附撤销深度 SpinBox（只发 `undoLimitChangeRequested`，持久化在调用方） |
-| `DAAbstractWidgetOverlay` | 控件遮罩层抽象基类（`NoMask`/`MaskHint`/`AlphaMask` 与渲染模式），子类实现 `drawOverlay()` |
-
-> 后续会持续补充其它 Qt 缺失的界面组件。
-
-## 构建
+Build, install and consume DAWidgets as a normal CMake package:
 
 ```bash
-cmake -S . -B build -DCMAKE_PREFIX_PATH=<Qt安装路径>
+cmake -S . -B build -DCMAKE_PREFIX_PATH=<Qt install path> -DDAWIDGETS_BUILD_SHARED=ON
 cmake --build build --config Release
+cmake --install build --config Release --prefix <install prefix>
 ```
 
-CMake 自动探测 Qt5 或 Qt6（优先 Qt6）。依赖 **Qt Widgets** 和 **Qt Svg**（用于渲染 SVG 图标）。
-
-### 构建选项
-
-| 选项 | 默认 | 说明 |
-|------|------|------|
-| `DAWIDGETS_BUILD_SHARED` | `OFF` | `ON` 构建为动态库（dll/so/dylib），`OFF` 为静态库 |
-| `DAWIDGETS_BUILD_DEMO` | `ON` | 是否编译示例程序 |
-| `DAWIDGETS_BUILD_TESTS` | `OFF` | 是否编译并运行测试 |
-
-示例：
-```bash
-cmake -S . -B build -DDAWIDGETS_BUILD_SHARED=ON -DDAWIDGETS_BUILD_TESTS=OFF
+```cmake
+find_package(DAWidgets REQUIRED)
+target_link_libraries(my_app PRIVATE DA::DAWidgets)
 ```
 
-MSVC 下自动加 `/utf-8`（源码含中文注释）。
+The installed package config links Qt Widgets and Qt Svg for you and adds the installed include directory, so `#include "DASelectComboBox.h"` works as-is.
 
-## 用法
+### Option B — `add_subdirectory`
 
-### DASelectComboBox（filterable 下拉 + allow-create）
+For projects that vendor DAWidgets as a submodule or a plain copy:
+
+```cmake
+set(DAWIDGETS_BUILD_DEMO OFF CACHE BOOL "" FORCE)
+set(DAWIDGETS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+add_subdirectory(path/to/DAWidgets)
+target_link_libraries(my_app PRIVATE DA::DAWidgets)
+```
+
+Configure your top-level project with `-DCMAKE_PREFIX_PATH=<Qt install path>`; CMake's Qt auto-detection works the same way as for a standalone build.
+
+### Option C — single-file amalgamation
+
+`src-amalgamate/DAWidgets.h` and `src-amalgamate/DAWidgets.cpp` contain the whole library. No DAWidgets target, no install step, no `find_package`:
+
+```cmake
+set(CMAKE_AUTOMOC ON)   # the Q_OBJECT classes in DAWidgets.h need moc
+
+add_executable(my_app
+    main.cpp
+    path/to/src-amalgamate/DAWidgets.h      # must be listed so AUTOMOC mocs it
+    path/to/src-amalgamate/DAWidgets.cpp
+)
+target_include_directories(my_app PRIVATE path/to/src-amalgamate)
+target_compile_definitions(my_app PRIVATE DA_BUILT_AS_STATIC)   # the amalgamation is not a DLL
+target_link_libraries(my_app PRIVATE Qt6::Widgets Qt6::Svg)     # Qt5::Widgets Qt5::Svg on Qt 5
+if(MSVC)
+    target_compile_options(my_app PRIVATE /bigobj /utf-8)       # one huge translation unit + UTF-8 sources
+endif()
+```
+
+See the [single-file amalgamation guide](./docs/en/use-guide/amalgamate.md) for qmake integration, the resource story, regeneration with `pwsh -File tools/Amalgamate.ps1` and the limitations. `examples/amalgamate_demo` is a complete reference project (`-DDAWIDGETS_BUILD_AMALGAMATE_DEMO=ON`).
+
+## Quick Start
+
+### Hello, DAWidgets
 
 ```cpp
-#include <DASelectComboBox.h>
+#include <QApplication>
+#include "DASelectComboBox.h"
 
-auto *cb = new DASelectComboBox(this);
-cb->setPlaceholder(QStringLiteral("请选择文章标签"));
-cb->setOptions({ QStringLiteral("Qt"), QStringLiteral("C++"),
-                 QStringLiteral("Python"), QStringLiteral("QML") });
-cb->setAllowCreate(true);   // 不在列表中可回车创建
-cb->setFilterable(true);    // 输入即过滤（默认 true）
-cb->setTags({ QStringLiteral("Qt") });
+int main(int argc, char *argv[])
+{
+    QApplication app(argc, argv);
 
-// 高度策略（可选）
-cb->setHeightMode(DASelectComboBox::HeightMode::GrowWithTags);          // 默认：随标签换行增高
-// 或
-cb->setHeightMode(DASelectComboBox::HeightMode::FixedHeightScrollable); // 固定行数，超出滚动
-cb->setFixedRowCount(1);
+    DA::DASelectComboBox combo;
+    combo.setPlaceholder(QStringLiteral("Pick or create tags"));
+    combo.setOptions({ QStringLiteral("Qt"), QStringLiteral("C++"),
+                       QStringLiteral("Python"), QStringLiteral("CMake") });
+    combo.setTags({ QStringLiteral("Qt") });
+    combo.setAllowCreate(true);
+    combo.show();
 
-QObject::connect(cb, &DASelectComboBox::tagsChanged,
-                 [](const QStringList &t){ qDebug() << "tags:" << t; });
+    return app.exec();
+}
 ```
 
-### DAChipsEdit（纯标签输入，可独立使用）
+### `DASelectComboBox` — multi-tag select
 
 ```cpp
-#include <DAChipsEdit.h>
+auto *combo = new DA::DASelectComboBox(this);
+combo->setPlaceholder(QStringLiteral("Article tags"));
+combo->setOptions({ QStringLiteral("Qt"), QStringLiteral("C++"),
+                    QStringLiteral("Python"), QStringLiteral("QML") });
+combo->setAllowCreate(true);    // commit a tag that is not in the list
+combo->setFilterable(true);     // filter the popup while typing (default)
+combo->setTags({ QStringLiteral("Qt") });
 
-auto *edit = new DAChipsEdit(this);
-edit->setPlaceholder(QStringLiteral("请选择文章标签"));
-edit->setSeparators({ DAChipsEdit::Separator::Comma,
-                      DAChipsEdit::Separator::Enter });
-edit->setAllowDuplicate(false);
-edit->setMaxCount(10);
+// Grow with the tags (default), or keep a fixed number of rows and scroll.
+combo->setHeightMode(DA::DASelectComboBox::HeightMode::FixedHeightScrollable);
+combo->setFixedRowCount(2);
 
-QObject::connect(edit, &DAChipsEdit::tagAdded,
-                 [](const QString &t){ qDebug() << "added:" << t; });
+connect(combo, &DA::DASelectComboBox::tagsChanged,
+        this, [](const QStringList &tags) { /* ... */ });
 ```
 
-### DACollapseWidget（折叠面板）
+### `DACollapseWidget` — animated collapse panels
 
 ```cpp
-#include <DACollapseWidget.h>
+auto *collapse = new DA::DACollapseWidget(this);
+collapse->setAccordion(false);  // allow several panels open at once
 
-auto *collapse = new DACollapseWidget(this);
-collapse->setAccordion(false);  // 非手风琴模式，可同时展开多个
+DA::DACollapseItem *basic = collapse->addItem(QStringLiteral("Basic"), QStringLiteral("basic"));
+basic->contentLayout()->addWidget(new QLabel(QStringLiteral("Name:")));
+basic->contentLayout()->addWidget(new QLineEdit);
 
-auto *item1 = collapse->addItem(QStringLiteral("基本信息"), QStringLiteral("basic"));
-auto *item2 = collapse->addItem(QStringLiteral("高级设置"), QStringLiteral("advanced"));
+DA::DACollapseItem *advanced = collapse->addItem(QStringLiteral("Advanced"), QStringLiteral("advanced"));
+advanced->contentLayout()->addWidget(new QCheckBox(QStringLiteral("Enable preview")));
 
-// 在内容区添加自定义控件
-item1->contentLayout()->addWidget(new QLabel(QStringLiteral("姓名：")));
-item1->contentLayout()->addWidget(new QLineEdit);
-
-// 展开第一个面板
 collapse->setActiveNames({ QStringLiteral("basic") });
 
-// 监听展开状态变化
-QObject::connect(collapse, &DACollapseWidget::activeNamesChanged,
-                 [](const QStringList &names){ qDebug() << "active:" << names; });
+connect(collapse, &DA::DACollapseWidget::activeNamesChanged,
+        this, [](const QStringList &names) { /* ... */ });
 ```
 
-## 样式
+## Documentation
 
-控件均可通过 qss 定制，参考 `examples/all_widgets_demo/main.cpp` 中的样式表。
-`DASelectComboBox` 构造时自带现代化默认样式（圆角边框 + SVG 箭头），无需额外 qss 即可使用。
+The full documentation is built with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/) and is bilingual — Chinese is the default site, English lives under `/en/`:
 
-## 资源管理
+- **中文文档** — <https://czyt1988.github.io/DAWidgets/>
+- **English documentation** — <https://czyt1988.github.io/DAWidgets/en/>
 
-所有图形资源（SVG 图标、箭头等）放在 `src/resources/` 下，通过 Qt RCC `.qrc` 文件统一管理，
-CMake 自动链接 **Qt::Svg** 模块以支持 SVG 渲染。
-静态库使用者通过 `Q_INIT_RESOURCE(dawidgetsicons)` 显式注册资源，确保链接器保留。
+Useful starting points:
 
-更换/新增资源：
-1. 将 SVG/PNG 文件放入 `src/resources/`
-2. 更新 `src/resources/dawidgetsicons.qrc`
-3. 重新构建
+| Topic | English | 中文 |
+|:------|:--------|:-----|
+| Introduction | <https://czyt1988.github.io/DAWidgets/en/introduction/> | <https://czyt1988.github.io/DAWidgets/introduction/> |
+| Gallery | <https://czyt1988.github.io/DAWidgets/en/gallery/> | <https://czyt1988.github.io/DAWidgets/gallery/> |
+| Build instructions | <https://czyt1988.github.io/DAWidgets/en/build-guide/build-instructions/> | <https://czyt1988.github.io/DAWidgets/build-guide/build-instructions/> |
+| Single-file amalgamation | <https://czyt1988.github.io/DAWidgets/en/use-guide/amalgamate/> | <https://czyt1988.github.io/DAWidgets/use-guide/amalgamate/> |
 
-## 示例程序
+The documentation sources live in [`docs/`](./docs) — Chinese at the root, English under [`docs/en/`](./docs/en). Build the site locally with `pip install -r requirements-docs.txt` and `mkdocs serve`.
 
-| 目录 | 说明 |
-|------|------|
-| `examples/all_widgets_demo/` | 全组件综合演示（9 个标签页：选择器、折叠、颜色、绘图样式、对齐、工具、条目选择、文本、过滤；各 tab 内使用 `DACollapseWidget` 分区折叠） |
-
-### 一键导出截图
-
-示例程序内置截图导出模式，用于生成 README 与 `docs/` 中的全部配图：
+## Building from source
 
 ```bash
-# 在仓库根目录执行；Windows 下先把 Qt 的 bin 目录加入 PATH
-dawidgets_all_widgets_demo --export-gallery docs/images/gallery
+cmake -S . -B build -DCMAKE_PREFIX_PATH=<Qt install path>
+cmake --build build --config Release --parallel
 ```
 
-输出 `all-widgets-demo.png`、`tabs/`（每个标签页）与 `widgets/`（每个控件场景及弹出层）。新增控件时在对应 `Tab*.cpp` 的 `*Scenes()` 列表追加一条 `DemoScene`，演示界面和截图会同步生成。
+CMake auto-detects Qt 5 or Qt 6 (Qt 6 preferred). To build and run the tests as well:
 
-其他命令行选项：
+```bash
+cmake -S . -B build -DCMAKE_PREFIX_PATH=<Qt install path> -DDAWIDGETS_BUILD_TESTS=ON
+cmake --build build --config Release --parallel
+ctest --test-dir build -C Release --output-on-failure
+```
 
-| 选项 | 说明 |
-|------|------|
-| `--export-gallery [目录]` | 导出全部截图（默认 `docs/images/gallery`） |
-| `--shot <png> [tabIndex]` | 只截取指定标签页 |
-| `--help` | 打印命令行帮助 |
+### CMake options
+
+| Option | Default | Description |
+|:-------|:--------|:------------|
+| `DAWIDGETS_BUILD_SHARED` | `ON` | `ON` builds a shared library (dll/so/dylib); `OFF` builds a static library. |
+| `DAWIDGETS_BUILD_DEMO` | `ON` | Build the example applications under `examples/`. |
+| `DAWIDGETS_BUILD_TESTS` | `OFF` | Build the QtTest suites under `tests/`. |
+| `DAWIDGETS_BUILD_AMALGAMATE_DEMO` | `OFF` | Build `examples/amalgamate_demo` — compiles `src-amalgamate/DAWidgets.{h,cpp}` as one translation unit without linking the library. |
+
+The demo is the fastest way to see every widget in action: run `build/examples/all_widgets_demo/Release/dawidgets_all_widgets_demo` (on Windows, add Qt's `bin` directory to `PATH` first).
+
+## Project layout
+
+```text
+DAWidgets/
+├── src/                      # library sources (flat) + src/resources/ (SVG icons, .qrc)
+├── src-amalgamate/           # generated single-file DAWidgets.h / DAWidgets.cpp
+├── examples/
+│   ├── all_widgets_demo/     # 9-tab demo; --export-gallery regenerates the doc screenshots
+│   └── amalgamate_demo/      # reference project for the single-file build
+├── tests/                    # QtTest suites
+├── docs/                     # MkDocs Material sources: Chinese at root, English under docs/en
+├── tools/                    # amalgamation tool, templates and scripts
+├── cmake/                    # find_package config template
+├── CMakeLists.txt
+└── mkdocs.yml
+```
+
+## Contributing
+
+- **Issues and pull requests are welcome.** For a bug report, please include the Qt version, compiler, platform and a minimal reproducer.
+- **Commit style:** [Conventional Commits](https://www.conventionalcommits.org/) — `feat(selector): ...`, `fix(collapse): ...`, `docs: ...`. Keep commits atomic.
+- **Tests:** run `ctest --test-dir build -C Release --output-on-failure` before opening a pull request; a new widget needs its QtTest suite in the same commit.
+- **New widgets:** add a visible entry to `examples/all_widgets_demo`, update the amalgamation templates and regenerate `src-amalgamate`, and register the docs page in both the Chinese and English navigation.
+- **Gitee** (<https://gitee.com/czyt1988/DAWidgets>) is a read-only mirror synced automatically on every release — development happens on GitHub.
+
+## Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md) for the release history (Chinese: [CHANGELOG-CN.md](./CHANGELOG-CN.md)). Releases follow [Semantic Versioning](https://semver.org/).
 
 ## License
 
-MIT
+DAWidgets is distributed under the **MIT License**. See [LICENSE](./LICENSE) for the full text.
+
+---
+
+<p align="center">
+GitHub — <a href="https://github.com/czyt1988/DAWidgets">github.com/czyt1988/DAWidgets</a>
+&nbsp;&middot;&nbsp;
+Gitee mirror — <a href="https://gitee.com/czyt1988/DAWidgets">gitee.com/czyt1988/DAWidgets</a>
+</p>
