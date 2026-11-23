@@ -1,0 +1,104 @@
+name: Sync Release to Gitee
+
+# GitHub 发布 Release 后，自动把 master 分支、全部标签、Release 说明和单文件合并产物
+# 同步到 Gitee 镜像仓库（https://gitee.com/czyt1988/DAWidgets）。
+#
+# 首次启用前需要在 GitHub 仓库 Settings -> Secrets and variables -> Actions 中添加：
+#   GITEE_USERNAME  Gitee 用户名（czyt1988）
+#   GITEE_TOKEN     Gitee 私人令牌，勾选 projects / pull_requests / issues 等仓库权限
+# 缺少任一 secret 时本工作流只给出警告并跳过，不会把发布标成失败。
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to sync (e.g. v0.0.1)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Gitee credentials
+        id: preflight
+        env:
+          GITEE_USERNAME: ${{ secrets.GITEE_USERNAME }}
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          if [ -z "${GITEE_USERNAME}" ] || [ -z "${GITEE_TOKEN}" ]; then
+            echo "::warning::Gitee sync skipped. Add the GITEE_USERNAME and GITEE_TOKEN repository secrets to enable it; then re-run this workflow with the tag to backfill."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.preflight.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push branches and tags to Gitee
+        if: steps.preflight.outputs.skip != 'true'
+        env:
+          GITEE_USER: ${{ secrets.GITEE_USERNAME }}
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          git config --global credential.helper store
+          echo "https://${GITEE_USER}:${GITEE_TOKEN}@gitee.com" > ~/.git-credentials
+          chmod 600 ~/.git-credentials
+          # 用 remote-tracking refs 推送：release 事件检出的是 detached HEAD，
+          # workflow_dispatch 检出的是分支，两种情况下都不用碰工作区。
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*'
+          git remote add gitee https://gitee.com/czyt1988/DAWidgets.git
+          git push gitee refs/remotes/origin/master:refs/heads/master --tags
+
+      - name: Create Gitee release
+        if: steps.preflight.outputs.skip != 'true'
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          TARGET_COMMITISH: ${{ github.event.release.target_commitish || 'master' }}
+          RELEASE_BODY: ${{ github.event.release.body }}
+        run: |
+          EXISTING_ID=$(curl -sS "https://gitee.com/api/v5/repos/czyt1988/DAWidgets/releases/tags/${TAG}?access_token=${GITEE_TOKEN}" | jq -r '.id // empty')
+          if [ -n "${EXISTING_ID}" ]; then
+            echo "gitee release ${TAG} already exists (id=${EXISTING_ID})"
+            echo "RELEASE_ID=${EXISTING_ID}" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          # workflow_dispatch 没有 release 事件负载，从 GitHub 读回同一份发布说明
+          if [ -z "${RELEASE_BODY}" ]; then
+            RELEASE_BODY=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" --jq '.body')
+          fi
+          printf '%s' "$RELEASE_BODY" > /tmp/gitee-body.txt
+          RESP=$(curl -sS -X POST "https://gitee.com/api/v5/repos/czyt1988/DAWidgets/releases" \
+            --data-urlencode "access_token=${GITEE_TOKEN}" \
+            --data-urlencode "tag_name=${TAG}" \
+            --data-urlencode "target_commitish=${TARGET_COMMITISH}" \
+            --data-urlencode "name=DAWidgets ${TAG}" \
+            --data-urlencode "body@/tmp/gitee-body.txt" \
+            --data-urlencode "prerelease=false")
+          echo "${RESP}" | jq -e '.id' > /dev/null || { echo "Gitee release creation failed:"; echo "${RESP}"; exit 1; }
+          RELEASE_ID=$(echo "${RESP}" | jq -r '.id')
+          echo "gitee release id=${RELEASE_ID} tag=${TAG}"
+          echo "RELEASE_ID=${RELEASE_ID}" >> "$GITHUB_ENV"
+
+      - name: Attach amalgamated sources to Gitee release
+        if: steps.preflight.outputs.skip != 'true' && hashFiles('src-amalgamate/DAWidgets.h', 'src-amalgamate/DAWidgets.cpp') != ''
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          RELEASE_ID: ${{ env.RELEASE_ID }}
+        run: |
+          for f in src-amalgamate/DAWidgets.h src-amalgamate/DAWidgets.cpp; do
+            curl -sS -X POST "https://gitee.com/api/v5/repos/czyt1988/DAWidgets/releases/${RELEASE_ID}/attach_files" \
+              -F "access_token=${GITEE_TOKEN}" \
+              -F "file=@${f}" || echo "attach ${f} failed"
+          done
