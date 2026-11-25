@@ -8,6 +8,8 @@
 
 ![DASelectComboBox：展开的候选列表，已选项被剔除、首项高亮](../images/gallery/widgets/select-combobox-popup.png)
 
+![DASelectComboBox：分组候选、空态、清空按钮与折叠标签](../images/gallery/widgets/select-combobox-advanced.png)
+
 第一张图是编辑区：已选 `Qt`、`C++` 以标签展示，输入框带占位提示与原生下拉箭头。第二张图是点击箭头后的候选列表：已选标签自动从候选中剔除，首项以浅蓝高亮（`default-first-option`），继续输入即可实时过滤。
 
 ## 核心特性
@@ -20,6 +22,10 @@
 - ✅ **默认首选**：筛选时自动高亮第一个匹配项
 - ✅ **两种高度模式**：随标签增长 / 固定高度滚动
 - ✅ **QComboBox 兼容**：保留原生箭头、边框、键盘交互
+- ✅ **分组候选**（可选）：组标题不可选、过滤后整组隐藏
+- ✅ **空态与创建**（可选）：无匹配时保持弹层，可点「创建」
+- ✅ **清空按钮**（可选）：悬停显示 ×，一次清空全部
+- ✅ **标签折叠**（可选）：超出阈值显示 `+N`，聚焦恢复全部
 
 ## 类关系
 
@@ -127,13 +133,52 @@ DA--DASelectComboBox::drop-down {
     border-left: 1px solid #dcdfe6;
 }
 /* 弹出列表项样式 */
-QListView#DASelectComboBoxPopup {
+QListView#DASelectPopup {
     border: 1px solid #e4e7ed;
 }
 ```
 
 !!! warning "qss 注意事项"
-    样式化 `QComboBox::drop-down` 时如果不提供 `::down-arrow` 的 `image`，会完全抑制原生箭头。DAWidgets 通过内嵌 PNG 箭头解决此问题。
+    样式化 `QComboBox::drop-down` 时如果不提供 `::down-arrow` 的 `image`，会完全抑制原生箭头。DAWidgets 通过内嵌 SVG 箭头（`:/DAWidgetsIcons/arrow-down.svg`）解决此问题。
+
+### 5. 分组候选与空态
+
+```cpp
+using namespace DA;
+
+combo->setGroupedOptions({
+    DASelectGroup{ "大区", { "华北", "华东", "华南" } },
+    DASelectGroup{ "渠道", { "直营", "经销", "电商" } },
+});
+
+// 无匹配时保持弹层并显示空态（默认关闭）
+combo->setEmptyStateEnabled(true);
+combo->setNoMatchText("没有匹配项");
+
+// 需要自定义空态时替换内置面板（控件所有权归本控件）
+combo->setEmptyWidget(customWidget);
+```
+
+- `options()` 仍返回扁平的候选文本；`setOptions()` 会清空分组，两套 API 二选一。
+- 组标题不可选，键盘 ↑/↓ 会跳过标题；过滤后整组无命中时标题一起隐藏。
+- 空态只在 `setEmptyStateEnabled(true)` 后生效：不打开时无匹配仍然关闭弹层，与旧版本一致。
+- 空态面板是弹层视口上的覆盖控件，不会插入占位 item；`allowCreate` 且输入非空时出现「创建 “xxx”」按钮，点击与回车等价，`created` 只发一次。
+
+### 6. 清空按钮与已选标签折叠
+
+```cpp
+combo->setClearable(true);        // 悬停显示右侧 ×，一次清空全部
+combo->setCollapseTags(true);     // 超出阈值折叠为 +N
+combo->setCollapseTagCount(2);    // 默认 2，最小 1
+
+QObject::connect(combo, &DA::DASelectComboBox::clearClicked, [] {
+    qDebug() << "cleared";
+});
+```
+
+- `clearable` 关闭时不创建任何子控件；打开后 × 只在悬停且有标签时出现。点击后 `tagsChanged` 只发一次，随后发一次 `clearClicked`，弹层保持打开。
+- 折叠只隐藏超出阈值的标签并显示 `+N`，`tags()` 始终返回全部标签；输入框获得焦点或弹层展开时自动恢复全部标签。
+- 两项能力默认关闭，不打开时视觉与旧版本一致。
 
 ## 核心属性与方法
 
@@ -159,6 +204,14 @@ QListView#DASelectComboBoxPopup {
 | `setFilterable(bool)` | 启用/禁用过滤功能 |
 | `setHeightMode(HeightMode)` | 切换高度模式 |
 | `clear()` | 清除所有标签 |
+| `setGroupedOptions(QVector<DASelectGroup>)` / `groupedOptions()` | 设置/获取分组候选 |
+| `setEmptyStateEnabled(bool)` / `isEmptyStateEnabled()` | 无匹配时保持弹层并显示空态 |
+| `setNoMatchText(QString)` / `noMatchText()` | 空态主文案 |
+| `setEmptyWidget(QWidget*)` / `emptyWidget()` | 自定义空态控件（接管所有权） |
+| `setClearable(bool)` / `isClearable()` | 悬停显示清空按钮 |
+| `setCollapseTags(bool)` / `collapseTags()` | 折叠已选标签 |
+| `setCollapseTagCount(int)` / `collapseTagCount()` | 折叠后保留的标签数 |
+| `clearClicked()` | 清空完成后发射一次 |
 
 ## 参考
 

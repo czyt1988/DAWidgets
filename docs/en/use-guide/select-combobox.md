@@ -8,6 +8,8 @@
 
 ![DASelectComboBox: open candidate list with selected tags removed and the first item highlighted](../images/gallery/widgets/select-combobox-popup.png)
 
+![DASelectComboBox: grouped options, empty state, clear button and collapsed tags](../images/gallery/widgets/select-combobox-advanced.png)
+
 The first image shows the edit field: `Qt` and `C++` rendered as chips, a placeholder input, and the native dropdown arrow. The second shows the open candidate list: already-selected tags are removed, the first item is highlighted (`default-first-option`), and typing filters the list live.
 
 ## Key Features
@@ -18,6 +20,10 @@ The first image shows the edit field: `Qt` and `C++` rendered as chips, a placeh
 - ✅ **Default first option**: Automatically highlights the first matching item during filtering
 - ✅ **Two height modes**: Grow with tags / fixed height with scrolling
 - ✅ **QComboBox compatible**: Retains native arrow, border, and keyboard interaction
+- ✅ **Grouped options** (optional): Non-selectable group headers that disappear when the group has no match
+- ✅ **Empty state and create** (optional): Keeps the popup open with a clickable "Create" entry
+- ✅ **Clear button** (optional): × appears on hover and clears everything at once
+- ✅ **Tag collapsing** (optional): Shows `+N` beyond the threshold, expands on focus
 
 ## Class Relationships
 
@@ -125,13 +131,52 @@ DA--DASelectComboBox::drop-down {
     border-left: 1px solid #dcdfe6;
 }
 /* Popup list item style */
-QListView#DASelectComboBoxPopup {
+QListView#DASelectPopup {
     border: 1px solid #e4e7ed;
 }
 ```
 
 !!! warning "qss Pitfall"
-    Styling `QComboBox::drop-down` via qss without providing a `::down-arrow` `image` will suppress the native arrow entirely. DAWidgets solves this by embedding a PNG arrow.
+    Styling `QComboBox::drop-down` via qss without providing a `::down-arrow` `image` will suppress the native arrow entirely. DAWidgets solves this by embedding an SVG arrow (`:/DAWidgetsIcons/arrow-down.svg`).
+
+### 5. Grouped options and the empty state
+
+```cpp
+using namespace DA;
+
+combo->setGroupedOptions({
+    DASelectGroup{ "Region", { "North", "East", "South" } },
+    DASelectGroup{ "Channel", { "Direct", "Dealer", "Online" } },
+});
+
+// Keep the popup open with an empty state when nothing matches (default off)
+combo->setEmptyStateEnabled(true);
+combo->setNoMatchText("No matching items");
+
+// Replace the built-in panel with a custom widget (ownership moves to this control)
+combo->setEmptyWidget(customWidget);
+```
+
+- `options()` still returns the flattened candidate text; `setOptions()` clears the groups, so the two APIs are mutually exclusive.
+- Group headers are not selectable and ↑/↓ skips them; a group whose candidates all filter out disappears together with its header.
+- The empty state only applies after `setEmptyStateEnabled(true)`: when off, a no-match still closes the popup exactly as before.
+- The panel is an overlay on the popup viewport, never a placeholder item. With `allowCreate` and non-empty input, a "Create \"xxx\"" button appears; clicking it is equivalent to pressing Enter and emits `created` once.
+
+### 6. Clear button and collapsing selected tags
+
+```cpp
+combo->setClearable(true);        // × on hover clears everything
+combo->setCollapseTags(true);     // collapse beyond the threshold
+combo->setCollapseTagCount(2);    // default 2, minimum 1
+
+QObject::connect(combo, &DA::DASelectComboBox::clearClicked, [] {
+    qDebug() << "cleared";
+});
+```
+
+- With `clearable` off no child widget is created; when on, × only appears on hover while tags exist. A click emits `tagsChanged` once, then `clearClicked` once, and keeps the popup open.
+- Collapsing only hides the tags beyond the threshold and shows `+N`; `tags()` always returns every tag, and focusing the input or opening the popup restores them all.
+- Both features are off by default, so the visual result without them is unchanged.
 
 ## Core Properties & Methods
 
@@ -157,6 +202,14 @@ QListView#DASelectComboBoxPopup {
 | `setFilterable(bool)` | Enable/disable filtering |
 | `setHeightMode(HeightMode)` | Switch height mode |
 | `clear()` | Clear all tags |
+| `setGroupedOptions(QVector<DASelectGroup>)` / `groupedOptions()` | Set/get grouped candidates |
+| `setEmptyStateEnabled(bool)` / `isEmptyStateEnabled()` | Keep the popup open with an empty state |
+| `setNoMatchText(QString)` / `noMatchText()` | Empty-state message |
+| `setEmptyWidget(QWidget*)` / `emptyWidget()` | Custom empty-state widget (takes ownership) |
+| `setClearable(bool)` / `isClearable()` | Show the clear button on hover |
+| `setCollapseTags(bool)` / `collapseTags()` | Collapse selected tags |
+| `setCollapseTagCount(int)` / `collapseTagCount()` | Number of tags kept when collapsed |
+| `clearClicked()` | Emitted once after clearing |
 
 ## References
 
