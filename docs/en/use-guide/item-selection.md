@@ -89,7 +89,9 @@ It ships with `Select All` / `Invert Selection` and `OK` / `Cancel`; filtering n
 
 ![DAItemListEditWidget: selected entries + Add menu + confirmed removal](../images/gallery/widgets/item-list-edit.png)
 
-The "selected items" editor: every row has an inline remove button, the `Add` arrow opens a candidate menu while the body opens `DAItemListPickDialog`, and `Remove All` asks for confirmation. `setReorderEnabled(true)` shows `Up/Down` buttons instead of drag and drop.
+![DAItemListEditWidget: handle drag reordering, filter box and empty state](../images/gallery/widgets/item-list-edit-dnd.png)
+
+The "selected items" editor: every row has an inline remove button, the `Add` arrow opens a candidate menu while the body opens `DAItemListPickDialog`, and `Remove All` asks for confirmation with a `QMessageBox` by default. `setReorderEnabled(true)` shows `Up/Down` buttons; `setDragReorderEnabled(true)` adds handle drag-and-drop, and both can be on at the same time.
 
 ```cpp
 #include "DAItemListEditWidget.h"
@@ -103,6 +105,30 @@ QObject::connect(edit, &DA::DAItemListEditWidget::selectedItemsChanged,
                  [edit]() { qDebug() << edit->selectedItems().size(); });
 ```
 
+### Drag reordering and filtering
+
+```cpp
+edit->setDragReorderEnabled(true);   // 6-dot handle per row (default off)
+edit->setFilterVisible(true);        // top filter box, hides rows only (default off)
+edit->setEmptyText("No matching items");
+
+// Two-click "Remove All": the first click only changes the label
+edit->setConfirmClearEnabled(true);
+edit->setConfirmClearInterval(2500);
+edit->setConfirmClearText("Click again to clear");
+
+QObject::connect(edit, &DA::DAItemListEditWidget::orderChanged,
+                 [](const QVector<DA::DAItemEntry>& items) {
+                     // Order changed (both Up/Down and drag); add/remove still emits selectedItemsChanged
+                 });
+```
+
+- All three switches are off by default; without them the layout and behavior are unchanged (`Remove All` still shows the confirmation dialog).
+- Dragging only passes the source row number and reuses the same move logic, so row widgets and `DAItemEntry::data` survive; dropping back at the same position emits nothing.
+- Filtering matches like `DACheckListWidget`: trimmed, case-insensitive substring; it only hides rows, and `selectedItems()` always returns everything.
+- With no entries, or when filtering hides everything, `emptyText` is shown and the list is hidden (the empty state is not a placeholder item).
+- `orderChanged` only means reordering; the first clear click only changes the label and reverts after the timeout. `setSelectedItems()` also disarms it.
+
 ### Core methods
 
 | Method | Description |
@@ -111,6 +137,12 @@ QObject::connect(edit, &DA::DAItemListEditWidget::selectedItemsChanged,
 | `setSelectedItems(QVector<DAItemEntry>)` | Replace selection (no signal) |
 | `selectedItems()` | Get selected entries in list order |
 | `setReorderEnabled(bool)` | Show Up/Down buttons |
+| `setDragReorderEnabled(bool)` | Handle drag reordering (default off) |
+| `setFilterVisible(bool)` | Show the top filter box (default off) |
+| `setEmptyText(QString)` | Empty-state text |
+| `setConfirmClearEnabled(bool)` | Two-click clear instead of `QMessageBox` (default off) |
+| `setConfirmClearInterval(int)` | Armed-state timeout in milliseconds |
+| `orderChanged(QVector<DAItemEntry>)` | Order-changed signal (add/remove still uses `selectedItemsChanged`) |
 | `setAddButtonText()` / `setRemoveAllButtonText()` | Override texts for i18n |
 
 ## DAStringListEditWidget

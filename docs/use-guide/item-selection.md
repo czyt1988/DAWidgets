@@ -89,7 +89,9 @@ if (dialog.exec() == QDialog::Accepted) {
 
 ![DAItemListEditWidget：已选条目 + Add 菜单 + 二次确认删除](../images/gallery/widgets/item-list-edit.png)
 
-「已选条目」列表编辑器：每行一个删除按钮，`Add` 按钮的箭头弹出候选菜单、主体打开 `DAItemListPickDialog`，`Remove All` 带二次确认；`setReorderEnabled(true)` 会显示 `Up/Down` 按钮（不使用拖拽）。
+![DAItemListEditWidget：手柄拖拽排序、过滤框与空态](../images/gallery/widgets/item-list-edit-dnd.png)
+
+「已选条目」列表编辑器：每行一个删除按钮，`Add` 按钮的箭头弹出候选菜单、主体打开 `DAItemListPickDialog`，`Remove All` 默认带 `QMessageBox` 二次确认；`setReorderEnabled(true)` 显示 `Up/Down` 按钮，`setDragReorderEnabled(true)` 另开行首手柄拖拽，两者可以同时开启。
 
 ```cpp
 #include "DAItemListEditWidget.h"
@@ -103,6 +105,30 @@ QObject::connect(edit, &DA::DAItemListEditWidget::selectedItemsChanged,
                  [edit]() { qDebug() << edit->selectedItems().size(); });
 ```
 
+### 拖拽排序与过滤
+
+```cpp
+edit->setDragReorderEnabled(true);   // 行首 6 点手柄，拖动排序（默认关闭）
+edit->setFilterVisible(true);        // 顶部过滤框，只隐藏行（默认关闭）
+edit->setEmptyText("没有匹配的条目");
+
+// 「移除所有」改成两次点击：第一次只换文案，2.5s 内再点才清空
+edit->setConfirmClearEnabled(true);
+edit->setConfirmClearInterval(2500);
+edit->setConfirmClearText("再次点击清空");
+
+QObject::connect(edit, &DA::DAItemListEditWidget::orderChanged,
+                 [](const QVector<DA::DAItemEntry>& items) {
+                     // 顺序变化（Up/Down 与拖拽都会发）；增删仍走 selectedItemsChanged
+                 });
+```
+
+- 三项开关默认关闭，不调用时布局、行为与旧版本一致（`Remove All` 仍弹确认框）。
+- 拖拽只传源行号并复用同一套移动逻辑，行控件与 `DAItemEntry::data` 都不会丢；落到原位置不发信号。
+- 过滤语义与 `DACheckListWidget` 一致：去首尾空白、大小写不敏感、子串匹配；只隐藏行，`selectedItems()` 始终返回全部条目。
+- 0 条已选或过滤无命中时显示 `emptyText` 并隐藏列表（空态不是占位 item）。
+- `orderChanged` 只表示顺序；首次点击清空只切换按钮文案，超时自动还原。`setSelectedItems()` 也会复位武装态。
+
 ### 核心方法
 
 | 方法 | 说明 |
@@ -111,6 +137,12 @@ QObject::connect(edit, &DA::DAItemListEditWidget::selectedItemsChanged,
 | `setSelectedItems(QVector<DAItemEntry>)` | 整体替换已选（不发信号） |
 | `selectedItems()` | 获取已选条目（列表顺序） |
 | `setReorderEnabled(bool)` | 显示 Up/Down 按钮 |
+| `setDragReorderEnabled(bool)` | 行首手柄拖拽排序（默认关闭） |
+| `setFilterVisible(bool)` | 显示顶部过滤框（默认关闭） |
+| `setEmptyText(QString)` | 空态文案 |
+| `setConfirmClearEnabled(bool)` | 两次点击清空替代 `QMessageBox`（默认关闭） |
+| `setConfirmClearInterval(int)` | 武装态自动还原时间（毫秒） |
+| `orderChanged(QVector<DAItemEntry>)` | 顺序变化信号（增删仍走 `selectedItemsChanged`） |
 | `setAddButtonText()` / `setRemoveAllButtonText()` | 覆盖默认文案（i18n） |
 
 ## DAStringListEditWidget
