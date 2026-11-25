@@ -19,14 +19,21 @@ static QWidget *createTextEditContent(QWidget *parent)
 
     auto *desc = new QLabel(
         QStringLiteral("只读/等宽/换行可切换；工具动作由调用方注入（这里演示“另存为”只打日志），"
-                       "控件本身不拥有 OK/Cancel。"), w);
+                       "控件本身不拥有 OK/Cancel。\n"
+                       "勾选「行号」左侧显示行号（行号 = 逻辑块号）；勾选「查找」后按 Ctrl+F 打开查找条，"
+                       "Esc 关闭，只读模式下同样可用。"), w);
     desc->setWordWrap(true);
     v->addWidget(desc);
 
     auto *edit = new DA::DATextEditWidget(w);
-    edit->setText(QStringLiteral("第一行文本\n第二行：等宽字体会让列对齐更整齐\n"
-                                 "    indented line\n"
-                                 "The quick brown fox jumps over the lazy dog."));
+    QStringList sample;
+    for (int i = 1; i <= 80; ++i) {
+        if (i % 10 == 0)
+            sample << QStringLiteral("%1: ERROR 数据校验失败，请检查第 %1 行").arg(i);
+        else
+            sample << QStringLiteral("%1: INFO the quick brown fox jumps over the lazy dog").arg(i);
+    }
+    edit->setText(sample.join(QLatin1Char('\n')));
     edit->setPlaceholderText(QStringLiteral("输入文本..."));
 
     auto *readOnly = new QCheckBox(QStringLiteral("只读"), w);
@@ -35,12 +42,16 @@ static QWidget *createTextEditContent(QWidget *parent)
     wrap->setChecked(true);
     auto *toolbar = new QCheckBox(QStringLiteral("显示工具条"), w);
     toolbar->setChecked(true);
+    auto *lineNumbers = new QCheckBox(QStringLiteral("行号"), w);
+    auto *find = new QCheckBox(QStringLiteral("查找 (Ctrl+F)"), w);
 
     auto *controls = new QHBoxLayout();
     controls->addWidget(readOnly);
     controls->addWidget(mono);
     controls->addWidget(wrap);
     controls->addWidget(toolbar);
+    controls->addWidget(lineNumbers);
+    controls->addWidget(find);
     controls->addStretch(1);
     v->addLayout(controls);
 
@@ -59,6 +70,9 @@ static QWidget *createTextEditContent(QWidget *parent)
     QObject::connect(mono, &QCheckBox::toggled, edit, &DA::DATextEditWidget::setMonospace);
     QObject::connect(wrap, &QCheckBox::toggled, edit, &DA::DATextEditWidget::setLineWrapEnabled);
     QObject::connect(toolbar, &QCheckBox::toggled, edit, &DA::DATextEditWidget::setToolbarVisible);
+    QObject::connect(lineNumbers, &QCheckBox::toggled, edit, &DA::DATextEditWidget::setLineNumbersVisible);
+    QObject::connect(find, &QCheckBox::toggled, edit, &DA::DATextEditWidget::setFindEnabled);
+    lineNumbers->setChecked(true);  // demo 显式打开行号，截图可见
     QObject::connect(saveAction, &QAction::triggered, log,
                      [log]() { log->setText(QStringLiteral("注入的“另存为”动作被触发")); });
     QObject::connect(edit, &DA::DATextEditWidget::textChanged, log,

@@ -54,6 +54,26 @@ public:
     // 注入工具动作（加入工具条后由调用方负责生命周期）
     void addToolAction(QAction* action);
 
+    // 左侧行号栏（默认 false）
+    void setLineNumbersVisible(bool on);
+    bool lineNumbersVisible() const;
+
+    // 启用 Ctrl+F 打开查找条（默认 false；与"查找条是否可见"分开）
+    void setFindEnabled(bool on);
+    bool findEnabled() const;
+
+    // 查找条显隐
+    void setFindBarVisible(bool on);
+    bool findBarVisible() const;
+
+    // 打开查找条并可选地预填关键词（会聚焦输入框并选中已有文本）
+    void showFindBar(const QString& initialText = QString());
+    void hideFindBar();
+
+    // 查找是否区分大小写（默认 false）
+    void setFindCaseSensitive(bool on);
+    bool findCaseSensitive() const;
+
 Q_SIGNALS:
     /**
      * @brief 用户编辑导致文本变化（setText 不发射）
