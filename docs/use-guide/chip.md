@@ -16,6 +16,7 @@
 - ✅ **qss 可定制**：选择器 `DA--DAChip`，子控件 objectName 可定位
 - ✅ **独立可用**：可脱离 DAChipsEdit 单独使用
 - ✅ **点击信号**：支持点击交互
+- ✅ **超长省略**（可选）：`setElideWidth()` 限制宽度，`…` + tooltip 显示全文
 
 ## 用法
 
@@ -76,12 +77,22 @@ auto *edit = new DA::DAChipsEdit(parent);
 edit->setTags({ "标签1", "标签2" });  // 内部自动创建 DAChip
 ```
 
+### 4. 超长文本省略（setElideWidth）
+
+```cpp
+auto *chip = new DA::DAChip("一个很长很长的标签文本", parent);
+chip->setElideWidth(96);   // 0（默认）= 不省略
+```
+
+设置后标签最大宽度为 96px，超出部分以 `…` 结尾，悬浮显示全文；`text()` 与 `textChanged()` 始终是全文。省略开启期间 tooltip 由控件接管（会覆盖调用方设置的 tooltip），关闭后恢复调用方自由设置；宽度建议不小于 64px，过小会挤压关闭按钮。
+
 ## 核心属性与方法
 
 | 属性/方法 | 类型 | 说明 |
 |----------|------|------|
 | `text` / `setText()` | `QString` | 标签文本 |
 | `closable` / `setClosable()` | `bool` | 是否显示关闭按钮 |
+| `elideWidth` / `setElideWidth()` | `int` | 最大宽度（px），0 = 不省略 |
 
 ### 信号
 

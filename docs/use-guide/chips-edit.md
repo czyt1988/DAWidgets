@@ -6,7 +6,7 @@
 
 ![DAChipsEdit：已提交 Qt、C++ 两个标签，输入框占满剩余宽度](../images/gallery/widgets/chips-edit.png)
 
-上图中已提交的 `Qt`、`C++` 以标签形式排列，末尾输入框由 `DAFlowLayout` 的末尾扩展特性填满剩余宽度；继续输入并按回车/逗号/分号即可追加标签。下方是演示用的 `tagsChanged` 回显与最大数量、去重开关。
+上图中已提交的 `Qt`、`C++` 以标签形式排列，末尾输入框由 `DAFlowLayout` 的末尾扩展特性填满剩余宽度；继续输入并按回车/逗号/分号即可追加标签。下方依次是演示用的 `tagsChanged` 回显与最大数量、去重开关，以及显式打开「粘贴批量拆分 / 超长标签省略 / 数量计数」的第二组输入框。
 
 ## 核心特性
 
@@ -18,6 +18,9 @@
 - ✅ **数量限制**：可设置最大标签数
 - ✅ **独立可用**：无需 DASelectComboBox 即可独立使用
 - ✅ **扩展点**：暴露 `inputTextChanged` / `inputFocusChanged` / `inputKeyEvent` 供外部消费
+- ✅ **粘贴批量拆分**（可选）：一次粘贴按分隔符拆成多个标签
+- ✅ **超长省略**（可选）：限制 chip 宽度，`…` 结尾 + tooltip 显示全文
+- ✅ **数量计数**（可选）：右下角显示 `n / maxCount`
 
 ## 类关系
 
@@ -140,6 +143,46 @@ QObject::connect(edit, &DA::DAChipsEdit::inputKeyEvent,
     });
 ```
 
+### 5. 粘贴批量拆分
+
+默认关闭。打开后，`Ctrl+V` / `Shift+Insert`（macOS 为 `Cmd+V`）会把剪贴板文本按当前分隔符集合拆成多个标签；`Enter` 对应换行，因此从表格复制的一整列可以直接粘贴进输入框。
+
+```cpp
+using namespace DA;
+
+edit->setPasteSplitEnabled(true);
+edit->setSeparators({
+    DAChipsEdit::Separator::Comma,
+    DAChipsEdit::Separator::Semicolon,
+    DAChipsEdit::Separator::Enter
+});
+
+// 快捷键、demo 按钮、单元测试共用同一入口
+edit->pasteText("红, 绿; 蓝\n黄");  // → 4 个标签
+```
+
+- 去重与 `maxCount` 仍然生效；只有被上限挡住的项才发 `pasteRejected("maxCount")`，取不到剪贴板文本时发 `pasteRejected("clipboard")`。
+- 一次粘贴只发一次 `pasteSplit(QStringList)`，参数是去重前的 token 列表（已 trim、已丢空串）。
+- `allowCreate == false` 时粘贴退化为普通插入，不拆分、不发信号。
+- 关闭时 `pasteText()` 等价于把文本插入内嵌输入框；`Ctrl+V` 不被拦截。
+
+### 6. 超长标签省略
+
+```cpp
+edit->setTagElideWidth(96);   // 0（默认）= 不省略
+```
+
+超过 96px 的标签以 `…` 结尾显示，悬浮显示全文；`DAChip::text()` 与 `tags()` 始终是全文。推荐宽度不小于 64px，过小会挤压关闭按钮。省略开启期间 tooltip 由控件接管（会覆盖调用方设置的 tooltip）。
+
+### 7. 数量计数
+
+```cpp
+edit->setShowCount(true);   // 默认 false
+edit->setMaxCount(5);       // 已选 3 个时显示 "3 / 5"
+```
+
+`maxCount == -1` 时只显示当前数量（如 `3`）。计数标签是右下角的私有子控件，不参与流式排版，最后一行输入框仍占满剩余宽度，不应把计数标签当作可布局子项。
+
 ## 核心属性与方法
 
 ### Q_PROPERTY
@@ -150,7 +193,7 @@ QObject::connect(edit, &DA::DAChipsEdit::inputKeyEvent,
 | `placeholder` | `QString` | 占位提示 |
 | `allowCreate` | `bool` | 是否允许创建新标签 |
 | `allowDuplicate` | `bool` | 是否允许重复标签 |
-| `maxCount` | `int` | 最大标签数（0 = 无限） |
+| `maxCount` | `int` | 最大标签数（-1 = 无限） |
 
 ### 核心方法
 
@@ -166,6 +209,10 @@ QObject::connect(edit, &DA::DAChipsEdit::inputKeyEvent,
 | `setSeparators(QString)` | 字符串方式设置分隔符 |
 | `inputText()` | 获取当前输入框文本 |
 | `clearInput()` | 清空输入框 |
+| `setPasteSplitEnabled(bool)` | 打开/关闭粘贴批量拆分（默认 `false`） |
+| `pasteText(QString)` | 粘贴唯一入口，快捷键/按钮/测试共用 |
+| `setTagElideWidth(int)` | chip 最大宽度（px），`0` 不省略（默认） |
+| `setShowCount(bool)` | 右下角显示 `n / maxCount`（默认 `false`） |
 
 ## 参考
 

@@ -14,6 +14,7 @@ Exported by `--export-gallery`: the first row is a non-closable read-only chip, 
 - ✅ **qss customizable**: Selector `DA--DAChip`, sub-controls locatable by objectName
 - ✅ **Independently usable**: Can be used without DAChipsEdit
 - ✅ **Click signal**: Supports click interaction
+- ✅ **Long-text elision** (optional): `setElideWidth()` caps the width, `…` + tooltip shows the full text
 
 ## Usage
 
@@ -74,6 +75,15 @@ auto *edit = new DA::DAChipsEdit(parent);
 edit->setTags({ "Tag1", "Tag2" });  // DAChip instances are created internally
 ```
 
+### 4. Long-Text Elision (setElideWidth)
+
+```cpp
+auto *chip = new DA::DAChip("a very long tag text", parent);
+chip->setElideWidth(96);   // 0 (default) = no elision
+```
+
+The chip is capped at 96 px; the overflow ends with `…` and the full text is shown in a tooltip. `text()` and `textChanged()` always carry the full text. While elision is enabled the widget owns the tooltip (overriding any caller-set tooltip) and restores caller control when disabled. Keep the width at 64 px or more, otherwise the close button gets squeezed.
+
 !!! info "Sub-control Selectors"
     The close button uses objectName `DAChipCloseButton` and the label uses `DAChipLabel`. These can be targeted in qss for fine-grained styling.
 
@@ -83,6 +93,7 @@ edit->setTags({ "Tag1", "Tag2" });  // DAChip instances are created internally
 |-------------------|------|-------------|
 | `text` / `setText()` | `QString` | Tag text |
 | `closable` / `setClosable()` | `bool` | Whether to show the close button |
+| `elideWidth` / `setElideWidth()` | `int` | Maximum width in px; 0 = no elision |
 
 ### Signals
 
