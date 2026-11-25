@@ -1,9 +1,12 @@
 #ifndef DAUNDOHISTORYWIDGET_H
 #define DAUNDOHISTORYWIDGET_H
 #include <QWidget>
+#include <QDateTime>
+#include <QVector>
 #include "DAWidgetsGlobals.h"
 
 class QUndoGroup;
+class QUndoStack;
 class QUndoView;
 class QSpinBox;
 
@@ -37,14 +40,42 @@ public:
     int undoLimit() const;
     void setUndoLimit(int limit);
 
+    // 每行右侧显示命令入栈时刻（默认 false）
+    void setTimestampsVisible(bool on);
+    bool timestampsVisible() const;
+
+    // 每行左侧显示状态点：已应用=实心、可重做=空心（默认 false）
+    void setIconsVisible(bool on);
+    bool iconsVisible() const;
+
+    // 隐藏文本为空的命令行（默认 false）
+    void setEmptyCommandFilterEnabled(bool on);
+    bool isEmptyCommandFilterEnabled() const;
+
+    // 激活栈中第 index 个命令的入栈时刻；未记录或越界返回无效 QDateTime
+    QDateTime commandTimestamp(int index) const;
+
 Q_SIGNALS:
     // 用户在面板调整了撤销深度（APP 接线：写回配置并施加到全部数据页撤销栈）
     void undoLimitChangeRequested(int limit);
 
 private:
+    // 行号 → 命令下标（首行初始状态返回 -1；所有行相关逻辑都走这里）
+    int rowToCommandIndex(int row) const;
+    bool isRowApplied(int row) const;
+    void attachStack(QUndoStack* stack);
+    void noteStackChange(int count);
+    void refilterRows();
+
+private:
     QUndoView* mView { nullptr };
     QSpinBox* mSpinLimit { nullptr };
     bool mUpdatingLimit { false };  ///< setUndoLimit 期间屏蔽 valueChanged 回环
+    bool mTimestampsVisible { false };
+    bool mIconsVisible { false };
+    bool mEmptyFilterEnabled { false };
+    QVector< QDateTime > mStamps;       ///< 与激活栈命令下标平行的时间戳
+    QUndoStack* mWatchedStack { nullptr };
 };
 }  // end of namespace DA
 #endif  // DAUNDOHISTORYWIDGET_H

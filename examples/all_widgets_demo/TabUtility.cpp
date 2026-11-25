@@ -1,4 +1,5 @@
 #include <QComboBox>
+#include <QCheckBox>
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
@@ -312,7 +313,9 @@ static QWidget *createUndoHistoryContent(QWidget *parent)
 
     auto *desc = new QLabel(
         QStringLiteral("QUndoView 跟随 QUndoGroup 的激活栈；深度 SpinBox 只发"
-                       " undoLimitChangeRequested，由调用方持久化并施加到各栈。"), w);
+                       " undoLimitChangeRequested，由调用方持久化并施加到各栈。\n"
+                       "下面三个开关默认关闭：显示时间（本地时间）、显示状态点（实心=已应用/空心=可重做）、"
+                       "隐藏空命令（演示数据里有一条未 setText() 的命令）。"), w);
     desc->setWordWrap(true);
     v->addWidget(desc);
 
@@ -336,8 +339,28 @@ static QWidget *createUndoHistoryContent(QWidget *parent)
     stack->push(new DemoAddCommand(counter.get(), 2));
     stack->push(new DemoAddCommand(counter.get(), 3));
     stack->push(new DemoAddCommand(counter.get(), 5));
+    auto *emptyCmd = new DemoAddCommand(counter.get(), 0);
+    emptyCmd->setText(QString());
+    stack->push(emptyCmd);
     refresh();
     v->addWidget(history, 1);
+
+    auto *opts = new QHBoxLayout();
+    auto *showTime = new QCheckBox(QStringLiteral("显示时间"), w);
+    showTime->setObjectName(QStringLiteral("showTimestampsCheck"));
+    auto *showIcons = new QCheckBox(QStringLiteral("显示状态点"), w);
+    showIcons->setObjectName(QStringLiteral("showIconsCheck"));
+    auto *hideEmpty = new QCheckBox(QStringLiteral("隐藏空命令"), w);
+    hideEmpty->setObjectName(QStringLiteral("hideEmptyCommandsCheck"));
+    opts->addWidget(showTime);
+    opts->addWidget(showIcons);
+    opts->addWidget(hideEmpty);
+    opts->addStretch(1);
+    v->addLayout(opts);
+    QObject::connect(showTime, &QCheckBox::toggled, history, &DA::DAUndoHistoryWidget::setTimestampsVisible);
+    QObject::connect(showIcons, &QCheckBox::toggled, history, &DA::DAUndoHistoryWidget::setIconsVisible);
+    QObject::connect(hideEmpty, &QCheckBox::toggled, history,
+                     &DA::DAUndoHistoryWidget::setEmptyCommandFilterEnabled);
 
     auto *btns = new QHBoxLayout();
     auto *plus = new QPushButton(QStringLiteral("+1"), w);
