@@ -1,6 +1,8 @@
-﻿#include <QLineEdit>
+﻿#include <QInputMethodEvent>
+#include <QLineEdit>
 #include <QPainter>
 #include <QPixmap>
+#include <QSignalSpy>
 #include <QStyle>
 #include <QStyleOptionComboBox>
 #include <QtTest/QtTest>
@@ -18,6 +20,7 @@ private Q_SLOTS:
     void testAllowCreate();
     void testHeightModeSwitch();
     void testArrowGeometry();
+    void testImeEnterDoesNotPickCandidate();
 };
 
 static QStringList sl(std::initializer_list<const char *> items)
@@ -198,6 +201,35 @@ void DaSelectComboBoxTest::testArrowGeometry()
     qDebug() << "DASelectComboBox arrow dark-pixel count (default style):" << cbDarkDefault;
     QVERIFY2(cbDarkDefault > 5,
              "Arrow not drawn under default style — built-in PNG arrow missing");
+}
+
+void DaSelectComboBoxTest::testImeEnterDoesNotPickCandidate()
+{
+    DASelectComboBox cb;
+    cb.setOptions(sl({ "Qt", "C++" }));
+    cb.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&cb));
+
+    auto *input = cb.findChild<QLineEdit *>(QStringLiteral("DAChipsEditInput"));
+    QVERIFY(input);
+    input->setFocus();
+
+    QSignalSpy selectedSpy(&cb, &DASelectComboBox::optionSelected);
+
+    // 组字期间回车不得选中候选
+    QInputMethodEvent preedit(QStringLiteral("Q"), QList<QInputMethodEvent::Attribute>());
+    QCoreApplication::sendEvent(input, &preedit);
+    QTest::keyClick(input, Qt::Key_Return);
+    QVERIFY(cb.tags().isEmpty());
+    QCOMPARE(selectedSpy.count(), 0);
+
+    // 组字结束（commit）后回车恢复"选中第一项"
+    QInputMethodEvent commit;
+    commit.setCommitString(QStringLiteral("Q"));
+    QCoreApplication::sendEvent(input, &commit);
+    QTest::qWait(60);
+    QTest::keyClick(input, Qt::Key_Return);
+    QCOMPARE(cb.tags(), sl({ "Qt" }));
 }
 
 QTEST_MAIN(DaSelectComboBoxTest)
