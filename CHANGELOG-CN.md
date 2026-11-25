@@ -6,6 +6,34 @@
 
 *暂无未发布的变更。*
 
+## tag:v0.1.0 (2026-11-25)
+
+### 新功能
+
+- **Chips：粘贴拆分与紧凑标签。** `DAChipsEdit` 支持把粘贴文本拆成多个标签、对过长标签做省略并显示 tooltip、显示已选计数，并在输入法组合期间屏蔽 Enter，避免选候选词时误提交标签。
+- **折叠面板：键盘导航与外观变体。** `DACollapseWidget` 支持方向键导航、在展开前发射 `expandRequested(QString)`，并提供 `Default`、`Borderless`、`Card` 三种外观；`DACollapseItem` 暴露头部控件并支持换行内容的高度重算。
+- **选择器：分组选项与空态。** `DASelectComboBox` 支持分组选项列表、可配置的空态面板（可带创建按钮）、清空全部按钮，并把超出的标签折叠成 `+N`。
+- **条目列表：拖拽排序与过滤。** `DAItemListEditWidget` 增加手柄拖拽排序（`orderChanged`）、只隐藏行的过滤框、空态文案，以及「移除所有」的二次点击确认模式。
+- **颜色：透明度、最近色与默认色。** `DAColorMenu` 增加带棋盘格预览的透明度滑杆、去重后最多 5 条的最近色策略和「恢复默认」动作；`DAColorGridWidget` 增加可选的键盘导航与半透明色块棋盘格底。
+- **文件路径：拖放、校验与最近路径。** `DAFilePathEditWidget` 接受拖入的文件/目录，按模式校验路径（`SaveFile` 允许目标不存在）并显示状态行与 `invalid` 属性，同时提供最近路径下拉。
+- **字体编辑：逐项预览与最近字体。** `DAFontEditPannelWidget` 可用面板当前字号/字重/风格渲染字体下拉的每一项，并显示由宿主注入的最近字体菜单；库内不自动记录。
+- **过滤代理：供 delegate 使用的命中区间。** `DAStringFilterProxyModel::matchRanges()` 与静态 `matchRangesIn()` 返回过滤词的 `(start, length)` 区间，delegate 可据此自行高亮；demo 提供最小高亮 delegate。
+- **勾选列表：Shift 连选与 Ctrl+A。** `DACheckListWidget` 支持 Shift+点击区间连选（跳过 forced、禁用与无复选框条目）以及 Ctrl+A 全选当前可见条目，整段只发一次变更信号。
+- **撤销历史：时间、状态点与空命令过滤。** `DAUndoHistoryWidget` 可显示每条命令的本地入栈时间、已应用/可重做状态点，提供 `commandTimestamp()` 查询，并隐藏文本为空的命令。
+- **文本编辑：行号与查找条。** `DATextEditWidget` 增加可选行号栏和 Ctrl+F 查找条，支持环绕查找、命中计数、区分大小写、全部命中高亮，只读模式下同样可用。
+- **文档与画廊。** 中英文指南覆盖所有新选项，每个控件场景都有双语文档和更新的画廊截图，单文件合并版已重新生成。
+
+### Bug 修复
+
+- **Qt 5 字体预览崩溃。** Qt 5 的 `QComboBox::setItemDelegate()` 会删除旧委托，导致字体预览关闭时无法恢复原生委托；现在直接把预览委托装到 view 上，Qt 的委托得以保留并被精确还原。
+- **文件路径编辑器析构。** `DAFilePathEditWidget` 在删除 UI 前断开输入框信号，避免析构期间触发 `editingFinished` 访问已释放控件。
+- **流式布局与隐藏项。** `DAFlowLayout` 跳过空 item，隐藏的占位项不再在标签编辑器和弹出空态里占位。
+
+### 文档
+
+- 新增中英文小节：透明度与最近色、文件路径拖放/校验/历史、字体预览与最近字体、过滤命中区间与高亮 delegate、键盘区间连选、撤销时间与空命令兜底、文本编辑行号与查找。
+- 更新受影响控件的画廊截图，并写明 `(start, length)` 使用 UTF-16 下标、空过滤返回空区间。
+
 ## tag:v0.0.1 (2026-11-23)
 
 ### 新功能

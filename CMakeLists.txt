@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 project(DAWidgets
-    VERSION 0.0.1
+    VERSION 0.1.0
     DESCRIPTION "DAWidgets - Qt QWidget supplement library inspired by Element UI, for Qt5 and Qt6"
     LANGUAGES CXX
 )

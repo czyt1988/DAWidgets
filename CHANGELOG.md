@@ -6,6 +6,34 @@ Notable changes in DAWidgets are recorded in this file; version numbers follow [
 
 *No unreleased changes yet.*
 
+## tag:v0.1.0 (2026-11-25)
+
+### New Features
+
+- **Chips: paste splitting and compact tags.** `DAChipsEdit` can split pasted text into multiple tags, elide long tag labels with a tooltip, show a selected-count label and guard IME composition so Enter during candidate selection does not commit a tag.
+- **Collapse: keyboard navigation and variants.** `DACollapseWidget` supports arrow-key navigation, emits `expandRequested(QString)` before expanding and offers `Default`, `Borderless` and `Card` visual variants; `DACollapseItem` exposes its header widget and refreshes content height for wrapped content.
+- **Select: grouped options and empty states.** `DASelectComboBox` accepts grouped option lists, shows a configurable empty panel with an optional create button, supports a clear-all button, and collapses excess tags into a `+N` summary.
+- **Item list: drag reordering and filtering.** `DAItemListEditWidget` gains handle-based drag reordering (`orderChanged`), a filter box that only hides rows, an empty-state label and a two-click confirm mode for "Remove All".
+- **Color: opacity, recent colors and default color.** `DAColorMenu` adds an opacity slider with checkerboard preview, a deduplicated 5-entry recent-color policy, and a "Restore Default" action; `DAColorGridWidget` gains optional keyboard navigation and checkerboard backgrounds for translucent swatches.
+- **File path: drag and drop, validation and recent paths.** `DAFilePathEditWidget` accepts dropped files/folders, validates paths per mode (including missing targets in `SaveFile`) with a status row and `invalid` property, and offers a recent-path dropdown.
+- **Font edit: per-item preview and recent families.** `DAFontEditPannelWidget` can render every font-family row with the panel's current size/weight/style, and shows a host-supplied recent-font menu without recording anything on its own.
+- **Filter proxy: match ranges for delegates.** `DAStringFilterProxyModel::matchRanges()` and the static `matchRangesIn()` return `(start, length)` ranges of the filter term so a delegate can paint its own highlights; the demo ships a minimal delegate.
+- **Check list: Shift range selection and Ctrl+A.** `DACheckListWidget` can select a range with Shift+click (skipping forced, disabled and uncheckable entries) and select all currently visible entries with Ctrl+A, emitting a single change signal per range.
+- **Undo history: timestamps, state dots and empty-command filtering.** `DAUndoHistoryWidget` can show each command's local push time, draw applied/redoable state dots, expose `commandTimestamp()`, and hide commands whose text is empty.
+- **Text edit: line numbers and find bar.** `DATextEditWidget` gains an optional line-number gutter and a Ctrl+F find bar with wrap-around search, match counter, case sensitivity, all-match highlighting and read-only support.
+- **Documentation and gallery.** Both the Chinese and English guides cover every new option, each widget scene has bilingual documentation and refreshed gallery screenshots, and the single-file amalgamation was regenerated.
+
+### Bug Fixes
+
+- **Qt 5 font-preview crash.** Toggling the font preview on Qt 5 deleted the delegate saved for restoration because `QComboBox::setItemDelegate()` takes ownership; the preview delegate is now installed directly on the view, so Qt's delegate survives and is restored exactly.
+- **File path editor destruction.** `DAFilePathEditWidget` disconnected its line edit before deleting the UI, preventing `editingFinished` from firing during destruction and touching freed widgets.
+- **Flow layout and hidden items.** `DAFlowLayout` ignores empty items, so hidden placeholders no longer reserve space in the chips editor and popup empty states.
+
+### Documentation
+
+- Added Chinese and English sections for opacity and recent colors, file-path drag/validation/history, font preview and recent families, filter match ranges and a highlight delegate, keyboard range selection, undo timestamps and the empty-command fallback, and text-editor line numbers and find.
+- Refreshed the gallery screenshots for the affected widgets and documented the `(start, length)` UTF-16 range semantics and the "empty filter returns no ranges" rule.
+
 ## tag:v0.0.1 (2026-11-23)
 
 ### New Features
