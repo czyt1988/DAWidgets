@@ -33,9 +33,11 @@ struct DAWIDGETS_EXPORT DAItemEntry
  *   （候选 = availableItems 中尚未选中者，可由调用方设定哪些条目出现），
  *   单击按钮主体弹出 DAItemListPickDialog（可搜索、可多选一次性添加）；
  * - 「移除所有」按钮清空列表，带二次确认。
+ * - 可选：行首手柄拖拽排序（`setDragReorderEnabled`）、顶部过滤框（`setFilterVisible`）、
+ *   「再次点击清空」（`setConfirmClearEnabled`）。三项默认关闭，不打开时行为与旧版一致。
  *
  * 控件只认 DAItemEntry（text + data），不绑定任何业务语义，列选择/字段选择等
- * 场景均可复用；条目变化统一发 selectedItemsChanged()。
+ * 场景均可复用；条目变化统一发 selectedItemsChanged()，仅顺序变化发 orderChanged()。
  */
 class DAWIDGETS_EXPORT DAItemListEditWidget : public QWidget
 {
@@ -55,9 +57,30 @@ public:
     // 获取已选条目（列表顺序 = 添加顺序）
     QVector< DAItemEntry > selectedItems() const;
 
-    // 显示 Up/Down 按钮（按钮移动当前行，不使用拖拽；默认关闭）
+    // 显示 Up/Down 按钮（按钮移动当前行；与手柄拖拽并存、互不依赖；默认关闭）
     void setReorderEnabled(bool on);
     bool isReorderEnabled() const;
+
+    // 行首手柄拖拽排序（默认关闭）
+    void setDragReorderEnabled(bool on);
+    bool isDragReorderEnabled() const;
+
+    // 顶部过滤框（默认关闭）；只隐藏行，不改已选集合
+    void setFilterVisible(bool on);
+    bool isFilterVisible() const;
+
+    // 空态文案（列表为空或过滤无命中时显示）
+    void setEmptyText(const QString& text);
+    QString emptyText() const;
+
+    // 「再次点击清空」替代模态确认框（默认关闭 = 保持现有 QMessageBox）
+    void setConfirmClearEnabled(bool on);
+    bool isConfirmClearEnabled() const;
+    // 武装态自动还原时间（毫秒，默认 2500）
+    void setConfirmClearInterval(int ms);
+    int confirmClearInterval() const;
+    // 武装态按钮文案（i18n 覆盖用）
+    void setConfirmClearText(const QString& text);
 
     // 覆盖默认文案（集成侧 i18n 用；默认为英文 tr 文本）
     void setAddButtonText(const QString& t);
@@ -70,10 +93,18 @@ Q_SIGNALS:
      * @brief 已选条目变化（增/删/清空均发射；setSelectedItems 不发射）
      */
     void selectedItemsChanged();
+    /**
+     * @brief 顺序变化（Up/Down 与拖拽都发）；集合增删仍只走 selectedItemsChanged
+     * @param items 当前完整顺序
+     */
+    void orderChanged(const QVector< DAItemEntry >& items);
 
 private:
     Q_DISABLE_COPY(DAItemListEditWidget)
 };
 }  // namespace DA
+
+Q_DECLARE_METATYPE(DA::DAItemEntry)
+Q_DECLARE_METATYPE(QVector< DA::DAItemEntry >)
 
 #endif  // DAITEMLISTEDITWIDGET_H

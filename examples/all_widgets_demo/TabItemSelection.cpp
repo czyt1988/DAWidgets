@@ -1,6 +1,7 @@
 #include <QDialog>
 #include <QFileDialog>
 #include <QGroupBox>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
 #include <QVBoxLayout>
@@ -127,7 +128,7 @@ static QWidget *createItemListEditContent(QWidget *parent)
 
     auto *desc = new QLabel(
         QStringLiteral("从候选里挑条目：添加按钮箭头下拉候选、主体打开勾选对话框；"
-                       "setReorderEnabled(true) 显示 Up/Down 按钮（不用拖拽）。"), w);
+                       "setReorderEnabled(true) 显示 Up/Down 按钮；setDragReorderEnabled(true) 另开手柄拖拽，两者可同时开。"), w);
     desc->setWordWrap(true);
     v->addWidget(desc);
 
@@ -149,6 +150,63 @@ static QWidget *createItemListEditContent(QWidget *parent)
     };
     QObject::connect(edit, &DA::DAItemListEditWidget::selectedItemsChanged, log, update);
     update();
+    return w;
+}
+
+// ============================================================
+// DAItemListEditWidget —— 拖拽 / 过滤 / 空态 / 二次点击清空
+// ============================================================
+static QWidget *createItemListEditDndContent(QWidget *parent)
+{
+    auto *w = new QWidget(parent);
+    auto *v = new QVBoxLayout(w);
+    v->setContentsMargins(8, 4, 8, 4);
+
+    auto *desc = new QLabel(
+        QStringLiteral("四项默认关闭的能力在此显式打开：行首手柄拖拽排序（Up/Down 仍可用）、"
+                       "顶部过滤框（只隐藏行，不改已选集合）、过滤无命中时的空态，"
+                       "以及「移除所有」的二次点击确认（默认仍弹 QMessageBox）。\n"
+                       "拖拽时目标行上/下缘会显示 2px 插入线；松手只发一次 orderChanged。"), w);
+    desc->setWordWrap(true);
+    v->addWidget(desc);
+
+    auto *edit = new DA::DAItemListEditWidget(w);
+    const auto candidates = makeEntries({ QStringLiteral("列 A"), QStringLiteral("列 B"),
+                                          QStringLiteral("列 C"), QStringLiteral("列 D"),
+                                          QStringLiteral("列 E") });
+    edit->setAvailableItems(candidates);
+    edit->setSelectedItems(candidates);
+    edit->setReorderEnabled(true);
+    edit->setDragReorderEnabled(true);
+    edit->setFilterVisible(true);
+    edit->setConfirmClearEnabled(true);
+    edit->setConfirmClearInterval(2500);
+    v->addWidget(edit, 1);
+
+    auto *selectLog = makeLog(w);
+    auto *orderLog  = makeLog(w);
+    v->addWidget(selectLog);
+    v->addWidget(orderLog);
+
+    auto *row = new QHBoxLayout;
+    auto *clearBtn = new QPushButton(QStringLiteral("清空已选（走空态）"), w);
+    row->addWidget(clearBtn);
+    row->addStretch(1);
+    v->addLayout(row);
+
+    auto updateSelection = [ selectLog, edit ]() {
+        selectLog->setText(QStringLiteral("selectedItemsChanged: %1")
+                               .arg(entriesText(edit->selectedItems())));
+    };
+    QObject::connect(edit, &DA::DAItemListEditWidget::selectedItemsChanged, w, updateSelection);
+    QObject::connect(edit, &DA::DAItemListEditWidget::orderChanged, w,
+                     [ orderLog ](const QVector< DAItemEntry > &items) {
+                         orderLog->setText(QStringLiteral("orderChanged: %1").arg(entriesText(items)));
+                     });
+    QObject::connect(clearBtn, &QPushButton::clicked, edit,
+                     [ edit ]() { edit->setSelectedItems(QVector< DAItemEntry >()); });
+    updateSelection();
+
     return w;
 }
 
@@ -291,6 +349,9 @@ QVector< DemoScene > itemSelectionScenes()
         { QStringLiteral("item-list-edit"),
           QStringLiteral("DAItemListEditWidget — 已选条目列表（可排序）"), createItemListEditContent,
           220 },
+        { QStringLiteral("item-list-edit-dnd"),
+          QStringLiteral("DAItemListEditWidget — 拖拽 / 过滤 / 空态 / 二次点击清空"),
+          createItemListEditDndContent, 380 },
         { QStringLiteral("pick-dialog"),
           QStringLiteral("DAItemListPickDialog — 条目勾选对话框"), createPickDialogContent, 0 },
         { QStringLiteral("string-list-edit"),
