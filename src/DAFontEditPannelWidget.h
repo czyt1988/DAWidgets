@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QColor>
 #include <QFont>
+#include <QStringList>
 #include "DAWidgetsGlobals.h"
 
 namespace DA
@@ -52,6 +53,19 @@ public:
     void setFontWeight(int w);
     // 获取字体粗细
     int getFontWeight() const;
+
+    // 每项用自身字体族 + 面板当前字号/字重/斜体/下划线渲染（默认关闭）
+    void setFontPreviewEnabled(bool on);
+    bool isFontPreviewEnabled() const;
+
+    // 最近字体条数上限（默认 5，取值域 1–20）
+    void setMaxRecentFontCount(int n);
+    int maxRecentFontCount() const;
+
+    // 注入最近字体列表：入参按「最近 → 最旧」解释，内部去重 + 按上限截断；
+    // 非空时字体下拉右侧出现入口按钮，空列表即隐藏（= 默认状态）
+    void setRecentFontFamilies(const QStringList& families);
+    QStringList recentFontFamilies() const;
 
 private Q_SLOTS:
     void onComboBoxFontSizeTextChanged(const QString& t);

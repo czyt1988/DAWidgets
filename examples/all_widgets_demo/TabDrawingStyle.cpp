@@ -1,6 +1,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QVBoxLayout>
+#include <memory>
 
 #include <DABrushEditWidget.h>
 #include <DABrushStyleComboBox.h>
@@ -223,6 +224,58 @@ static QWidget *createFontEditContent(QWidget *parent)
 }
 
 // ============================================================
+// DAFontEditPannelWidget —— 字体预览与最近字体
+// ============================================================
+static QWidget *createFontPreviewContent(QWidget *parent)
+{
+    auto *w = new QWidget(parent);
+    auto *v = new QVBoxLayout(w);
+    v->setContentsMargins(8, 4, 8, 4);
+
+    auto *desc = new QLabel(
+        QStringLiteral("预览开关默认关闭；打开后下拉每一项按「自身字体族 + 当前字号/加粗/斜体/下划线」渲染"
+                       "（只影响弹出列表，不改变收起态与工具栏高度）。\n"
+                       "最近字体由宿主维护：库不自动追加、不写 QSettings，这里演示收到 currentFontChanged 后"
+                       "置顶去重、截断到 5 再灌回面板。"), w);
+    desc->setWordWrap(true);
+    v->addWidget(desc);
+
+    auto *edit = new DA::DAFontEditPannelWidget(w);
+    edit->setFontPreviewEnabled(true);
+    edit->setFontWeight(24);
+    QFont initial = edit->getCurrentFont();
+    initial.setBold(true);
+    edit->setCurrentFont(initial);
+    v->addWidget(edit);
+
+    auto *log = new QLabel(w);
+    log->setStyleSheet(QStringLiteral("color:#909399;"));
+    log->setWordWrap(true);
+    v->addWidget(log);
+
+    // 宿主侧维护的最近字体（最近 → 最旧）
+    auto recent = std::make_shared< QStringList >(QStringList {
+        QStringLiteral("Microsoft YaHei"), QStringLiteral("Arial"), QStringLiteral("Times New Roman"),
+        QStringLiteral("Courier New"), QStringLiteral("Consolas") });
+    edit->setRecentFontFamilies(*recent);
+    log->setText(QStringLiteral("最近字体: ") + recent->join(QStringLiteral(", ")));
+
+    QObject::connect(edit, &DA::DAFontEditPannelWidget::currentFontChanged, w,
+        [ edit, recent, log ](const QFont& f) {
+            const QString family = f.family();
+            recent->removeAll(family);
+            recent->prepend(family);
+            while (recent->size() > 5)
+                recent->removeLast();
+            edit->setRecentFontFamilies(*recent);
+            log->setText(QStringLiteral("最近字体: ") + recent->join(QStringLiteral(", ")));
+        },
+        Qt::QueuedConnection);
+
+    return w;
+}
+
+// ============================================================
 // 场景列表（tab 与截图导出共用）
 // ============================================================
 QVector< DemoScene > drawingStyleScenes()
@@ -240,5 +293,7 @@ QVector< DemoScene > drawingStyleScenes()
           createShapeEditContent, 0 },
         { QStringLiteral("font-edit"), QStringLiteral("DAFontEditPannelWidget — 字体编辑面板"),
           createFontEditContent, 0 },
+        { QStringLiteral("font-preview"),
+          QStringLiteral("DAFontEditPannelWidget — 预览与最近字体"), createFontPreviewContent, 0 },
     };
 }

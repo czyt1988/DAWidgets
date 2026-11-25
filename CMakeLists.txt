@@ -195,6 +195,7 @@ if(DAWIDGETS_BUILD_TESTS)
     add_subdirectory(tests/item_list_edit_test)
     add_subdirectory(tests/text_alignment_test)
     add_subdirectory(tests/color_menu_test)
+    add_subdirectory(tests/font_edit_test)
 endif()
 
 # ---- Install ----
