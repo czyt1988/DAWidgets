@@ -55,6 +55,10 @@ public:
     void setSelectAllVisible(bool on);
     void setInvertVisible(bool on);
 
+    // 键盘批量勾选：Shift+点击区间连选 + Ctrl+A 全选当前可见（默认 false）
+    void setKeyboardSelectionEnabled(bool on);
+    bool keyboardSelectionEnabled() const;
+
     // 条目总数 / 勾选总数
     int itemCount() const;
     int checkedCount() const;
@@ -63,6 +67,9 @@ Q_SIGNALS:
      * @brief 用户操作导致勾选变化（全选/反选合并为一次）
      */
     void checkedEntriesChanged();
+
+protected:
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
     Q_DISABLE_COPY(DACheckListWidget)

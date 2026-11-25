@@ -1,3 +1,4 @@
+#include <QCheckBox>
 #include <QDialog>
 #include <QFileDialog>
 #include <QGroupBox>
@@ -54,7 +55,9 @@ static QWidget *createCheckListContent(QWidget *parent)
 
     auto *desc = new QLabel(
         QStringLiteral("带搜索的勾选列表。全选只作用于当前可见、可勾选、非 forced 的条目；"
-                       "过滤只隐藏行，勾选状态保留。"), w);
+                       "过滤只隐藏行，勾选状态保留。\n"
+                       "打开下面的「键盘连选」后：先点一条，再 Shift+点另一条可连选区间；"
+                       "列表有焦点时 Ctrl+A 全选当前可见。"), w);
     desc->setWordWrap(true);
     v->addWidget(desc);
 
@@ -65,6 +68,12 @@ static QWidget *createCheckListContent(QWidget *parent)
     check->setSelectAllVisible(true);
     check->setInvertVisible(true);
     v->addWidget(check, 1);
+
+    auto *keyboardBox = new QCheckBox(QStringLiteral("键盘连选（Shift 区间 / Ctrl+A 可见全选）"), w);
+    keyboardBox->setObjectName(QStringLiteral("keyboardSelectionCheck"));
+    QObject::connect(keyboardBox, &QCheckBox::toggled, check,
+                     &DA::DACheckListWidget::setKeyboardSelectionEnabled);
+    v->addWidget(keyboardBox);
 
     auto *log = makeLog(w);
     v->addWidget(log);

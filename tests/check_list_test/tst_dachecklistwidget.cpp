@@ -2,6 +2,8 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QPushButton>
+#include <QStyle>
+#include <QStyleOptionViewItem>
 #include <QtTest/QtTest>
 
 #include <DACheckListWidget.h>
@@ -19,6 +21,13 @@ private Q_SLOTS:
     void testSetItemsDoesNotEmit();
     void testUserChangeEmitsOnce();
     void testUncheckableIsNeverChecked();
+    void testKeyboardSelectionDisabledByDefault();
+    void testShiftRangeChecksInclusive();
+    void testShiftRangeUnchecksWhenAnchorUnchecked();
+    void testShiftRangeSkipsForcedDisabledUncheckable();
+    void testCtrlASelectsVisibleOnly();
+    void testAnchorResetAfterFilterChange();
+    void testRangeEmitsOnce();
 
 private:
     static QVector< DAItemEntry > makeEntries(const QStringList& texts);
@@ -27,6 +36,9 @@ private:
     static QPushButton* buttonOf(DACheckListWidget& w, const QString& name);
     static Qt::CheckState checkStateOf(QAbstractItemModel* m, int row);
     static void setCheckStateOf(QAbstractItemModel* m, int row, Qt::CheckState state);
+    static void clickRow(DACheckListWidget& w, int proxyRow, Qt::KeyboardModifiers mods = Qt::NoModifier);
+    static QPoint checkPoint(QListView* list, const QModelIndex& index);
+    static void showWidget(DACheckListWidget& w);
 };
 
 QVector< DAItemEntry > DaCheckListWidgetTest::makeEntries(const QStringList& texts)
@@ -63,6 +75,42 @@ Qt::CheckState DaCheckListWidgetTest::checkStateOf(QAbstractItemModel* m, int ro
 void DaCheckListWidgetTest::setCheckStateOf(QAbstractItemModel* m, int row, Qt::CheckState state)
 {
     m->setData(m->index(row, 0), state, Qt::CheckStateRole);
+}
+
+QPoint DaCheckListWidgetTest::checkPoint(QListView* list, const QModelIndex& index)
+{
+    QStyleOptionViewItem opt;
+    opt.initFrom(list);
+    opt.rect = list->visualRect(index);
+    opt.features = QStyleOptionViewItem::HasCheckIndicator;
+    opt.checkState = static_cast< Qt::CheckState >(index.data(Qt::CheckStateRole).toInt());
+    opt.text = index.data(Qt::DisplayRole).toString();
+    opt.widget = list;
+    const QRect r = list->style()->subElementRect(QStyle::SE_ItemViewItemCheckIndicator, &opt, list);
+    if (r.isValid() && !r.isEmpty())
+        return r.center();
+    return opt.rect.center();
+}
+
+void DaCheckListWidgetTest::clickRow(DACheckListWidget& w, int proxyRow, Qt::KeyboardModifiers mods)
+{
+    QListView* list = listOf(w);
+    QVERIFY(list);
+    QAbstractItemModel* m = list->model();
+    QVERIFY(m);
+    const QModelIndex idx = m->index(proxyRow, 0);
+    QVERIFY(idx.isValid());
+    QTest::mouseClick(list->viewport(), Qt::LeftButton, mods, checkPoint(list, idx));
+}
+
+void DaCheckListWidgetTest::showWidget(DACheckListWidget& w)
+{
+    w.resize(320, 320);
+    w.show();
+    QTest::qWaitForWindowExposed(&w);
+    w.activateWindow();
+    QTest::qWaitForWindowActive(&w);
+    QTest::qWait(20);
 }
 
 void DaCheckListWidgetTest::testForcedCannotBeUnchecked()
@@ -174,6 +222,136 @@ void DaCheckListWidgetTest::testUncheckableIsNeverChecked()
     QCOMPARE(w.checkedCount(), 0);
     QAbstractItemModel* m = modelOf(w);
     QVERIFY(!(m->flags(m->index(0, 0)) & Qt::ItemIsUserCheckable));
+}
+
+void DaCheckListWidgetTest::testKeyboardSelectionDisabledByDefault()
+{
+    DACheckListWidget w;
+    w.setItems(makeEntries({ "a", "b", "c", "d" }));
+    showWidget(w);
+    QVERIFY(!w.keyboardSelectionEnabled());
+    clickRow(w, 2);
+    QCOMPARE(w.checkedEntries().size(), 1);
+    QCOMPARE(w.checkedEntries().first().text, QStringLiteral("c"));
+}
+
+void DaCheckListWidgetTest::testShiftRangeChecksInclusive()
+{
+    DACheckListWidget w;
+    w.setItems(makeEntries({ "a", "b", "c", "d" }));
+    showWidget(w);
+    w.setKeyboardSelectionEnabled(true);
+    QSignalSpy spy(&w, &DACheckListWidget::checkedEntriesChanged);
+
+    setCheckStateOf(modelOf(w), 0, Qt::Checked);
+    QCOMPARE(spy.count(), 1);
+    clickRow(w, 3, Qt::ShiftModifier);
+
+    QCOMPARE(spy.count(), 2);
+    QCOMPARE(w.checkedEntries().size(), 4);
+    for (int i = 0; i < 4; ++i)
+        QCOMPARE(checkStateOf(modelOf(w), i), Qt::Checked);
+}
+
+void DaCheckListWidgetTest::testShiftRangeUnchecksWhenAnchorUnchecked()
+{
+    DACheckListWidget w;
+    const QVector< DAItemEntry > items = makeEntries({ "a", "b", "c", "d", "e" });
+    w.setItems(items);
+    w.setCheckedEntries(items);
+    showWidget(w);
+    w.setKeyboardSelectionEnabled(true);
+    QSignalSpy spy(&w, &DACheckListWidget::checkedEntriesChanged);
+
+    setCheckStateOf(modelOf(w), 1, Qt::Unchecked);
+    QCOMPARE(spy.count(), 1);
+    clickRow(w, 4, Qt::ShiftModifier);
+
+    QCOMPARE(spy.count(), 2);
+    QCOMPARE(w.checkedEntries().size(), 1);
+    QCOMPARE(w.checkedEntries().first().text, QStringLiteral("a"));
+    for (int i = 1; i < 5; ++i)
+        QCOMPARE(checkStateOf(modelOf(w), i), Qt::Unchecked);
+}
+
+void DaCheckListWidgetTest::testShiftRangeSkipsForcedDisabledUncheckable()
+{
+    DACheckListWidget w;
+    w.setItems(makeEntries({ "a", "b", "c", "d", "e" }));
+    w.setEntryForcedChecked(DAItemEntry { "b", QVariant() }, true);
+    w.setEntryEnabled(DAItemEntry { "c", QVariant() }, false);
+    w.setEntryCheckable(DAItemEntry { "d", QVariant() }, false);
+    showWidget(w);
+    w.setKeyboardSelectionEnabled(true);
+
+    setCheckStateOf(modelOf(w), 0, Qt::Checked);
+    clickRow(w, 4, Qt::ShiftModifier);
+
+    const QVector< DAItemEntry > checked = w.checkedEntries();
+    QCOMPARE(checked.size(), 3);
+    QVERIFY(checked.contains(DAItemEntry { "a", QVariant() }));
+    QVERIFY(checked.contains(DAItemEntry { "b", QVariant() }));
+    QVERIFY(checked.contains(DAItemEntry { "e", QVariant() }));
+    QCOMPARE(checkStateOf(modelOf(w), 2), Qt::Unchecked);
+    QCOMPARE(checkStateOf(modelOf(w), 3), Qt::Unchecked);
+}
+
+void DaCheckListWidgetTest::testCtrlASelectsVisibleOnly()
+{
+    DACheckListWidget w;
+    w.setItems(makeEntries({ "Apple", "Banana", "Date", "Cherry", "Elder" }));
+    showWidget(w);
+    w.setKeyboardSelectionEnabled(true);
+    QLineEdit* search = w.findChild< QLineEdit* >(QStringLiteral("searchEdit"));
+    QVERIFY(search);
+    search->setText(QStringLiteral("a"));
+    QCOMPARE(modelOf(w)->rowCount(), 3);
+
+    QListView* list = listOf(w);
+    QVERIFY(list);
+    list->setFocus();
+    QTest::keyClick(list->viewport(), Qt::Key_A, Qt::ControlModifier);
+    QCOMPARE(w.checkedCount(), 3);
+
+    search->clear();
+    QCOMPARE(w.checkedCount(), 3);
+}
+
+void DaCheckListWidgetTest::testAnchorResetAfterFilterChange()
+{
+    DACheckListWidget w;
+    w.setItems(makeEntries({ "alpha", "beta", "gamma" }));
+    showWidget(w);
+    w.setKeyboardSelectionEnabled(true);
+    QAbstractItemModel* m = modelOf(w);
+    setCheckStateOf(m, 0, Qt::Checked);
+    setCheckStateOf(m, 0, Qt::Unchecked);
+
+    QLineEdit* search = w.findChild< QLineEdit* >(QStringLiteral("searchEdit"));
+    QVERIFY(search);
+    search->setText(QStringLiteral("beta"));
+    QCOMPARE(m->rowCount(), 1);
+
+    clickRow(w, 0, Qt::ShiftModifier);
+    QCOMPARE(m->rowCount(), 1);
+    QCOMPARE(checkStateOf(m, 0), Qt::Checked);
+}
+
+void DaCheckListWidgetTest::testRangeEmitsOnce()
+{
+    DACheckListWidget w;
+    QStringList texts;
+    for (int i = 0; i < 10; ++i)
+        texts << QStringLiteral("item%1").arg(i);
+    w.setItems(makeEntries(texts));
+    showWidget(w);
+    w.setKeyboardSelectionEnabled(true);
+    setCheckStateOf(modelOf(w), 0, Qt::Checked);
+
+    QSignalSpy spy(&w, &DACheckListWidget::checkedEntriesChanged);
+    clickRow(w, 9, Qt::ShiftModifier);
+    QCOMPARE(spy.count(), 1);
+    QCOMPARE(w.checkedCount(), 10);
 }
 
 QTEST_MAIN(DaCheckListWidgetTest)

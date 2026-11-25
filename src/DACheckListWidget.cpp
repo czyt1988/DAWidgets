@@ -3,7 +3,9 @@
 #include <QHBoxLayout>
 #include <QLineEdit>
 #include <QListView>
+#include <QMouseEvent>
 #include <QPushButton>
+#include <QShortcut>
 #include <QStandardItem>
 #include <QStandardItemModel>
 #include <QVBoxLayout>
@@ -37,6 +39,9 @@ public:
     void selectAllVisible();
     void invertVisible();
     void onItemChanged(QStandardItem* item);
+    // 键盘连选
+    int proxyRowOf(const QStandardItem* item) const;
+    void applyRangeTo(int fromProxyRow, int toProxyRow, bool targetChecked);
 
     QLineEdit* mSearch { nullptr };
     QListView* mList { nullptr };
@@ -45,6 +50,9 @@ public:
     QPushButton* mSelectAll { nullptr };
     QPushButton* mInvert { nullptr };
     bool mUpdating { false };  ///< 程序化改动期间屏蔽 itemChanged 回环
+    bool mKeyboardSelection { false };
+    int mAnchorProxyRow { -1 };
+    QShortcut* mSelectAllShortcut { nullptr };
 };
 
 DACheckListWidget::PrivateData::PrivateData(DACheckListWidget* p) : q_ptr(p)
@@ -72,6 +80,7 @@ void DACheckListWidget::PrivateData::init()
     mList->setModel(mProxy);
     // 勾选即选择，避免选中态干扰
     mList->setSelectionMode(QAbstractItemView::NoSelection);
+    mList->viewport()->installEventFilter(q);
     root->addWidget(mList, 1);
 
     QHBoxLayout* btnRow = new QHBoxLayout();
@@ -94,6 +103,8 @@ void DACheckListWidget::PrivateData::init()
 void DACheckListWidget::PrivateData::applyFilter(const QString& key)
 {
     mProxy->setFilterText(key.trimmed());
+    // 代理行号会重排，旧锚点不再指向同一条目
+    mAnchorProxyRow = -1;
 }
 
 QStandardItem* DACheckListWidget::PrivateData::findItem(const DAItemEntry& e) const
@@ -197,7 +208,47 @@ void DACheckListWidget::PrivateData::onItemChanged(QStandardItem* item)
         setCheckedSilently(item, false);
         return;
     }
+    // 锚点只能记录在 forced/不可勾选守卫之后：否则会把强制行当成"取消"意图
+    if (mKeyboardSelection)
+        mAnchorProxyRow = proxyRowOf(item);
     Q_EMIT q->checkedEntriesChanged();
+}
+
+int DACheckListWidget::PrivateData::proxyRowOf(const QStandardItem* item) const
+{
+    if (!item)
+        return -1;
+    const QModelIndex src = mModel->indexFromItem(item);
+    if (!src.isValid())
+        return -1;
+    return mProxy->mapFromSource(src).row();
+}
+
+/**
+ * @brief 把代理行区间内可操作的条目套用同一勾选状态
+ * @details 跳过 forced / 无复选框 / 不可用条目；整段只发一次信号
+ */
+void DACheckListWidget::PrivateData::applyRangeTo(int fromProxyRow, int toProxyRow, bool targetChecked)
+{
+    DA_Q(DACheckListWidget, q);
+    if (fromProxyRow > toProxyRow) {
+        const int tmp = fromProxyRow;
+        fromProxyRow = toProxyRow;
+        toProxyRow   = tmp;
+    }
+    bool changed = false;
+    for (int i = fromProxyRow; i <= toProxyRow; ++i) {
+        QStandardItem* item = mModel->itemFromIndex(mProxy->mapToSource(mProxy->index(i, 0)));
+        if (!item || itemForced(item) || !itemCheckable(item) || !itemUsable(item))
+            continue;
+        const Qt::CheckState target = targetChecked ? Qt::Checked : Qt::Unchecked;
+        if (item->checkState() != target) {
+            setCheckedSilently(item, targetChecked);
+            changed = true;
+        }
+    }
+    if (changed)
+        Q_EMIT q->checkedEntriesChanged();
 }
 
 //===============================================================
@@ -415,6 +466,78 @@ void DACheckListWidget::setInvertVisible(bool on)
 {
     DA_D(d);
     d->mInvert->setVisible(on);
+}
+
+/**
+ * @brief 打开/关闭键盘批量勾选
+ * @param on 是否启用：Shift+点击区间连选、Ctrl+A 全选当前可见（默认 false）
+ */
+void DACheckListWidget::setKeyboardSelectionEnabled(bool on)
+{
+    DA_D(d);
+    if (d->mKeyboardSelection == on)
+        return;
+    d->mKeyboardSelection = on;
+    if (on) {
+        if (!d->mSelectAllShortcut) {
+            d->mSelectAllShortcut = new QShortcut(QKeySequence::SelectAll, d->mList);
+            d->mSelectAllShortcut->setContext(Qt::WidgetWithChildrenShortcut);
+            QObject::connect(d->mSelectAllShortcut, &QShortcut::activated, this, [ this ]() {
+                DA_D(d);
+                d->selectAllVisible();
+            });
+        }
+    } else {
+        d->mAnchorProxyRow = -1;
+        if (d->mSelectAllShortcut) {
+            d->mSelectAllShortcut->deleteLater();
+            d->mSelectAllShortcut = nullptr;
+        }
+    }
+}
+
+/** @brief 键盘批量勾选是否启用 */
+bool DACheckListWidget::keyboardSelectionEnabled() const
+{
+    DA_DC(d);
+    return d->mKeyboardSelection;
+}
+
+/**
+ * @brief 视图事件过滤：Shift+左键按下套用区间并吞掉事件
+ * @details 只处理 press 与 dblclick；普通点击完全放行
+ */
+bool DACheckListWidget::eventFilter(QObject* watched, QEvent* event)
+{
+    DA_D(d);
+    if (watched != d->mList->viewport() || !d->mKeyboardSelection)
+        return QWidget::eventFilter(watched, event);
+    if (event->type() == QEvent::MouseButtonDblClick) {
+        auto* me = static_cast< QMouseEvent* >(event);
+        if (me->button() == Qt::LeftButton)
+            return true;  // 双击不再叠加一次翻转
+        return QWidget::eventFilter(watched, event);
+    }
+    if (event->type() != QEvent::MouseButtonPress)
+        return QWidget::eventFilter(watched, event);
+    auto* me = static_cast< QMouseEvent* >(event);
+    if (me->button() != Qt::LeftButton || !(me->modifiers() & Qt::ShiftModifier))
+        return QWidget::eventFilter(watched, event);
+    if (d->mAnchorProxyRow < 0)
+        return QWidget::eventFilter(watched, event);
+    const QModelIndex target = d->mList->indexAt(me->pos());
+    if (!target.isValid())
+        return QWidget::eventFilter(watched, event);
+    const QStandardItem* anchorItem =
+        d->mModel->itemFromIndex(d->mProxy->mapToSource(d->mProxy->index(d->mAnchorProxyRow, 0)));
+    if (!anchorItem)
+        return QWidget::eventFilter(watched, event);
+    const bool targetChecked = (anchorItem->checkState() == Qt::Checked);
+    const int targetRow      = target.row();
+    d->applyRangeTo(d->mAnchorProxyRow, targetRow, targetChecked);
+    d->mAnchorProxyRow = targetRow;
+    d->mList->viewport()->update();
+    return true;
 }
 
 /**
