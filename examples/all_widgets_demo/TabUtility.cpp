@@ -85,6 +85,39 @@ static QWidget *createFilePathContent(QWidget *parent)
     addFilePathMode(w, v, QStringLiteral("ExistingDirectory — 选择目录"),
                     DA::DAFilePathEditWidget::Mode::ExistingDirectory, QString());
 
+    {
+        auto *box = new QGroupBox(
+            QStringLiteral("拖放 / 校验 / 最近使用（三项均默认关闭，这里显式打开）"), w);
+        auto *lay = new QVBoxLayout(box);
+        lay->setContentsMargins(8, 4, 8, 4);
+        auto *edit = new DA::DAFilePathEditWidget(box);
+        edit->setMode(DA::DAFilePathEditWidget::Mode::OpenFile);
+        edit->setDropEnabled(true);
+        edit->setValidationEnabled(true);
+        edit->setRecentPaths({ QDir::currentPath(), QCoreApplication::applicationDirPath(),
+                               QDir::homePath(), QDir::tempPath() });
+        lay->addWidget(edit);
+
+        auto *log = new QLabel(box);
+        log->setStyleSheet(QStringLiteral("color:#909399;"));
+        log->setWordWrap(true);
+        lay->addWidget(log);
+        QObject::connect(edit, &DA::DAFilePathEditWidget::validationChanged, log,
+            [log](bool valid) {
+                log->setText(valid ? QStringLiteral("校验: 路径可用")
+                                   : QStringLiteral("校验: 路径不存在"));
+            });
+        QObject::connect(edit, &DA::DAFilePathEditWidget::recentPathActivated, log,
+            [log](const QString &p) {
+                log->setText(QStringLiteral("最近路径: ") + p);
+            });
+        QObject::connect(edit, &DA::DAFilePathEditWidget::selectedPath, log,
+            [log](const QString &p) {
+                log->setText(QStringLiteral("已选择: ") + p);
+            });
+        v->addWidget(box);
+    }
+
     return w;
 }
 

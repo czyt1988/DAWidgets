@@ -8,6 +8,10 @@ namespace Ui
 class DAFilePathEditWidget;
 }
 
+class QDragEnterEvent;
+class QDragLeaveEvent;
+class QDropEvent;
+
 namespace DA
 {
 
@@ -64,6 +68,21 @@ public:
     void setFilePath(const QString& v);
     // 文本框占位提示
     void setPlaceholderText(const QString& t);
+
+    // 拖放：默认关闭。开启后接受文件/目录 URL，落点填入并校验
+    void setDropEnabled(bool on = true);
+    bool isDropEnabled() const;
+
+    // 路径校验：默认关闭。关闭时状态行隐藏、失焦不校验
+    void setValidationEnabled(bool on = true);
+    bool isValidationEnabled() const;
+    // 立即校验并返回是否合法（空路径返回 false 且不发信号、不显示状态行）
+    bool validateNow();
+
+    // 最近路径：入参按“最近 → 最旧”，去重 + 截断到 5；非空时右侧出现“最近”按钮
+    void setRecentPaths(const QStringList& paths);
+    QStringList recentPaths() const;
+
 Q_SIGNALS:
     /**
      * @brief 选中路径后会发射此信号
@@ -75,12 +94,33 @@ Q_SIGNALS:
      * @param p 当前文本
      */
     void pathChanged(const QString& p);
+    /**
+     * @brief 校验结果变化时发射；同一结果连续校验只发一次，空路径不发射
+     */
+    void validationChanged(bool valid);
+    /**
+     * @brief 最近路径被选中时发射（随后仍会发 selectedPath）
+     */
+    void recentPathActivated(const QString& path);
+
 private Q_SLOTS:
     void onToolButtonOpenClicked();
     void onLineEditEditingFinished();
 
 protected:
     void changeEvent(QEvent* e);
+    void dragEnterEvent(QDragEnterEvent* e) override;
+    void dragLeaveEvent(QDragLeaveEvent* e) override;
+    void dropEvent(QDropEvent* e) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
+
+private:
+    // 统一收尾：设文本 → （启用时）校验，浏览与拖放共用
+    void setPathAndValidate(const QString& path);
+    void onRecentPathActivated(const QString& path);
+    void refreshValidationVisual(bool valid);
+    void rebuildRecentMenu();
+    void resetDragActive();
 
 private:
     Ui::DAFilePathEditWidget* ui;
