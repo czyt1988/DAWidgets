@@ -140,6 +140,46 @@ bool DAStringFilterProxyModel::matchesText(const QString& text, const QString& f
     return text.contains(filter, cs);
 }
 
+/**
+ * @brief 纯文本的命中区间
+ * @param text 文本
+ * @param filter 过滤词；空串返回空数组（与 matchesText 返回 true 不对称）
+ * @param cs 大小写
+ * @return (start, length) 列表，UTF-16 下标、从左到右、互不重叠
+ */
+QVector< QPair< int, int > > DAStringFilterProxyModel::matchRangesIn(const QString& text,
+                                                                     const QString& filter,
+                                                                     Qt::CaseSensitivity cs)
+{
+    QVector< QPair< int, int > > out;
+    if (filter.isEmpty())
+        return out;
+    int from = 0;
+    int pos = 0;
+    while ((pos = text.indexOf(filter, from, cs)) >= 0) {
+        out.append(qMakePair(pos, static_cast< int >(filter.size())));
+        from = pos + filter.size();
+    }
+    return out;
+}
+
+/**
+ * @brief 单个代理单元格的命中区间
+ * @param proxyIndex 代理索引
+ * @return (start, length) 列表；无效索引/不参与的列/空过滤返回空
+ */
+QVector< QPair< int, int > > DAStringFilterProxyModel::matchRanges(const QModelIndex& proxyIndex) const
+{
+    const QModelIndex src = mapToSource(proxyIndex);
+    if (!src.isValid())
+        return {};
+    if (mFilterText.isEmpty())
+        return {};
+    if (mFilterColumn >= 0 && src.column() != mFilterColumn)
+        return {};
+    return matchRangesIn(src.data(mFilterRole).toString(), mFilterText, filterCaseSensitivity());
+}
+
 bool DAStringFilterProxyModel::filterAcceptsRow(int source_row, const QModelIndex& source_parent) const
 {
     if (mFilterText.isEmpty()) {

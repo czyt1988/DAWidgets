@@ -2,7 +2,9 @@
 #define DASTRINGFILTERPROXYMODEL_H
 
 #include <QSortFilterProxyModel>
+#include <QPair>
 #include <QString>
+#include <QVector>
 #include "DAWidgetsGlobals.h"
 
 namespace DA
@@ -46,6 +48,17 @@ public:
 
     // 单段文本的匹配语义（空过滤恒为 true）；供不能挂代理的视图复用同一实现
     static bool matchesText(const QString& text, const QString& filter, Qt::CaseSensitivity cs);
+
+    // 单个单元格的命中区间：按当前过滤设置计算，元素为 (start, length)，UTF-16 下标。
+    // 空过滤 / 该列不参与匹配 / 索引无效 / 索引不属于本代理 → 返回空数组。
+    // 区间从左到右、互不重叠；父节点仅因子节点命中被放行时，其自身区间为空。
+    QVector< QPair< int, int > > matchRanges(const QModelIndex& proxyIndex) const;
+
+    // 纯文本版本：与 matchesText() 同一套语义。
+    // 注意：空过滤返回空数组，而 matchesText() 对空过滤返回 true（放行 ≠ 高亮）。
+    static QVector< QPair< int, int > > matchRangesIn(const QString& text,
+                                                      const QString& filter,
+                                                      Qt::CaseSensitivity cs);
 
 protected:
     bool filterAcceptsRow(int source_row, const QModelIndex& source_parent) const override;
