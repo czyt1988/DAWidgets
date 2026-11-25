@@ -1,12 +1,19 @@
-﻿#include <QInputMethodEvent>
+﻿#include <QApplication>
+#include <QInputMethodEvent>
+#include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QPainter>
 #include <QPixmap>
+#include <QPointer>
+#include <QPushButton>
 #include <QSignalSpy>
 #include <QStyle>
 #include <QStyleOptionComboBox>
+#include <QToolButton>
 #include <QtTest/QtTest>
 
+#include <DAChip.h>
 #include <DASelectComboBox.h>
 
 using namespace DA;
@@ -21,7 +28,84 @@ private Q_SLOTS:
     void testHeightModeSwitch();
     void testArrowGeometry();
     void testImeEnterDoesNotPickCandidate();
+    void testGroupedOptionsFlat();
+    void testGroupHeadersInPopup();
+    void testKeyboardSkipsGroupHeaders();
+    void testFilterHidesEmptyGroups();
+    void testEmptyStateVisibleOnce();
+    void testEmptyStateTextOnlyDoesNotEnable();
+    void testCreateButtonFromEmptyState();
+    void testClearableSignalOnce();
+    void testClearButtonPixels();
+    void testCollapseTagsState();
+    void testCollapseTagsPixels();
+    void testEmptyWidgetLifecycle();
 };
+
+namespace {
+QListWidget *popupOf(DA::DASelectComboBox &)
+{
+    const auto tops = QApplication::topLevelWidgets();
+    for (QWidget *w : tops) {
+        if (auto *lw = qobject_cast< QListWidget * >(w)) {
+            if (lw->objectName() == QStringLiteral("DASelectPopup"))
+                return lw;
+        }
+    }
+    return nullptr;
+}
+
+QRect editFieldRect(QWidget *w)
+{
+    QStyleOptionComboBox opt;
+    opt.initFrom(w);
+    opt.rect = w->rect();
+    opt.editable = true;
+    return w->style()->subControlRect(QStyle::CC_ComboBox, &opt, QStyle::SC_ComboBoxEditField, w);
+}
+
+int countColumnRuns(const QPixmap &pix, const QRect &area, QRgb target)
+{
+    const QImage img = pix.toImage();
+    int runs = 0;
+    bool inRun = false;
+    for (int x = area.left(); x <= area.right(); ++x) {
+        bool hit = false;
+        for (int y = area.top(); y <= area.bottom(); ++y) {
+            if (img.pixel(x, y) == target) {
+                hit = true;
+                break;
+            }
+        }
+        if (hit && !inRun) {
+            ++runs;
+            inRun = true;
+        } else if (!hit) {
+            inRun = false;
+        }
+    }
+    return runs;
+}
+
+int countDarkPixels(const QPixmap &pix, const QRect &area, int threshold = 200)
+{
+    const QImage img = pix.toImage();
+    int dark = 0;
+    for (int y = area.top(); y <= area.bottom(); ++y) {
+        for (int x = area.left(); x <= area.right(); ++x) {
+            const QRgb px = img.pixel(x, y);
+            if (qRed(px) < threshold || qGreen(px) < threshold || qBlue(px) < threshold)
+                ++dark;
+        }
+    }
+    return dark;
+}
+
+QLineEdit *inputOf(DA::DASelectComboBox &cb)
+{
+    return cb.findChild< QLineEdit * >(QStringLiteral("DAChipsEditInput"));
+}
+}  // namespace
 
 static QStringList sl(std::initializer_list<const char *> items)
 {
@@ -230,6 +314,372 @@ void DaSelectComboBoxTest::testImeEnterDoesNotPickCandidate()
     QTest::qWait(60);
     QTest::keyClick(input, Qt::Key_Return);
     QCOMPARE(cb.tags(), sl({ "Qt" }));
+}
+
+void DaSelectComboBoxTest::testGroupedOptionsFlat()
+{
+    DASelectComboBox cb;
+    cb.setGroupedOptions({ DASelectGroup{ QStringLiteral("G1"), { QStringLiteral("a1"), QStringLiteral("a2") } },
+                           DASelectGroup{ QStringLiteral("G2"), { QStringLiteral("b1") } } });
+    QCOMPARE(cb.options(), sl({ "a1", "a2", "b1" }));
+    QCOMPARE(cb.groupedOptions().size(), 2);
+    QCOMPARE(cb.groupedOptions().at(0).title, QStringLiteral("G1"));
+
+    cb.setOptions(sl({ "x", "y" }));
+    QVERIFY(cb.groupedOptions().isEmpty());
+    QCOMPARE(cb.options(), sl({ "x", "y" }));
+}
+
+void DaSelectComboBoxTest::testGroupHeadersInPopup()
+{
+    DASelectComboBox cb;
+    cb.setGroupedOptions({ DASelectGroup{ QStringLiteral("G1"), { QStringLiteral("a1"), QStringLiteral("a2") } },
+                           DASelectGroup{ QString(), { QStringLiteral("b1") } } });
+    cb.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&cb));
+
+    auto *input = inputOf(cb);
+    QVERIFY(input);
+    input->setFocus();
+    QTest::qWait(50);
+
+    auto *popup = popupOf(cb);
+    QVERIFY(popup);
+    QCOMPARE(popup->count(), 4);  // G1, a1, a2, b1 —— 空标题组不产生标题行
+    QCOMPARE(popup->item(0)->text(), QStringLiteral("G1"));
+    QVERIFY(!(popup->item(0)->flags() & Qt::ItemIsSelectable));
+    QCOMPARE(popup->item(1)->text(), QStringLiteral("a1"));
+    QCOMPARE(popup->item(3)->text(), QStringLiteral("b1"));
+}
+
+void DaSelectComboBoxTest::testKeyboardSkipsGroupHeaders()
+{
+    DASelectComboBox cb;
+    cb.setGroupedOptions({ DASelectGroup{ QStringLiteral("G1"), { QStringLiteral("a1"), QStringLiteral("a2") } } });
+    cb.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&cb));
+    auto *input = inputOf(cb);
+    QVERIFY(input);
+    input->setFocus();
+    QTest::qWait(50);
+
+    auto *popup = popupOf(cb);
+    QVERIFY(popup);
+    QVERIFY(popup->currentItem());
+    QCOMPARE(popup->currentItem()->text(), QStringLiteral("a1"));  // default-first-option 跳过标题
+
+    QTest::keyClick(input, Qt::Key_Down);
+    QCOMPARE(popup->currentItem()->text(), QStringLiteral("a2"));
+
+    QTest::keyClick(input, Qt::Key_Return);
+    QCOMPARE(cb.tags(), sl({ "a2" }));
+    QVERIFY(!cb.tags().contains(QStringLiteral("G1")));
+}
+
+void DaSelectComboBoxTest::testFilterHidesEmptyGroups()
+{
+    DASelectComboBox cb;
+    cb.setGroupedOptions({ DASelectGroup{ QStringLiteral("G1"), { QStringLiteral("a1"), QStringLiteral("a2") } },
+                           DASelectGroup{ QStringLiteral("G2"), { QStringLiteral("b1") } } });
+    cb.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&cb));
+    auto *input = inputOf(cb);
+    QVERIFY(input);
+    input->setFocus();
+    QTest::qWait(50);
+
+    QTest::keyClicks(input, QStringLiteral("b"));
+    QTest::qWait(40);
+
+    auto *popup = popupOf(cb);
+    QVERIFY(popup);
+    QStringList texts;
+    for (int i = 0; i < popup->count(); ++i)
+        texts << popup->item(i)->text();
+    QCOMPARE(texts, sl({ "G2", "b1" }));
+}
+
+void DaSelectComboBoxTest::testEmptyStateVisibleOnce()
+{
+    DASelectComboBox cb;
+    cb.setOptions(sl({ "a1" }));
+    cb.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&cb));
+    auto *input = inputOf(cb);
+    QVERIFY(input);
+    input->setFocus();
+    QTest::qWait(30);
+
+    auto *popup = popupOf(cb);
+    QVERIFY(popup);
+
+    // 默认：无匹配时弹层关闭
+    QTest::keyClicks(input, QStringLiteral("zzz"));
+    QTest::qWait(30);
+    QVERIFY(!popup->isVisible());
+
+    // 打开空态后无匹配也保持弹层，且不插占位 item
+    cb.setNoMatchText(QStringLiteral("没有匹配项"));
+    cb.setEmptyStateEnabled(true);
+    QTest::keyClicks(input, QStringLiteral("z"));
+    QTest::qWait(30);
+    QVERIFY(popup->isVisible());
+    QCOMPARE(popup->count(), 0);
+
+    const auto labels = popup->findChildren< QLabel * >(QStringLiteral("DASelectEmptyText"));
+    QCOMPARE(labels.size(), 1);
+    QCOMPARE(labels.first()->text(), QStringLiteral("没有匹配项"));
+    QVERIFY(!labels.first()->parentWidget()->isHidden());
+}
+
+void DaSelectComboBoxTest::testEmptyStateTextOnlyDoesNotEnable()
+{
+    DASelectComboBox cb;
+    cb.setOptions(sl({ "a1" }));
+    cb.setNoMatchText(QStringLiteral("x"));
+    cb.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&cb));
+    auto *input = inputOf(cb);
+    QVERIFY(input);
+    input->setFocus();
+    QTest::qWait(30);
+
+    auto *popup = popupOf(cb);
+    QVERIFY(popup);
+    QTest::keyClicks(input, QStringLiteral("zzz"));
+    QTest::qWait(30);
+    QVERIFY(!popup->isVisible());
+}
+
+void DaSelectComboBoxTest::testCreateButtonFromEmptyState()
+{
+    DASelectComboBox cb;
+    cb.setOptions(sl({ "a1" }));
+    cb.setAllowCreate(true);
+    cb.setEmptyStateEnabled(true);
+    cb.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&cb));
+    auto *input = inputOf(cb);
+    QVERIFY(input);
+    input->setFocus();
+    QTest::qWait(30);
+
+    QTest::keyClicks(input, QStringLiteral("zzz"));
+    QTest::qWait(30);
+
+    auto *popup = popupOf(cb);
+    QVERIFY(popup);
+    auto *create = popup->findChild< QPushButton * >(QStringLiteral("DASelectCreateButton"));
+    QVERIFY(create);
+    QVERIFY(create->isVisible());
+    QCOMPARE(create->text(), QStringLiteral("Create \"zzz\""));
+
+    QSignalSpy createdSpy(&cb, &DASelectComboBox::created);
+    QSignalSpy selectedSpy(&cb, &DASelectComboBox::optionSelected);
+    create->click();
+    QCOMPARE(cb.tags(), sl({ "zzz" }));
+    QCOMPARE(createdSpy.count(), 1);
+    QCOMPARE(selectedSpy.count(), 0);
+
+    // 回车路径与按钮结果一致
+    DASelectComboBox cb2;
+    cb2.setOptions(sl({ "a1" }));
+    cb2.setAllowCreate(true);
+    cb2.setEmptyStateEnabled(true);
+    cb2.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&cb2));
+    auto *input2 = inputOf(cb2);
+    QVERIFY(input2);
+    input2->setFocus();
+    QTest::keyClicks(input2, QStringLiteral("yyy"));
+    QTest::qWait(30);
+    QSignalSpy created2(&cb2, &DASelectComboBox::created);
+    QTest::keyClick(input2, Qt::Key_Return);
+    QCOMPARE(cb2.tags(), sl({ "yyy" }));
+    QCOMPARE(created2.count(), 1);
+}
+
+void DaSelectComboBoxTest::testClearableSignalOnce()
+{
+    DASelectComboBox cb;
+    cb.setClearable(true);
+    cb.setOptions(sl({ "a", "b", "c" }));
+    cb.setTags(sl({ "a", "b" }));
+    cb.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&cb));
+    auto *input = inputOf(cb);
+    QVERIFY(input);
+    input->setFocus();
+    QTest::qWait(40);
+
+    auto *popup = popupOf(cb);
+    QVERIFY(popup);
+    QVERIFY(popup->isVisible());
+
+    auto *button = cb.findChild< QToolButton * >(QStringLiteral("DASelectClearButton"));
+    QVERIFY(button);
+    QEvent enter(QEvent::Enter);
+    QApplication::sendEvent(&cb, &enter);
+    QVERIFY(button->isVisible());
+
+    QSignalSpy tagsSpy(&cb, &DASelectComboBox::tagsChanged);
+    QSignalSpy clearSpy(&cb, &DASelectComboBox::clearClicked);
+    button->click();
+
+    QCOMPARE(tagsSpy.count(), 1);
+    QCOMPARE(clearSpy.count(), 1);
+    QVERIFY(cb.tags().isEmpty());
+    QVERIFY(popup->isVisible());  // 清空后弹层保持打开
+}
+
+void DaSelectComboBoxTest::testClearButtonPixels()
+{
+    DASelectComboBox cb;
+    cb.setOptions(sl({ "a" }));
+    cb.setTags(sl({ "a" }));
+    cb.resize(300, cb.sizeHint().height());
+    cb.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&cb));
+    QTest::qWait(30);
+
+    const QRect field = editFieldRect(&cb);
+    const QRect region(field.right() - 24, field.top(), 24, field.height());
+
+    auto darkInRegion = [&]() {
+        QPixmap pix(cb.size());
+        pix.fill(Qt::white);
+        cb.render(&pix);
+        return countDarkPixels(pix, region);
+    };
+
+    QCOMPARE(darkInRegion(), 0);  // 未开 clearable：× 区域近白
+
+    cb.setClearable(true);
+    // 离屏平台的光标可能恰好落在控件上导致自动 Enter，先显式 Leave 保证初始隐藏
+    QEvent leaveFirst(QEvent::Leave);
+    QApplication::sendEvent(&cb, &leaveFirst);
+    QTest::qWait(20);
+    QCOMPARE(darkInRegion(), 0);  // 有标签但未悬停：按钮仍隐藏
+
+    QEvent enter(QEvent::Enter);
+    QApplication::sendEvent(&cb, &enter);
+    QTest::qWait(20);
+    QVERIFY2(darkInRegion() > 0, "clear button must be painted on hover");
+
+    QEvent leave(QEvent::Leave);
+    QApplication::sendEvent(&cb, &leave);
+    QTest::qWait(20);
+    QCOMPARE(darkInRegion(), 0);
+}
+
+void DaSelectComboBoxTest::testCollapseTagsState()
+{
+    DASelectComboBox cb;
+    cb.setCollapseTags(true);
+    cb.setCollapseTagCount(2);
+    cb.setOptions(sl({ "a", "b", "c", "d", "e" }));
+    cb.setTags(sl({ "a", "b", "c", "d", "e" }));
+    cb.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&cb));
+    QTest::qWait(40);
+
+    // 窗口激活可能把焦点给输入框；折叠只在未聚焦时生效
+    inputOf(cb)->clearFocus();
+    QTest::qWait(30);
+
+    auto visibleChips = [&cb]() {
+        int n = 0;
+        for (auto *chip : cb.findChildren< DAChip * >()) {
+            if (chip->isVisible())
+                ++n;
+        }
+        return n;
+    };
+
+    QCOMPARE(visibleChips(), 2);
+    auto *summary = cb.findChild< QLabel * >(QStringLiteral("DASelectTagSummary"));
+    QVERIFY(summary);
+    QVERIFY(summary->isVisible());
+    QCOMPARE(summary->text(), QStringLiteral("+3"));
+    QCOMPARE(cb.tags().size(), 5);
+
+    auto *input = inputOf(cb);
+    QVERIFY(input);
+    input->setFocus();
+    QTest::qWait(50);
+    QCOMPARE(visibleChips(), 5);
+    QVERIFY(!summary->isVisible());
+}
+
+void DaSelectComboBoxTest::testCollapseTagsPixels()
+{
+    DASelectComboBox cb;
+    cb.setCollapseTags(true);
+    cb.setCollapseTagCount(2);
+    cb.setOptions(sl({ "a", "b", "c", "d", "e" }));
+    cb.setTags(sl({ "a", "b", "c", "d", "e" }));
+    cb.setStyleSheet(cb.styleSheet()
+                     + QStringLiteral("DA--DAChip { background:#ecf5ff; border:0; }"));
+    cb.resize(420, cb.sizeHint().height());
+    cb.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&cb));
+    QTest::qWait(50);
+    inputOf(cb)->clearFocus();
+    QTest::qWait(30);
+
+    const QRect field = editFieldRect(&cb);
+    const QRgb target  = 0xFFECF5FF;
+
+    auto chipRuns = [&]() {
+        return countColumnRuns(cb.grab(), field, target);
+    };
+
+    QCOMPARE(chipRuns(), 2);
+
+    auto *input = inputOf(cb);
+    QVERIFY(input);
+    input->setFocus();
+    QTest::qWait(60);
+    QCOMPARE(chipRuns(), 5);
+}
+
+void DaSelectComboBoxTest::testEmptyWidgetLifecycle()
+{
+    DASelectComboBox cb;
+    cb.setOptions(sl({ "a1" }));
+    cb.setEmptyStateEnabled(true);
+    auto *label = new QLabel(QStringLiteral("custom empty"));
+    label->setAlignment(Qt::AlignCenter);
+    QPointer< QLabel > guard(label);
+    cb.setEmptyWidget(label);
+    QVERIFY(cb.emptyWidget() == label);
+
+    cb.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&cb));
+    auto *input = inputOf(cb);
+    QVERIFY(input);
+    input->setFocus();
+    QTest::keyClicks(input, QStringLiteral("zzz"));
+    QTest::qWait(40);
+
+    auto *popup = popupOf(cb);
+    QVERIFY(popup);
+    QVERIFY(guard);
+    QVERIFY(guard->isVisible());
+    QCOMPARE(guard->parentWidget(), popup);
+    QCOMPARE(guard->geometry(), popup->viewport()->geometry());
+
+    // 多次过滤刷新（每次 popup->clear()）后控件仍存活
+    QTest::keyClicks(input, QStringLiteral("z"));
+    QTest::qWait(20);
+    QTest::keyClicks(input, QStringLiteral("z"));
+    QTest::qWait(20);
+    QVERIFY(guard);
+    QVERIFY(guard->isVisible());
+
+    auto *panel = popup->findChild< QWidget * >(QStringLiteral("DASelectEmptyPanel"));
+    QVERIFY(panel);
+    QVERIFY(!panel->isVisible());
 }
 
 QTEST_MAIN(DaSelectComboBoxTest)
