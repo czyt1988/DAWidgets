@@ -54,6 +54,17 @@ check->setEntryForcedChecked(forced, true);
 check->setEntryEnabled(forced, false);
 ```
 
+### Keyboard Range Selection
+
+```cpp
+check->setKeyboardSelectionEnabled(true);   // default false
+```
+
+- **Shift+click**: using the most recent user click as the anchor, every "visible + checkable + non-forced + enabled" entry between the anchor and the target row (inclusive) gets the anchor row's current state (checked or unchecked); the whole range emits `checkedEntriesChanged()` once.
+- **Ctrl+A**: when the list/view has focus, the same as clicking "Select All" — only currently visible entries are checked. When the search box has focus, Ctrl+A still selects its text.
+- Off by default; while off the widget behaves exactly as before. The anchor is reset when the filter changes, on `setItems()`, and when the switch is turned off, so ranges never span different filters.
+- Forced / `setEntryEnabled(false)` / `setEntryCheckable(false)` entries are skipped by a range and keep their existing state.
+
 ### Core methods
 
 | Method | Description |
@@ -64,6 +75,7 @@ check->setEntryEnabled(forced, false);
 | `setEntryEnabled(e, bool)` | Entry availability |
 | `setEntryCheckable(e, bool)` | Whether the entry shows a checkbox |
 | `setSearchVisible(bool)` / `setSelectAllVisible(bool)` / `setInvertVisible(bool)` | Toggle search and action buttons |
+| `setKeyboardSelectionEnabled(bool)` / `keyboardSelectionEnabled()` | Shift range selection + Ctrl+A visible select-all (default off) |
 
 ## DAItemListPickDialog
 

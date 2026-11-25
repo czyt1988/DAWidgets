@@ -54,6 +54,17 @@ check->setEntryForcedChecked(forced, true);
 check->setEntryEnabled(forced, false);
 ```
 
+### 键盘批量勾选
+
+```cpp
+check->setKeyboardSelectionEnabled(true);   // 默认 false
+```
+
+- **Shift+点击**：以最近一次用户点击为锚点，把锚点到目标行（含两端）之间所有「可见 + 可勾选 + 非 forced + 可用」的条目设为锚点行当前状态（勾上或取消），整段只发一次 `checkedEntriesChanged()`。
+- **Ctrl+A**：列表或视图有焦点时，等价于点击「全选」按钮，只勾选当前可见条目；搜索框有焦点时 Ctrl+A 仍是文本框全选。
+- 默认关闭，关闭时控件行为与旧版完全一致；锚点会在搜索过滤变化、`setItems()`、关闭开关时重置，不会跨过滤连选。
+- forced / `setEntryEnabled(false)` / `setEntryCheckable(false)` 的条目会被区间跳过，保持各自原有状态。
+
 ### 核心方法
 
 | 方法 | 说明 |
@@ -64,6 +75,7 @@ check->setEntryEnabled(forced, false);
 | `setEntryEnabled(e, bool)` | 条目是否可用 |
 | `setEntryCheckable(e, bool)` | 条目是否显示复选框 |
 | `setSearchVisible(bool)` / `setSelectAllVisible(bool)` / `setInvertVisible(bool)` | 控制搜索框与操作按钮显隐 |
+| `setKeyboardSelectionEnabled(bool)` / `keyboardSelectionEnabled()` | Shift 区间连选 + Ctrl+A 可见全选（默认关闭） |
 
 ## DAItemListPickDialog
 
