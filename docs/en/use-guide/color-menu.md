@@ -13,6 +13,9 @@ The open menu shows the theme palette on top, followed by `None`, `Custom Color`
 - ✅ **Complete menu structure**: Title → theme palette → "None" action → "Custom Color" action → custom color grid
 - ✅ **None color**: `enableNoneColorAction` controls the None option
 - ✅ **Custom color management**: Up to 10 custom colors, FIFO eviction
+- ✅ **Opacity** (optional): In-menu alpha slider with checkerboard preview, off by default
+- ✅ **Recent colors** (optional): Latest 5, deduplicated, newest first, arrow-key reachable, off by default
+- ✅ **Restore default** (optional): `setDefaultColor()` inserts an action, absent by default
 - ✅ **Exposed sub-controls**: `colorPaletteGridWidget()`, `customColorsWidget()` can be accessed directly
 
 ### Usage
@@ -38,6 +41,42 @@ QObject::connect(menu, &DA::DAColorMenu::selectedColor,
 // Show the menu
 menu->exec(QCursor::pos());
 ```
+
+### Opacity (alpha)
+
+```cpp
+menu->setAlphaEnabled(true);   // default false: no slider, selected colors stay bit-identical
+menu->setAlpha(200);           // 0–255, kept in sync with the slider and alpha()
+QObject::connect(menu, &DA::DAColorMenu::alphaChanged,
+    [](int a) { qDebug() << "alpha" << a; });
+```
+
+- When enabled, an "Opacity" row appears at the end of the menu: slider (0–255), percentage and a checkerboard preview. Picking any color writes the current alpha into it.
+- `alphaChanged` fires only when the value changes (during drag or via `setAlpha()`); it is not the "done" signal — `selectedColor` remains the only confirmation.
+- The slider is an independent entry point and does not rely on `QColorDialog`'s alpha channel (native dialogs on some platforms hide it); an alpha returned by the dialog is written back to the slider.
+- With the switch off, `selectedColor` carries exactly the same color as before (no forced 255, no alpha rewrite).
+
+### Recent Colors & Keyboard Navigation
+
+```cpp
+menu->setRecentColors({ QColor(64,158,255), QColor(103,194,58),
+                        QColor(245,108,108), QColor(230,162,60) });
+// Subsequent picks: newest first, deduplicated, at most 5
+```
+
+- Calling `setRecentColors()` switches the old "10-entry FIFO custom colors" to "latest 5, newest first, deduplicated"; without the call the old behavior is unchanged.
+- Swatches are keyboard-reachable: arrow keys move inside the current grid (±1 / ±columns, stopping at edges), `Enter` picks, `Space` is handled by `QToolButton`. Up/down does not cross between the main-color row and the shade rows.
+- Swatch icons support a checkerboard background (`DAColorGridWidget::setAlphaBackgroundEnabled(true)`) so translucent colors look transparent; the recent-color grid enables it automatically.
+
+### Restoring the Default Color
+
+```cpp
+menu->setDefaultColor(QColor("#409EFF"));  // brand color
+menu->setDefaultColor(QColor());           // invalid color = remove the entry
+```
+
+- Once set, a `Restore Default` action is inserted; clicking it emits that color with **alpha 255** and does not add anything to the recent-color list.
+- Without the call, the menu's action count and order are identical to before.
 
 ## DAColorPickerButton
 
@@ -102,6 +141,11 @@ menu->colorPaletteGridWidget()->setColorList({
 | Method | Description |
 |--------|-------------|
 | `enableNoneColorAction(bool)` | Enable/disable the None option |
+| `setAlphaEnabled(bool)` / `isAlphaEnabled()` | Opacity row switch (default off) |
+| `alpha()` / `setAlpha(int)` | Current alpha (0–255) |
+| `alphaChanged(int)` | Alpha-changed signal (fires during dragging) |
+| `setRecentColors(QList<QColor>)` / `recentColors()` | Enable recent-color strategy (newest first, deduplicated, max 5) |
+| `setDefaultColor(QColor)` / `defaultColor()` | Set/remove the restore-default entry |
 | `colorPaletteGridWidget()` | Get the theme palette widget |
 | `customColorsWidget()` | Get the custom color grid widget |
 

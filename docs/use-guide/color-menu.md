@@ -13,6 +13,9 @@
 - ✅ **完整菜单结构**：标题 → 主题色板 → "None" Action → "Custom Color" Action → 自定义色网格
 - ✅ **None 颜色**：`enableNoneColorAction` 控制 None 选项
 - ✅ **自定义色管理**：最多 10 个自定义色，FIFO 淘汰
+- ✅ **透明度**（可选）：菜单内 alpha 滑杆 + 棋盘格预览，默认关闭
+- ✅ **最近色**（可选）：最近 5 色、去重、置顶，支持方向键，默认关闭
+- ✅ **恢复默认色**（可选）：`setDefaultColor()` 插入一条 Action，默认不出现
 - ✅ **暴露子控件**：`colorPaletteGridWidget()`、`customColorsWidget()` 可直接访问
 
 ### 用法
@@ -38,6 +41,42 @@ QObject::connect(menu, &DA::DAColorMenu::selectedColor,
 // 弹出菜单
 menu->exec(QCursor::pos());
 ```
+
+### 透明度（alpha）
+
+```cpp
+menu->setAlphaEnabled(true);   // 默认 false：不插滑杆，选中颜色逐位不变
+menu->setAlpha(200);           // 0–255，滑杆与 alpha() 同步
+QObject::connect(menu, &DA::DAColorMenu::alphaChanged,
+    [](int a) { qDebug() << "alpha" << a; });
+```
+
+- 打开后菜单末尾出现「Opacity」行：滑杆（0–255）+ 百分比 + 棋盘格预览；选中任意颜色时把当前 alpha 写进该颜色。
+- `alphaChanged` 只在拖动/`setAlpha()` 值变化时发射，**不是**"选完了"；`selectedColor` 仍是唯一确认信号。
+- 不透明度滑杆是独立入口，不依赖 `QColorDialog` 的 alpha 通道（部分平台原生对话框不显示 alpha）；对话框返回的 alpha 会回写滑杆。
+- 关闭开关后 `selectedColor` 的颜色与改动前完全一致（不会补 255 或改写 alpha）。
+
+### 最近颜色与键盘导航
+
+```cpp
+menu->setRecentColors({ QColor(64,158,255), QColor(103,194,58),
+                        QColor(245,108,108), QColor(230,162,60) });
+// 之后每次选色：最近优先、去重、最多 5 条
+```
+
+- 调用 `setRecentColors()` 即把原来的「10 条 FIFO 自定义色」切换为「最近 5 条、置顶、去重」；不调用时保持旧行为。
+- 色块支持键盘操作：方向键在当前网格内移动（±1 / ±列数，越界停住），`Enter` 取色，`Space` 由 `QToolButton` 自带；上下移动只在同一段网格内生效（主色行与色阶行之间不跨段）。
+- 色块图标支持棋盘格底（`DAColorGridWidget::setAlphaBackgroundEnabled(true)`），半透明色能看出"透"；最近色网格会自动打开它。
+
+### 恢复默认色
+
+```cpp
+menu->setDefaultColor(QColor("#409EFF"));  // 品牌色
+menu->setDefaultColor(QColor());           // 无效色 = 移除入口
+```
+
+- 设置后菜单插入 `Restore Default`，点击直接发出该颜色，**alpha 恒为 255**，且不会写入最近色列表。
+- 未调用时菜单项数量与顺序与改动前一致。
 
 ## DAColorPickerButton
 
@@ -99,6 +138,11 @@ menu->colorPaletteGridWidget()->setColorList({
 | 方法 | 说明 |
 |------|------|
 | `enableNoneColorAction(bool)` | 启用/禁用 None 选项 |
+| `setAlphaEnabled(bool)` / `isAlphaEnabled()` | 透明度行开关（默认关闭） |
+| `alpha()` / `setAlpha(int)` | 当前 alpha（0–255） |
+| `alphaChanged(int)` | alpha 变化信号（随拖动高频） |
+| `setRecentColors(QList<QColor>)` / `recentColors()` | 启用最近色策略（最近优先、去重、最多 5） |
+| `setDefaultColor(QColor)` / `defaultColor()` | 设置/移除恢复默认色入口 |
 | `colorPaletteGridWidget()` | 获取主题色板控件 |
 | `customColorsWidget()` | 获取自定义色网格控件 |
 
