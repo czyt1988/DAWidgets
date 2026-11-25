@@ -3,10 +3,18 @@
 #include "DAChip.h"
 #include "DAFlowLayout.h"
 
+#include <QClipboard>
+#include <QColor>
 #include <QFocusEvent>
+#include <QGuiApplication>
+#include <QInputMethodEvent>
 #include <QKeyEvent>
+#include <QKeySequence>
+#include <QLabel>
 #include <QLineEdit>
+#include <QPalette>
 #include <QRegularExpression>
+#include <QResizeEvent>
 #include <QSet>
 
 namespace DA
@@ -25,6 +33,13 @@ public:
     int maxCount { -1 };
     QList<Separator> separators;
     QSet<QChar> extraSeparators;
+    bool pasteSplitEnabled { false };
+    bool imeComposing { false };
+    int tagElideWidth { 0 };
+    bool showCount { false };
+    QLabel *countLabel { nullptr };
+    // 打开计数前 layout 的底部 margin，关闭时原样恢复
+    int countMarginBackup { -1 };
 };
 
 /**
@@ -57,6 +72,8 @@ DAChipsEdit::DAChipsEdit(QWidget *parent) : QFrame(parent), DA_PIMPL_CONSTRUCT
     connect(d->input, &QLineEdit::returnPressed, this, &DAChipsEdit::commitInput);
     connect(d->input, &QLineEdit::textEdited, this, &DAChipsEdit::onInputEdited);
     connect(d->input, &QLineEdit::textChanged, this, &DAChipsEdit::inputTextChanged);
+    // 计数标签文本由标签列表统一驱动，覆盖 append/insert/remove/clear/setTags/截断
+    connect(this, &DAChipsEdit::tagsChanged, this, [this] { updateCountLabel(); });
 }
 
 /**
@@ -258,6 +275,131 @@ void DAChipsEdit::setAllowDuplicate(bool on)
 }
 
 /**
+ * @brief 打开/关闭粘贴批量拆分
+ * @param on 是否开启（默认 false）
+ * @details 关闭时不拦截任何按键、不读剪贴板，行为与旧版本一致
+ */
+void DAChipsEdit::setPasteSplitEnabled(bool on)
+{
+    DA_D(d);
+    d->pasteSplitEnabled = on;
+}
+
+/**
+ * @brief 粘贴批量拆分是否开启
+ * @return 开启返回 true
+ */
+bool DAChipsEdit::isPasteSplitEnabled() const
+{
+    DA_DC(d);
+    return d->pasteSplitEnabled;
+}
+
+/**
+ * @brief 粘贴的唯一入口
+ * @param text 待粘贴文本
+ * @details 开关关闭或 allowCreate 为 false 时退化为普通插入输入框；
+ *          开启时按分隔符拆成 token，先发 pasteSplit，再逐个追加为标签。
+ *          快捷键、单测与 demo 的"模拟粘贴"共用本函数。
+ */
+void DAChipsEdit::pasteText(const QString &text)
+{
+    DA_D(d);
+    if (text.trimmed().isEmpty())
+        return;
+    if (!d->allowCreate || !d->pasteSplitEnabled) {
+        d->input->insert(text);
+        return;
+    }
+    const QStringList tokens = splitForPaste(text);
+    if (tokens.isEmpty())
+        return;
+    Q_EMIT pasteSplit(tokens);
+    applyPastedTokens(tokens);
+}
+
+/**
+ * @brief 设置 chip 最大宽度
+ * @param px 最大宽度（像素），0 表示不省略（默认）
+ */
+void DAChipsEdit::setTagElideWidth(int px)
+{
+    DA_D(d);
+    px = qMax(0, px);
+    d->tagElideWidth = px;
+    for (DAChip *chip : d->chips)
+        chip->setElideWidth(px);
+    d->layout->invalidate();
+}
+
+/**
+ * @brief 获取 chip 最大宽度
+ * @return 最大宽度（像素），0 表示不省略
+ */
+int DAChipsEdit::tagElideWidth() const
+{
+    DA_DC(d);
+    return d->tagElideWidth;
+}
+
+/**
+ * @brief 显示/隐藏右下角数量计数
+ * @param on 是否显示（默认 false）
+ * @details 开启时创建私有 QLabel 并预留底部 margin，标签不进 DAFlowLayout，
+ *          因此不会夺走末尾输入框的自动伸展；关闭时删除标签并恢复原 margin。
+ */
+void DAChipsEdit::setShowCount(bool on)
+{
+    DA_D(d);
+    if (d->showCount == on)
+        return;
+    d->showCount = on;
+    QMargins m = d->layout->contentsMargins();
+    if (on) {
+        if (!d->countLabel) {
+            d->countLabel = new QLabel(this);
+            d->countLabel->setObjectName(QStringLiteral("DAChipsEditCount"));
+            d->countLabel->setFocusPolicy(Qt::NoFocus);
+            d->countLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+            QFont f = d->countLabel->font();
+            f.setPixelSize(11);
+            d->countLabel->setFont(f);
+            QPalette pal = d->countLabel->palette();
+            pal.setColor(QPalette::WindowText, QColor(0xA8, 0xAB, 0xB2));
+            d->countLabel->setPalette(pal);
+        }
+        // 记下调用方当前 margin，关闭时原样恢复，不写死 4
+        d->countMarginBackup = m.bottom();
+        m.setBottom(m.bottom() + d->countLabel->sizeHint().height() + 2);
+        d->layout->setContentsMargins(m);
+        updateCountLabel();
+        d->countLabel->show();
+        d->countLabel->raise();
+    } else {
+        if (d->countLabel) {
+            d->countLabel->hide();
+            d->countLabel->deleteLater();
+            d->countLabel = nullptr;
+        }
+        if (d->countMarginBackup >= 0) {
+            m.setBottom(d->countMarginBackup);
+            d->layout->setContentsMargins(m);
+            d->countMarginBackup = -1;
+        }
+    }
+}
+
+/**
+ * @brief 是否显示右下角数量计数
+ * @return 显示返回 true
+ */
+bool DAChipsEdit::showCount() const
+{
+    DA_DC(d);
+    return d->showCount;
+}
+
+/**
  * @brief 获取标签数量上限
  * @return 上限值，-1 表示无限制
  */
@@ -281,6 +423,8 @@ void DAChipsEdit::setMaxCount(int count)
         rebuildChips();
         Q_EMIT tagsChanged(d->tags);
     }
+    // 未触发截断时没有 tagsChanged，计数标签仍要跟着换分母
+    updateCountLabel();
 }
 
 /**
@@ -371,8 +515,9 @@ QSize DAChipsEdit::minimumSizeHint() const
  * @param watched 被监听的对象
  * @param event 事件
  * @return 是否拦截事件
- * @details FocusIn/FocusOut 发射 inputFocusChanged；KeyPress 先发射 inputKeyEvent
- *          供外部拦截，未拦截时处理 Backspace 删末尾标签、Tab 提交、Escape 清空
+ * @details FocusIn/FocusOut 发射 inputFocusChanged；KeyPress 先做 IME 组字与粘贴
+ *          拦截，再发射 inputKeyEvent 供外部拦截，未拦截时处理 Backspace 删末尾标签、
+ *          Tab 提交、Escape 清空
  */
 bool DAChipsEdit::eventFilter(QObject *watched, QEvent *event)
 {
@@ -383,13 +528,32 @@ bool DAChipsEdit::eventFilter(QObject *watched, QEvent *event)
             Q_EMIT inputFocusChanged(true);
         } else if (t == QEvent::FocusOut) {
             Q_EMIT inputFocusChanged(false);
+        } else if (t == QEvent::InputMethod) {
+            // 只观察不消费：组字中（preedit 非空且无 commit）与组字结束的判定
+            auto *ime = static_cast< QInputMethodEvent * >(event);
+            if (!ime->commitString().isEmpty() || ime->replacementLength() > 0)
+                d->imeComposing = false;
+            else if (!ime->preeditString().isEmpty())
+                d->imeComposing = true;
         } else if (t == QEvent::KeyPress) {
             auto *ke = static_cast< QKeyEvent * >(event);
+            const int key = ke->key();
+            // IME 守卫必须在 inputKeyEvent 之前：否则 DASelectComboBox 已经选中候选
+            if (d->imeComposing && (key == Qt::Key_Return || key == Qt::Key_Enter))
+                return true;
+            // 粘贴拦截同样先于 inputKeyEvent，避免外部先消费 Ctrl+V
+            if (d->pasteSplitEnabled && ke->matches(QKeySequence::Paste)) {
+                const QString clip = QGuiApplication::clipboard()->text();
+                if (clip.isEmpty())
+                    Q_EMIT pasteRejected(QStringLiteral("clipboard"));
+                else
+                    pasteText(clip);
+                return true;
+            }
             bool handled = false;
             Q_EMIT inputKeyEvent(ke, &handled);
             if (handled)
                 return true;
-            const int key = ke->key();
             if (key == Qt::Key_Backspace && d->input->text().isEmpty() && !d->chips.isEmpty()) {
                 removeAt(d->chips.size() - 1);
                 return true;
@@ -419,6 +583,17 @@ void DAChipsEdit::focusInEvent(QFocusEvent *event)
 }
 
 /**
+ * @brief 尺寸变化时重新定位右下角计数标签
+ * @param event 尺寸事件
+ * @details 只做 setGeometry，不改 margin，避免与流式布局互相触发
+ */
+void DAChipsEdit::resizeEvent(QResizeEvent *event)
+{
+    QFrame::resizeEvent(event);
+    positionCountLabel();
+}
+
+/**
  * @brief 重建所有 DAChip 子控件
  * @details 先删除现有所有 chip，再按 d->tags 逐一创建。用于标签列表整体替换后刷新视图
  */
@@ -445,6 +620,7 @@ void DAChipsEdit::addChipWidget(const QString &text)
     DA_D(d);
     auto *chip = new DAChip(text, this);
     chip->setClosable(true);
+    chip->setElideWidth(d->tagElideWidth);
     const int idx = d->chips.size();  // 插在末尾输入框之前
     d->layout->insertWidget(idx, chip);
     d->chips.append(chip);
@@ -465,6 +641,9 @@ void DAChipsEdit::addChipWidget(const QString &text)
 void DAChipsEdit::commitInput()
 {
     DA_D(d);
+    // 第二道闸：returnPressed 可能绕过事件过滤器
+    if (d->imeComposing)
+        return;
     const QString raw = d->input->text();
     if (raw.isEmpty())
         return;
@@ -543,5 +722,106 @@ QRegularExpression DAChipsEdit::separatorRegex() const
     }
     pattern += QStringLiteral("]");
     return QRegularExpression(pattern);
+}
+
+/**
+ * @brief 按分隔符拆分待粘贴文本
+ * @param text 原始粘贴文本
+ * @return 已 trim、已丢弃空串的 token 列表
+ * @details 换行先归一为 \n；仅当分隔符集合含 Enter 时把 \n 当作分隔符，
+ *          避免 DASelectComboBox（无分隔符）里粘贴一行文字被拆成多个候选过滤词。
+ *          上界：分隔符集合为空时整段作为一个 token。
+ */
+QStringList DAChipsEdit::splitForPaste(const QString &text) const
+{
+    DA_DC(d);
+    QString normalized = text;
+    normalized.replace(QStringLiteral("\r\n"), QStringLiteral("\n"));
+    normalized.replace(QLatin1Char('\r'), QLatin1Char('\n'));
+
+    // 字符集来自 QSet，天然去重；空集合不能构造 "[]" 这种非法正则
+    QString chars;
+    for (const QChar &c : separatorChars())
+        chars += c;
+    if (d->separators.contains(Separator::Enter))
+        chars += QLatin1Char('\n');
+    if (chars.isEmpty()) {
+        const QString whole = normalized.trimmed();
+        return whole.isEmpty() ? QStringList() : QStringList { whole };
+    }
+
+    QString pattern = QStringLiteral("[");
+    for (const QChar &c : chars) {
+        if (c == QLatin1Char(']') || c == QLatin1Char('\\') || c == QLatin1Char('^')
+            || c == QLatin1Char('-') || c == QLatin1Char('['))
+            pattern += QLatin1Char('\\');
+        pattern += c;
+    }
+    pattern += QStringLiteral("]");
+
+#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
+    const QStringList parts = normalized.split(QRegularExpression(pattern), Qt::SkipEmptyParts);
+#else
+    const QStringList parts = normalized.split(QRegularExpression(pattern), QString::SkipEmptyParts);
+#endif
+    QStringList out;
+    out.reserve(parts.size());
+    for (const QString &p : parts) {
+        const QString s = p.trimmed();
+        if (!s.isEmpty())
+            out << s;
+    }
+    return out;
+}
+
+/**
+ * @brief 把粘贴拆出的 token 逐个追加为标签
+ * @param tokens splitForPaste() 的输出
+ * @details 去重与 maxCount 仍由 appendTag() 判定；只有被 maxCount 挡住时才发
+ *          pasteRejected("maxCount")，重复项按既有语义静默丢弃。
+ */
+void DAChipsEdit::applyPastedTokens(const QStringList &tokens)
+{
+    DA_D(d);
+    bool hitMaxCount = false;
+    for (const QString &t : tokens) {
+        if (d->maxCount >= 0 && d->tags.size() >= d->maxCount) {
+            hitMaxCount = true;
+            break;
+        }
+        appendTag(t);
+    }
+    if (hitMaxCount)
+        Q_EMIT pasteRejected(QStringLiteral("maxCount"));
+}
+
+/**
+ * @brief 刷新右下角计数标签文本与位置
+ * @details maxCount >= 0 显示 "n / max"，否则只显示 n
+ */
+void DAChipsEdit::updateCountLabel()
+{
+    DA_D(d);
+    if (!d->countLabel)
+        return;
+    const int n = d->tags.size();
+    d->countLabel->setText(d->maxCount >= 0
+                               ? QStringLiteral("%1 / %2").arg(n).arg(d->maxCount)
+                               : QString::number(n));
+    positionCountLabel();
+}
+
+/**
+ * @brief 把计数标签定位到右下角
+ * @details 标签不进 DAFlowLayout，否则会抢走末尾输入框的伸展
+ */
+void DAChipsEdit::positionCountLabel()
+{
+    DA_D(d);
+    if (!d->countLabel)
+        return;
+    const QSize hint = d->countLabel->sizeHint();
+    d->countLabel->setGeometry(width() - 4 - hint.width(), height() - 4 - hint.height(),
+                               hint.width(), hint.height());
 }
 }  // namespace DA

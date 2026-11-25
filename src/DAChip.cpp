@@ -1,7 +1,9 @@
 ﻿#include "DAChip.h"
 
+#include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLayout>
 #include <QMouseEvent>
 #include <QToolButton>
 
@@ -13,6 +15,7 @@ public:
     PrivateData(DAChip *) {}
     QString text;
     bool closable { true };
+    int elideWidth { 0 };
     QLabel *label { nullptr };
     QToolButton *closeBtn { nullptr };
 };
@@ -76,6 +79,7 @@ void DAChip::init()
     d->closeBtn->setVisible(d->closable);
 
     setAttribute(Qt::WA_LayoutUsesWidgetRect);
+    applyElide();
 }
 
 /**
@@ -99,7 +103,7 @@ void DAChip::setText(const QString &text)
     if (d->text == text)
         return;
     d->text = text;
-    d->label->setText(text);
+    applyElide();
     Q_EMIT textChanged(text);
 }
 
@@ -125,7 +129,69 @@ void DAChip::setClosable(bool on)
         return;
     d->closable = on;
     d->closeBtn->setVisible(on);
+    // 关闭按钮显隐会改变 label 可用宽度，省略结果需要重算
+    applyElide();
     Q_EMIT closableChanged(on);
+}
+
+/**
+ * @brief 设置标签最大宽度
+ * @param px 最大宽度（像素），0 表示不省略
+ * @details 超过宽度时 label 以 … 结尾显示，全文进入 tooltip；text() 仍返回全文。
+ *          tooltip 由本控件接管，会覆盖调用方通过 setToolTip() 设置的内容。
+ */
+void DAChip::setElideWidth(int px)
+{
+    DA_D(d);
+    px = qMax(0, px);
+    if (d->elideWidth == px)
+        return;
+    d->elideWidth = px;
+    applyElide();
+}
+
+/**
+ * @brief 获取标签最大宽度
+ * @return 最大宽度（像素），0 表示不省略
+ */
+int DAChip::elideWidth() const
+{
+    DA_DC(d);
+    return d->elideWidth;
+}
+
+/**
+ * @brief 按 elideWidth 重新计算显示文本
+ * @details 关闭时恢复全文、清空 tooltip 与最大宽度；开启时按布局可用宽度做右侧省略。
+ */
+void DAChip::applyElide()
+{
+    DA_D(d);
+    if (!d->label)
+        return;
+    if (d->elideWidth <= 0) {
+        d->label->setText(d->text);
+        d->label->setToolTip(QString());
+        setToolTip(QString());
+        setMaximumWidth(QWIDGETSIZE_MAX);
+        updateGeometry();
+        return;
+    }
+    QLayout *lay = layout();
+    const QMargins m = lay->contentsMargins();
+    int avail = d->elideWidth - m.left() - m.right() - lay->spacing();
+    // 用 closable 而不是 closeBtn->isVisible()：控件 show() 之前 isVisible() 恒为 false，
+    // 会算出偏大的可用宽度，导致第一次布局时省略结果不准
+    if (d->closable && d->closeBtn)
+        avail -= d->closeBtn->sizeHint().width();
+    // 宽度过小时至少给关闭按钮留出空间，避免负宽度
+    avail = qMax(avail, 0);
+    const QFontMetrics fm(d->label->font());
+    d->label->setText(fm.elidedText(d->text, Qt::ElideRight, avail));
+    d->label->setToolTip(d->text);
+    setToolTip(d->text);
+    setMaximumWidth(d->elideWidth);
+    updateGeometry();
 }
 
 /**

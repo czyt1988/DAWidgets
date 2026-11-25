@@ -110,6 +110,55 @@ static QWidget *createChipsEditContent(QWidget *parent)
     QObject::connect(clearBtn, &QPushButton::clicked, edit, &DA::DAChipsEdit::clear);
     QObject::connect(dupChk, &QCheckBox::toggled, edit, &DA::DAChipsEdit::setAllowDuplicate);
 
+    // ---- 粘贴拆分 / 超长省略 / 数量计数（三项默认关闭，这里显式打开） ----
+    auto *advTitle = new QLabel(QStringLiteral("粘贴拆分 / 超长省略 / 数量计数"), w);
+    QFont titleFont = advTitle->font();
+    titleFont.setBold(true);
+    advTitle->setFont(titleFont);
+    v->addWidget(advTitle);
+
+    auto *advDesc = new QLabel(
+        QStringLiteral("Ctrl+V / Shift+Insert 与下面的“模拟粘贴”都走 pasteText()：按分隔符集合"
+                       "（Enter = 换行）一次拆成多个标签。\n"
+                       "超过 96px 的标签以 … 结尾、悬浮显示全文；右下角显示 n / maxCount。"),
+        w);
+    advDesc->setWordWrap(true);
+    v->addWidget(advDesc);
+
+    auto *advanced = new DA::DAChipsEdit(w);
+    advanced->setPlaceholder(QStringLiteral("粘贴一整列标签，或输入后回车"));
+    advanced->setSeparators(QList<DA::DAChipsEdit::Separator>{
+        DA::DAChipsEdit::Separator::Comma,
+        DA::DAChipsEdit::Separator::Semicolon,
+        DA::DAChipsEdit::Separator::Enter,
+    });
+    advanced->setPasteSplitEnabled(true);
+    advanced->setTagElideWidth(96);
+    advanced->setShowCount(true);
+    advanced->setMaxCount(5);
+    advanced->setTags({ QStringLiteral("this-is-a-very-long-tag-name") });
+    v->addWidget(advanced);
+
+    auto *advRow = new QHBoxLayout;
+    auto *advLog = new QLabel(QStringLiteral("pasteSplit: —   pasteRejected: —"), w);
+    auto *pasteBtn = new QPushButton(QStringLiteral("模拟粘贴 “红, 绿; 蓝\\n黄”"), w);
+    auto *advClearBtn = new QPushButton(QStringLiteral("清空"), w);
+    advRow->addWidget(advLog, 1);
+    advRow->addWidget(pasteBtn);
+    advRow->addWidget(advClearBtn);
+    v->addLayout(advRow);
+
+    QObject::connect(pasteBtn, &QPushButton::clicked, [advanced] {
+        advanced->pasteText(QStringLiteral("红, 绿; 蓝\n黄"));
+    });
+    QObject::connect(advClearBtn, &QPushButton::clicked, advanced, &DA::DAChipsEdit::clear);
+    QObject::connect(advanced, &DA::DAChipsEdit::pasteSplit, [advLog](const QStringList &tokens) {
+        advLog->setText(QStringLiteral("pasteSplit: 拆出 %1 项").arg(tokens.size()));
+    });
+    QObject::connect(advanced, &DA::DAChipsEdit::pasteRejected, [advLog](const QString &reason) {
+        advLog->setText(QStringLiteral("pasteRejected: %1（maxCount = 已达上限）").arg(reason));
+    });
+
     return w;
 }
 

@@ -46,6 +46,12 @@ public:
     // 设置是否显示关闭按钮
     void setClosable(bool on);
 
+    // 最大宽度（像素）。0 = 不省略（默认）；> 0 时超长文本以…结尾，全文进 tooltip，
+    // text() 始终返回全文
+    void setElideWidth(int px);
+    // 获取最大宽度限制
+    int elideWidth() const;
+
 Q_SIGNALS:
     /**
      * @brief 关闭按钮被点击时发射
@@ -71,6 +77,8 @@ protected:
 
 private:
     void init();
+    // 按 elideWidth 重新计算 label 显示文本与 tooltip
+    void applyElide();
 };
 }  // namespace DA
 

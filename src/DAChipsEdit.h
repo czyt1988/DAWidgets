@@ -9,6 +9,8 @@
 
 class QLineEdit;
 class QKeyEvent;
+class QLabel;
+class QResizeEvent;
 class QRegularExpression;
 
 namespace DA
@@ -85,6 +87,24 @@ public:
     // 设置是否允许重复标签
     void setAllowDuplicate(bool on);
 
+    // 粘贴批量拆分：打开后 Ctrl+V / Shift+Insert 按分隔符集合一次生成多个标签（默认 false）
+    void setPasteSplitEnabled(bool on);
+    // 粘贴批量拆分是否开启
+    bool isPasteSplitEnabled() const;
+    // 粘贴的唯一入口：快捷键、单测、demo 的"模拟粘贴"都走这里。
+    // 关闭拆分开关时等价于把 text 插入内嵌输入框（不改变旧行为）。
+    void pasteText(const QString &text);
+
+    // chip 最大宽度（像素）。0 = 不省略（默认）；> 0 时超长文本以…结尾，全文进 tooltip
+    void setTagElideWidth(int px);
+    // 获取 chip 最大宽度
+    int tagElideWidth() const;
+
+    // 右下角显示 "n / maxCount"；maxCount == -1 时只显示 n（默认 false）
+    void setShowCount(bool on);
+    // 是否显示数量计数
+    bool showCount() const;
+
     // 获取标签数量上限，-1 表示无限制
     int maxCount() const;
     // 设置标签数量上限，-1 表示无限制
@@ -138,10 +158,15 @@ Q_SIGNALS:
     void inputFocusChanged(bool focused);
     /// 按键事件拦截：外部可将 *handled 置 true 阻止 DAChipsEdit 默认处理。
     void inputKeyEvent(QKeyEvent *event, bool *handled);
+    /// 粘贴拆分完成（去重与 maxCount 过滤之前），一次粘贴发一次
+    void pasteSplit(const QStringList &tokens);
+    /// 粘贴被拒：reason 为稳定 key，"maxCount" 表示上限打满，"clipboard" 表示取不到文本
+    void pasteRejected(const QString &reason);
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
     void focusInEvent(QFocusEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     void rebuildChips();
@@ -150,6 +175,10 @@ private:
     void onInputEdited(const QString &text);
     QSet<QChar> separatorChars() const;
     QRegularExpression separatorRegex() const;
+    QStringList splitForPaste(const QString &text) const;
+    void applyPastedTokens(const QStringList &tokens);
+    void updateCountLabel();
+    void positionCountLabel();
 };
 }  // namespace DA
 
