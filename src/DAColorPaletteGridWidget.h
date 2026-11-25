@@ -50,6 +50,9 @@ public:
     // 返回色块是否可选中
     bool isColorCheckable() const;
 
+    // 转发给内部两个网格（默认关闭）
+    void setKeyboardNavigationEnabled(bool on = true);
+
 Q_SIGNALS:
     /**
      * @brief 点击任意色块时发射

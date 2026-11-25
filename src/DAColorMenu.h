@@ -53,6 +53,21 @@ public:
     // 获取"无颜色"Action
     QAction* noneColorAction() const;
 
+    // 透明度：默认关闭。关闭时不插滑杆，selectedColor 的颜色不做任何 alpha 改写
+    void setAlphaEnabled(bool on = true);
+    bool isAlphaEnabled() const;
+    // 当前 alpha（0–255），默认 255；仅在 setAlphaEnabled(true) 时作用于选中的颜色
+    int alpha() const;
+    void setAlpha(int alpha);
+
+    // 最近色（最近优先）。调用即把"自定义色记录"切换为"最近 5 色、置顶、去重"策略
+    void setRecentColors(const QList<QColor>& colors);
+    QList<QColor> recentColors() const;
+
+    // 「恢复默认」：传入无效色表示移除该入口（默认无效 => 默认不出现）
+    void setDefaultColor(const QColor& color);
+    QColor defaultColor() const;
+
 public Q_SLOTS:
     // 发射 selectedColor 信号并隐藏菜单
     void emitSelectedColor(const QColor& c);
@@ -63,6 +78,10 @@ Q_SIGNALS:
      * @param c 选中的颜色，无效颜色表示"无颜色"
      */
     void selectedColor(const QColor& c);
+    /**
+     * @brief 拖动 alpha 滑杆时发射（0–255，随拖动高频发射）
+     */
+    void alphaChanged(int alpha);
 
 private:
     void init(const QList<QColor>& themeCls);
@@ -71,6 +90,14 @@ private:
     QColor getColorByDialog();
     void recordCustomColor(const QColor& c);
     static QIcon createNoneColorIcon();
+    // alpha 行
+    void buildAlphaRow();
+    void updateAlphaPreview();
+    // 最近色与恢复默认
+    void recordRecentColor(const QColor& c);
+    void refreshRecordGrid();
+    // 统一选色出口：recordToRecent=true 时记录最近色并应用 alpha
+    void selectColor(const QColor& c, bool recordToRecent);
 };
 }  // namespace DA
 

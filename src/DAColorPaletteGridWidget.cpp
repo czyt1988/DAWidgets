@@ -192,6 +192,17 @@ bool DAColorPaletteGridWidget::isColorCheckable() const
     return d->mMainColorList->isColorCheckable();
 }
 
+/**
+ * @brief 转发键盘导航开关到内部两个网格
+ * @param on 是否启用（默认关闭）
+ */
+void DAColorPaletteGridWidget::setKeyboardNavigationEnabled(bool on)
+{
+    DA_D(d);
+    d->mMainColorList->setKeyboardNavigationEnabled(on);
+    d->mPaletteColorGrid->setKeyboardNavigationEnabled(on);
+}
+
 QList<QColor> DAColorPaletteGridWidget::makeColorPalette(const QList<QColor>& cls) const
 {
     DA_DC(d);

@@ -2,14 +2,19 @@
 
 #include "DAColorPaletteGridWidget.h"
 #include "DAColorGridWidget.h"
+#include "DAQt5Qt6Compat.h"
 
 #include <QAction>
 #include <QLabel>
 #include <QWidgetAction>
 #include <QColorDialog>
+#include <QHBoxLayout>
 #include <QPainter>
 #include <QPixmap>
 #include <QPointer>
+#include <QSignalBlocker>
+#include <QSlider>
+#include <utility>
 
 namespace DA
 {
@@ -29,6 +34,23 @@ public:
     QList<QColor> mCustomColors;
     int mMaxCustomColorSize { 10 };
     QPointer<QColorDialog> mColorDlg;
+
+    // alpha
+    bool mAlphaEnabled { false };
+    int mAlpha { 255 };
+    QWidget* mAlphaRow { nullptr };
+    QSlider* mAlphaSlider { nullptr };
+    QLabel* mAlphaValueLabel { nullptr };
+    QLabel* mAlphaPreview { nullptr };
+    QWidgetAction* mAlphaAction { nullptr };
+    QColor mLastColor;
+
+    // 最近色 / 恢复默认
+    bool mRecentColorsEnabled { false };
+    QList<QColor> mRecentColors;
+    int mMaxRecentColors { 5 };
+    QAction* mDefaultColorAction { nullptr };
+    QColor mDefaultColor;
 };
 
 DAColorMenu::PrivateData::PrivateData(DAColorMenu* p) : q_ptr(p)
@@ -105,6 +127,12 @@ void DAColorMenu::init(const QList<QColor>& themeCls)
     connect(d->mCustomColorAction, &QAction::triggered, this, &DAColorMenu::onCustomColorActionTriggered);
     connect(d->mThemeColorsWidget, &DAColorPaletteGridWidget::colorClicked, this, &DAColorMenu::emitSelectedColor);
     connect(d->mCustomColorsWidget, &DAColorGridWidget::colorClicked, this, &DAColorMenu::emitSelectedColor);
+    // 最近色重排/预览更新推迟到菜单显示时，避免在按钮点击回调里重建网格
+    connect(this, &QMenu::aboutToShow, this, [ this ]() {
+        DA_D(d);
+        refreshRecordGrid();
+        updateAlphaPreview();
+    });
 }
 
 /**
@@ -195,20 +223,14 @@ QAction* DAColorMenu::noneColorAction() const
  */
 void DAColorMenu::emitSelectedColor(const QColor& c)
 {
-    Q_EMIT selectedColor(c);
-    hide();
+    selectColor(c, true);
 }
 
 void DAColorMenu::onCustomColorActionTriggered(bool)
 {
-    DA_D(d);
-    QColor c = getColorByDialog();
-    if (c.isValid()) {
-        recordCustomColor(c);
-        d->mCustomColorsWidget->setColorList(d->mCustomColors);
-        d->mCustomColorsWidget->updateGeometry();
+    const QColor c = getColorByDialog();
+    if (c.isValid())
         emitSelectedColor(c);
-    }
 }
 
 void DAColorMenu::onNoneColorActionTriggered(bool)
@@ -223,8 +245,16 @@ QColor DAColorMenu::getColorByDialog()
         d->mColorDlg = new QColorDialog(this);
         d->mColorDlg->setOption(QColorDialog::ShowAlphaChannel, true);
     }
+    if (d->mAlphaEnabled && d->mLastColor.isValid()) {
+        d->mColorDlg->setCurrentColor(
+            QColor(d->mLastColor.red(), d->mLastColor.green(), d->mLastColor.blue(), d->mAlpha));
+    }
     if (d->mColorDlg->exec() == QDialog::Accepted) {
-        return d->mColorDlg->currentColor();
+        const QColor c = d->mColorDlg->currentColor();
+        // 对话框返回的 alpha 回写滑杆，保持"滑杆是唯一真源"
+        if (d->mAlphaEnabled)
+            setAlpha(c.alpha());
+        return c;
     }
     return QColor();
 }
@@ -261,5 +291,234 @@ QIcon DAColorMenu::createNoneColorIcon()
     painter.setPen(pen);
     painter.drawRect(r);
     return QIcon(pixmap);
+}
+
+/**
+ * @brief 打开/关闭透明度行
+ * @param on 是否启用（默认 false）
+ * @details 打开时把行追加到菜单末尾；关闭时只移除 action，行对象保留，滑杆位置不丢
+ */
+void DAColorMenu::setAlphaEnabled(bool on)
+{
+    DA_D(d);
+    if (d->mAlphaEnabled == on)
+        return;
+    d->mAlphaEnabled = on;
+    if (on) {
+        if (!d->mAlphaAction)
+            buildAlphaRow();
+        addAction(d->mAlphaAction);
+        updateAlphaPreview();
+    } else if (d->mAlphaAction) {
+        removeAction(d->mAlphaAction);
+    }
+}
+
+/** @brief 透明度行是否启用 */
+bool DAColorMenu::isAlphaEnabled() const
+{
+    DA_DC(d);
+    return d->mAlphaEnabled;
+}
+
+/** @brief 当前 alpha（0–255） */
+int DAColorMenu::alpha() const
+{
+    DA_DC(d);
+    return d->mAlpha;
+}
+
+/**
+ * @brief 设置当前 alpha
+ * @param a 0–255，越界限幅；值不变时不发 alphaChanged
+ */
+void DAColorMenu::setAlpha(int a)
+{
+    DA_D(d);
+    const int clamped = qBound(0, a, 255);
+    if (clamped == d->mAlpha)
+        return;
+    d->mAlpha = clamped;
+    if (d->mAlphaSlider && d->mAlphaSlider->value() != clamped) {
+        QSignalBlocker blocker(d->mAlphaSlider);
+        d->mAlphaSlider->setValue(clamped);
+    }
+    updateAlphaPreview();
+    Q_EMIT alphaChanged(clamped);
+}
+
+void DAColorMenu::buildAlphaRow()
+{
+    DA_D(d);
+    d->mAlphaRow = new QWidget(this);
+    auto* lay = new QHBoxLayout(d->mAlphaRow);
+    lay->setContentsMargins(6, 2, 6, 2);
+    lay->setSpacing(6);
+
+    auto* label = new QLabel(tr("Opacity"), d->mAlphaRow);  //cn:不透明度
+    d->mAlphaSlider = new QSlider(Qt::Horizontal, d->mAlphaRow);
+    d->mAlphaSlider->setObjectName(QStringLiteral("DAAlphaSlider"));
+    d->mAlphaSlider->setRange(0, 255);
+    d->mAlphaSlider->setValue(d->mAlpha);
+
+    d->mAlphaValueLabel = new QLabel(d->mAlphaRow);
+    d->mAlphaValueLabel->setObjectName(QStringLiteral("DAAlphaValueLabel"));
+    // 定宽，避免 9%→100% 时行宽抖动
+    const int w = Qt5Qt6Compat_fontMetrics_width(d->mAlphaValueLabel->fontMetrics(), QStringLiteral("100%")) + 6;
+    d->mAlphaValueLabel->setFixedWidth(w);
+
+    d->mAlphaPreview = new QLabel(d->mAlphaRow);
+    d->mAlphaPreview->setObjectName(QStringLiteral("DAAlphaPreview"));
+    d->mAlphaPreview->setFixedSize(24, 18);
+
+    lay->addWidget(label);
+    lay->addWidget(d->mAlphaSlider, 1);
+    lay->addWidget(d->mAlphaValueLabel);
+    lay->addWidget(d->mAlphaPreview);
+
+    d->mAlphaAction = new QWidgetAction(this);
+    d->mAlphaAction->setDefaultWidget(d->mAlphaRow);
+    connect(d->mAlphaSlider, &QSlider::valueChanged, this, &DAColorMenu::setAlpha);
+    updateAlphaPreview();
+}
+
+void DAColorMenu::updateAlphaPreview()
+{
+    DA_D(d);
+    if (!d->mAlphaSlider || !d->mAlphaValueLabel || !d->mAlphaPreview)
+        return;
+    d->mAlphaValueLabel->setText(QStringLiteral("%1%").arg(qRound(d->mAlpha * 100.0 / 255.0)));
+    QPixmap pm(24, 18);
+    pm.fill(Qt::transparent);
+    QPainter p(&pm);
+    for (int y = 0; y < 18; y += 6) {
+        for (int x = 0; x < 24; x += 6) {
+            const bool odd = ((x / 6) + (y / 6)) % 2 != 0;
+            p.fillRect(QRect(x, y, 6, 6), odd ? QColor(0xE6, 0xE9, 0xEE) : QColor(Qt::white));
+        }
+    }
+    QColor c = d->mLastColor.isValid() ? d->mLastColor : QColor(64, 158, 255);
+    c.setAlpha(d->mAlpha);
+    p.fillRect(pm.rect(), c);
+    p.end();
+    d->mAlphaPreview->setPixmap(pm);
+}
+
+/**
+ * @brief 启用最近色策略
+ * @param colors 初始最近色（最近优先），去重后截断到 5
+ */
+void DAColorMenu::setRecentColors(const QList<QColor>& colors)
+{
+    DA_D(d);
+    d->mRecentColorsEnabled = true;
+    d->mRecentColors.clear();
+    for (const QColor& c : colors) {
+        if (!c.isValid())
+            continue;
+        const QRgb key = c.toRgb().rgba();
+        bool seen = false;
+        for (const QColor& e : std::as_const(d->mRecentColors)) {
+            if (e.toRgb().rgba() == key) {
+                seen = true;
+                break;
+            }
+        }
+        if (seen)
+            continue;
+        d->mRecentColors << c;
+        if (d->mRecentColors.size() >= d->mMaxRecentColors)
+            break;
+    }
+    d->mCustomColorsWidget->setAlphaBackgroundEnabled(true);
+    const QSize icon = d->mCustomColorsWidget->colorIconSize();
+    d->mCustomColorsWidget->setMinimumWidth(icon.width() * d->mMaxRecentColors
+                                            + d->mCustomColorsWidget->horizontalSpacing()
+                                                  * (d->mMaxRecentColors - 1));
+    refreshRecordGrid();
+}
+
+/** @brief 获取最近色（最近优先）；未启用时为空 */
+QList<QColor> DAColorMenu::recentColors() const
+{
+    DA_DC(d);
+    return d->mRecentColors;
+}
+
+/** @brief 把当前生效的记录列表刷进网格 */
+void DAColorMenu::refreshRecordGrid()
+{
+    DA_D(d);
+    if (!d->mCustomColorsWidget)
+        return;
+    d->mCustomColorsWidget->setColorList(d->mRecentColorsEnabled ? d->mRecentColors : d->mCustomColors);
+    d->mCustomColorsWidget->updateGeometry();
+}
+
+void DAColorMenu::recordRecentColor(const QColor& c)
+{
+    DA_D(d);
+    const QRgb key = c.toRgb().rgba();
+    for (int i = d->mRecentColors.size() - 1; i >= 0; --i) {
+        if (d->mRecentColors.at(i).toRgb().rgba() == key)
+            d->mRecentColors.removeAt(i);
+    }
+    d->mRecentColors.prepend(c);
+    while (d->mRecentColors.size() > d->mMaxRecentColors)
+        d->mRecentColors.removeLast();
+}
+
+/**
+ * @brief 设置/移除「恢复默认」入口
+ * @param color 有效色插入 action；无效色移除入口
+ */
+void DAColorMenu::setDefaultColor(const QColor& color)
+{
+    DA_D(d);
+    d->mDefaultColor = color;
+    if (color.isValid()) {
+        if (!d->mDefaultColorAction) {
+            d->mDefaultColorAction = new QAction(tr("Restore Default"), this);  //cn:恢复默认
+            connect(d->mDefaultColorAction, &QAction::triggered, this, [ this ]() {
+                DA_D(d);
+                selectColor(d->mDefaultColor, false);
+            });
+        }
+        insertAction(d->mCustomColorAction, d->mDefaultColorAction);
+    } else if (d->mDefaultColorAction) {
+        removeAction(d->mDefaultColorAction);
+        d->mDefaultColorAction->deleteLater();
+        d->mDefaultColorAction = nullptr;
+    }
+}
+
+/** @brief 当前默认色（未设置时无效） */
+QColor DAColorMenu::defaultColor() const
+{
+    DA_DC(d);
+    return d->mDefaultColor;
+}
+
+/**
+ * @brief 统一选色出口
+ * @param c 选中的颜色
+ * @param recordToRecent true = 常规选色：应用 alpha 并记录；false = 恢复默认：原样发出
+ */
+void DAColorMenu::selectColor(const QColor& c, bool recordToRecent)
+{
+    DA_D(d);
+    QColor out = c;
+    if (d->mAlphaEnabled && recordToRecent && out.isValid())
+        out.setAlpha(d->mAlpha);
+    if (out.isValid())
+        d->mLastColor = out;
+    if (out.isValid() && recordToRecent) {
+        if (d->mRecentColorsEnabled)
+            recordRecentColor(out);
+        else
+            recordCustomColor(out);
+    }
+    Q_EMIT selectedColor(out);
+    hide();
 }
 }  // namespace DA

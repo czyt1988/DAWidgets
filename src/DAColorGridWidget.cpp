@@ -1,7 +1,10 @@
 #include "DAColorGridWidget.h"
 
+#include <QBrush>
+#include <QEvent>
 #include <QGridLayout>
 #include <QButtonGroup>
+#include <QKeyEvent>
 #include <QToolButton>
 #include <QSpacerItem>
 #include <QPainter>
@@ -10,6 +13,22 @@
 
 namespace DA
 {
+namespace
+{
+// 16×16、8px 见方的棋盘格（#E6E9EE / #FFFFFF）
+QPixmap makeCheckerPixmap(int cell = 8)
+{
+    QPixmap pm(cell * 2, cell * 2);
+    QPainter p(&pm);
+    p.fillRect(QRect(0, 0, cell, cell), QColor(0xE6, 0xE9, 0xEE));
+    p.fillRect(QRect(cell, 0, cell, cell), Qt::white);
+    p.fillRect(QRect(0, cell, cell, cell), Qt::white);
+    p.fillRect(QRect(cell, cell, cell, cell), QColor(0xE6, 0xE9, 0xEE));
+    p.end();
+    return pm;
+}
+}  // namespace
+
 class DAColorGridWidget::PrivateData
 {
     DA_DECLARE_PUBLIC(DAColorGridWidget)
@@ -22,6 +41,9 @@ public:
     int mColumnCount { 8 };
     bool mColorCheckable { true };
     bool mHorizontalSpacerToRight { false };
+    bool mKeyboardNavigation { false };
+    bool mAlphaBackground { false };
+    QPixmap mCheckerPixmap;
 };
 
 DAColorGridWidget::PrivateData::PrivateData(DAColorGridWidget* p)
@@ -32,6 +54,7 @@ DAColorGridWidget::PrivateData::PrivateData(DAColorGridWidget* p)
     mGridLayout->setContentsMargins(1, 1, 1, 1);
     mButtonGroup = new QButtonGroup(p);
     mButtonGroup->setExclusive(true);
+    mCheckerPixmap = makeCheckerPixmap();
 }
 
 //===================================================
@@ -403,9 +426,13 @@ void DAColorGridWidget::setColorAt(const QColor& clr, int r, int c)
         btn->setCheckable(d->mColorCheckable);
         d->mButtonGroup->addButton(btn, r * 1000 + c);  // 唯一 id
         d->mGridLayout->addWidget(btn, r, c);
+        btn->installEventFilter(this);
     }
     btn->setProperty("color", QVariant::fromValue(clr));
-    btn->setIcon(makeColorIcon(clr, d->mIconSize));
+    btn->setIcon(d->mAlphaBackground ? makeColorIconWithAlpha(clr, d->mIconSize)
+                                     : makeColorIcon(clr, d->mIconSize));
+    if (d->mKeyboardNavigation)
+        applyFocusPolicies();
 }
 
 QIcon DAColorGridWidget::makeColorIcon(const QColor& clr, const QSize& size)
@@ -428,5 +455,132 @@ QIcon DAColorGridWidget::makeColorIcon(const QColor& clr, const QSize& size)
         painter.drawRect(r.adjusted(0, 0, -1, -1));
     }
     return QIcon(pixmap);
+}
+
+/**
+ * @brief 带棋盘格底的色块图标（仅半透明色需要）
+ * @param clr 颜色
+ * @param size 图标尺寸
+ * @return 图标；不透明色与 makeColorIcon() 逐像素一致
+ */
+QIcon DAColorGridWidget::makeColorIconWithAlpha(const QColor& clr, const QSize& size) const
+{
+    DA_DC(d);
+    if (!clr.isValid() || clr.alpha() == 255)
+        return makeColorIcon(clr, size);
+    QPixmap pixmap(size);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    painter.fillRect(QRect(QPoint(0, 0), size), QBrush(d->mCheckerPixmap));
+    painter.fillRect(QRect(QPoint(0, 0), size), clr);
+    painter.end();
+    return QIcon(pixmap);
+}
+
+/** @brief 开启/关闭色块键盘导航（默认关闭） */
+void DAColorGridWidget::setKeyboardNavigationEnabled(bool on)
+{
+    DA_D(d);
+    if (d->mKeyboardNavigation == on)
+        return;
+    d->mKeyboardNavigation = on;
+    applyFocusPolicies();
+}
+
+/** @brief 开启/关闭棋盘格底（默认关闭） */
+void DAColorGridWidget::setAlphaBackgroundEnabled(bool on)
+{
+    DA_D(d);
+    if (d->mAlphaBackground == on)
+        return;
+    d->mAlphaBackground = on;
+    updateGridColor();
+}
+
+/** @brief columnCount()==0 时的单行规则 */
+int DAColorGridWidget::effectiveColumns() const
+{
+    DA_DC(d);
+    int col = d->mColumnCount;
+    if (col <= 0)
+        col = d->mColors.size();
+    if (col <= 0)
+        col = 1;
+    return col;
+}
+
+/**
+ * @brief 应用焦点策略
+ * @details 开启时只让首块进 Tab 链（其余 ClickFocus），关闭时恢复 QToolButton 默认 StrongFocus
+ */
+void DAColorGridWidget::applyFocusPolicies()
+{
+    DA_D(d);
+    const int n = d->mColors.size();
+    for (int i = 0; i < n; ++i) {
+        QToolButton* btn = colorButton(i);
+        if (!btn)
+            continue;
+        btn->setFocusPolicy(d->mKeyboardNavigation ? (i == 0 ? Qt::StrongFocus : Qt::ClickFocus)
+                                                   : Qt::StrongFocus);
+    }
+}
+
+/**
+ * @brief 色块键盘导航：方向键移动、Enter 取色
+ * @details 行列数从 effectiveColumns() 读取，不写死；越界时停在原块并吞掉按键
+ */
+bool DAColorGridWidget::eventFilter(QObject* watched, QEvent* event)
+{
+    DA_D(d);
+    if (!d->mKeyboardNavigation || event->type() != QEvent::KeyPress)
+        return QWidget::eventFilter(watched, event);
+    auto* btn = qobject_cast< QToolButton* >(watched);
+    if (!btn)
+        return QWidget::eventFilter(watched, event);
+    const int n = d->mColors.size();
+    int idx = -1;
+    for (int i = 0; i < n; ++i) {
+        if (colorButton(i) == btn) {
+            idx = i;
+            break;
+        }
+    }
+    if (idx < 0)
+        return QWidget::eventFilter(watched, event);
+
+    auto* ke = static_cast< QKeyEvent* >(event);
+    const int key = ke->key();
+    if (key == Qt::Key_Return || key == Qt::Key_Enter) {
+        btn->click();
+        return true;
+    }
+    const int cols = effectiveColumns();
+    int next = idx;
+    switch (key) {
+    case Qt::Key_Left:
+        if (idx % cols != 0)
+            next = idx - 1;
+        break;
+    case Qt::Key_Right:
+        if ((idx % cols) != (cols - 1) && idx + 1 < n)
+            next = idx + 1;
+        break;
+    case Qt::Key_Up:
+        if (idx - cols >= 0)
+            next = idx - cols;
+        break;
+    case Qt::Key_Down:
+        if (idx + cols < n)
+            next = idx + cols;
+        break;
+    default:
+        return QWidget::eventFilter(watched, event);
+    }
+    if (next != idx) {
+        if (QToolButton* nb = colorButton(next))
+            nb->setFocus(Qt::ShortcutFocusReason);
+    }
+    return true;
 }
 }  // namespace DA

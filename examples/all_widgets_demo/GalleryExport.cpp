@@ -190,18 +190,19 @@ void exportPopupShots(const QString &widgetDir, int *count, QString *error)
         waitForUi(120);
     }
 
-    // 2) DAColorMenu 弹出菜单（含 None 与自定义色记录）
+    // 2) DAColorMenu 弹出菜单（含 None、alpha 行、最近色与恢复默认）
     {
         DA::DAColorMenu menu(QStringLiteral("选择颜色"));
         menu.enableNoneColorAction(true);
         if (auto *palette = menu.colorPaletteGridWidget()) {
             palette->setColorIconSize(QSize(18, 18));
         }
-        if (auto *grid = menu.customColorsWidget()) {
-            grid->setColorList({ QColor(QStringLiteral("#409EFF")), QColor(QStringLiteral("#67C23A")),
-                                 QColor(QStringLiteral("#E6A23C")), QColor(QStringLiteral("#F56C6C")),
-                                 QColor(QStringLiteral("#909399")) });
-        }
+        menu.setAlphaEnabled(true);
+        menu.setAlpha(180);
+        menu.setRecentColors({ QColor(QStringLiteral("#409EFF")), QColor(QStringLiteral("#67C23A")),
+                               QColor(QStringLiteral("#E6A23C")), QColor(QStringLiteral("#F56C6C")),
+                               QColor(QStringLiteral("#909399")) });
+        menu.setDefaultColor(QColor(QStringLiteral("#409EFF")));
         menu.popup(QPoint(220, 220));
         waitForUi(400);
         // QWidgetAction 里的调色板在显示后才有最终 sizeHint，重新布局避免被裁切

@@ -114,7 +114,8 @@ static QWidget *createColorGridContent(QWidget *parent)
 
     auto *desc = new QLabel(
         QStringLiteral("使用 QGridLayout + QButtonGroup 排列色块按钮。\n"
-                       "可设置列数、间距、图标大小，支持 checkable 互斥选中。"), w);
+                       "可设置列数、间距、图标大小，支持 checkable 互斥选中。\n"
+                       "此处显式打开键盘导航（方向键移动、Enter 取色）与棋盘格底（最后一块为 50% 透明）。"), w);
     desc->setWordWrap(true);
     v->addWidget(desc);
 
@@ -124,9 +125,11 @@ static QWidget *createColorGridContent(QWidget *parent)
         QColor(255, 0, 0), QColor(255, 165, 0), QColor(255, 255, 0),
         QColor(0, 128, 0), QColor(0, 0, 255), QColor(128, 0, 128),
         QColor(255, 192, 203), QColor(135, 206, 235), QColor(144, 238, 144),
-        QColor(255, 20, 147), QColor(0, 255, 255), QColor(255, 215, 0),
+        QColor(255, 20, 147), QColor(0, 255, 255), QColor(64, 158, 255, 128),
     });
     grid->setColorCheckable(true);
+    grid->setKeyboardNavigationEnabled(true);
+    grid->setAlphaBackgroundEnabled(true);
     auto *gridRow = new QHBoxLayout;
     gridRow->addWidget(grid);
     gridRow->addStretch(1);
@@ -155,7 +158,8 @@ static QWidget *createColorMenuContent(QWidget *parent)
 
     auto *desc = new QLabel(
         QStringLiteral("DAColorMenu 是一个 QMenu，内嵌调色板 + 无颜色 + 自定义颜色 + 历史记录。\n"
-                       "点击下方按钮弹出菜单体验。"), w);
+                       "点击下方按钮弹出菜单体验。此处显式打开 alpha 滑杆、最近 5 色（方向键可选）与恢复默认色，"
+                       "三项默认关闭。"), w);
     desc->setWordWrap(true);
     v->addWidget(desc);
 
@@ -164,6 +168,10 @@ static QWidget *createColorMenuContent(QWidget *parent)
 
     auto *menu = new DA::DAColorMenu(QStringLiteral("选择颜色"), w);
     menu->enableNoneColorAction(true);
+    menu->setAlphaEnabled(true);
+    menu->setRecentColors({ QColor(64, 158, 255), QColor(103, 194, 58), QColor(245, 108, 108),
+                            QColor(230, 162, 60) });
+    menu->setDefaultColor(QColor(64, 158, 255));
 
     auto *log = new QLabel(w);
     log->setStyleSheet(QStringLiteral("color:#909399;"));
@@ -175,10 +183,13 @@ static QWidget *createColorMenuContent(QWidget *parent)
     QObject::connect(menu, &DA::DAColorMenu::selectedColor,
         [log](const QColor &c) {
             if (c.isValid())
-                log->setText(QStringLiteral("选中颜色: ") + c.name());
+                log->setText(QStringLiteral("选中颜色: %1（alpha %2）").arg(c.name()).arg(c.alpha()));
             else
                 log->setText(QStringLiteral("选中: 无颜色"));
         });
+    QObject::connect(menu, &DA::DAColorMenu::alphaChanged, log, [log](int a) {
+        log->setText(QStringLiteral("alpha: %1（%2%）").arg(a).arg(qRound(a * 100.0 / 255.0)));
+    });
 
     return w;
 }

@@ -82,6 +82,11 @@ public:
     // 遍历所有色块按钮并执行回调函数
     void iterationColorBtns(FunColorBtn fn);
 
+    // 键盘导航（默认关闭）：开启后色块可聚焦，方向键 ±1/±列数，Enter 取色
+    void setKeyboardNavigationEnabled(bool on = true);
+    // 棋盘格底（默认关闭）：半透明色先铺 8×8 棋盘格再叠色
+    void setAlphaBackgroundEnabled(bool on = false);
+
     // 设置指定行的最小高度
     void setRowMinimumHeight(int row, int minSize);
     // 在右侧添加水平弹簧，使色块左对齐
@@ -117,6 +122,15 @@ private:
     void updateGridColor(bool isRemoveSpacer = false);
     void setColorAt(const QColor& clr, int r, int c);
     static QIcon makeColorIcon(const QColor& clr, const QSize& size);
+    // columnCount()==0 时的"单行"规则
+    int effectiveColumns() const;
+    // 开启键盘导航时：首块 StrongFocus、其余 ClickFocus；关闭时恢复默认
+    void applyFocusPolicies();
+    // 棋盘格底 + 颜色
+    QIcon makeColorIconWithAlpha(const QColor& clr, const QSize& size) const;
+
+protected:
+    bool eventFilter(QObject* watched, QEvent* event) override;
 };
 }  // namespace DA
 
