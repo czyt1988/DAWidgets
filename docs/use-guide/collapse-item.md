@@ -17,6 +17,9 @@
 - ✅ **自定义标题**：`setTitleWidget()` 用任意控件替代默认标题文本
 - ✅ **自定义内容**：`setContentWidget()` 或 `contentLayout()` 管理内容
 - ✅ **禁用状态**：`setDisabled(true)` 禁止折叠/展开
+- ✅ **键盘可达**：配合容器的 `setKeyboardNavigation(true)`，标题可 Tab 聚焦、Enter/Space 开合
+- ✅ **懒加载信号**：首次展开且内容为空时发 `contentRequested()`
+- ✅ **异步高度刷新**：`refreshContentHeight()` 在内容到位后修正高度
 - ✅ **qss 可定制**：完整的子控件 qss 选择器
 
 ## 用法
@@ -87,14 +90,24 @@ QObject::connect(item, &DA::DACollapseItem::expandChanged,
     [](bool expanded) {
         qDebug() << (expanded ? "展开" : "折叠");
     });
+
+// 首次展开且内容区为空:动画开始前通知,可在此同步装入内容
+QObject::connect(item, &DA::DACollapseItem::contentRequested,
+    [item]() {
+        item->setContentWidget(new QLabel("首次展开时才创建的内容"));
+        // 异步内容到位后:
+        // item->refreshContentHeight();
+    });
 ```
+
+`contentRequested()` 每个条目最多发一次；内容区非空时不会发。`refreshContentHeight()` 在折叠态直接返回，展开态下若动画正在运行则更新动画终点，否则修正 `maximumHeight`。
 
 ## qss 子控件选择器
 
 | 选择器 / objectName | 说明 |
 |---------------------|------|
 | `DA--DACollapseItem` | 条目外框 |
-| `DA--DACollapseItem::header` | 标题栏区域 |
+| `DA--DACollapseItem #header` | 标题栏区域（objectName，必须用 `#header`） |
 | `#DACollapseItemTitle` | 标题文本 QLabel |
 | `#DACollapseItemArrow` | 箭头图标 QLabel |
 | `DA--DACollapseItem[disabled="true"]` | 禁用状态 |
@@ -121,8 +134,10 @@ QObject::connect(item, &DA::DACollapseItem::expandChanged,
 | `contentLayout()` | 获取内容区布局（QVBoxLayout*） |
 | `setExpanded(bool)` | 展开/折叠 |
 | `setAnimationEnabled(bool)` | 开关动画 |
+| `headerWidget()` | 获取标题栏控件（键盘导航/自定义样式用） |
+| `refreshContentHeight()` | 内容到位后刷新展开高度 |
 
 ## 参考
 
-- [DACollapse 折叠容器](collapse.md)
+- [DACollapseWidget 折叠容器](collapse.md)
 - 示例路径：`examples/all_widgets_demo`（各 tab 内均使用 `DACollapseWidget` 分区折叠）

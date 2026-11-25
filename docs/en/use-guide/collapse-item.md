@@ -15,6 +15,9 @@ The screenshot walks through four forms: a default expanded item, a grayed-out d
 - ✅ **Custom title**: `setTitleWidget()` replaces the default title text with any widget
 - ✅ **Custom content**: `setContentWidget()` or `contentLayout()` to manage content
 - ✅ **Disabled state**: `setDisabled(true)` prevents expand/collapse
+- ✅ **Keyboard reachable**: with the container's `setKeyboardNavigation(true)`, headers are tabbable and Enter/Space toggles them
+- ✅ **Lazy-load signal**: `contentRequested()` fires before the first expansion of an empty item
+- ✅ **Async height refresh**: `refreshContentHeight()` fixes the height after content arrives
 - ✅ **qss customizable**: Full sub-control qss selectors
 
 ## Usage
@@ -85,14 +88,24 @@ QObject::connect(item, &DA::DACollapseItem::expandChanged,
     [](bool expanded) {
         qDebug() << (expanded ? "Expanded" : "Collapsed");
     });
+
+// Fired once before the first expansion of an empty content area
+QObject::connect(item, &DA::DACollapseItem::contentRequested,
+    [item]() {
+        item->setContentWidget(new QLabel("Created on first expansion"));
+        // Once async content is ready:
+        // item->refreshContentHeight();
+    });
 ```
+
+`contentRequested()` fires at most once per item and never when the content area is non-empty. `refreshContentHeight()` returns immediately while collapsed; while expanded it updates the animation end value during a running animation, otherwise it corrects `maximumHeight`.
 
 ## qss Sub-control Selectors
 
 | Selector / objectName | Description |
 |-----------------------|-------------|
 | `DA--DACollapseItem` | Item outer frame |
-| `DA--DACollapseItem::header` | Title bar area |
+| `DA--DACollapseItem #header` | Title bar area (objectName — use `#header`) |
 | `#DACollapseItemTitle` | Title text QLabel |
 | `#DACollapseItemArrow` | Arrow icon QLabel |
 | `DA--DACollapseItem[disabled="true"]` | Disabled state |
@@ -124,8 +137,10 @@ QObject::connect(item, &DA::DACollapseItem::expandChanged,
 | `setContentWidget(QWidget*)` | Set the content widget |
 | `contentWidget()` | Get the current content widget |
 | `contentLayout()` | Get the content area layout (QVBoxLayout*) |
+| `headerWidget()` | Get the header widget (for keyboard navigation/custom styling) |
+| `refreshContentHeight()` | Refresh the expanded height after content arrives |
 
 ## References
 
-- [DACollapse](collapse.md)
+- [DACollapseWidget](collapse.md)
 - Example path: `examples/all_widgets_demo` (`DACollapseWidget` is used as a per-section collapsible organizer within each tab)
