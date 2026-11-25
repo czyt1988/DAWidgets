@@ -1,11 +1,29 @@
 ﻿#include "DACollapseWidget.h"
 #include "DACollapseItem.h"
 #include "DACollapseLayout.h"
+#include <QKeyEvent>
 #include <QSet>
 #include <QVBoxLayout>
 
 namespace DA
 {
+namespace
+{
+/// 变体的 qss 动态属性值
+QString variantKey(DACollapseWidget::Variant v)
+{
+    switch (v) {
+    case DACollapseWidget::Variant::Borderless:
+        return QStringLiteral("borderless");
+    case DACollapseWidget::Variant::Card:
+        return QStringLiteral("card");
+    case DACollapseWidget::Variant::Default:
+        break;
+    }
+    return QStringLiteral("default");
+}
+}  // namespace
+
 class DACollapseWidget::PrivateData
 {
 public:
@@ -15,6 +33,10 @@ public:
     DACollapseLayout* layout { nullptr };
     QList< DACollapseItem* > items;
     bool accordion { false };
+    bool keyboardNavigation { false };
+    Variant variant { Variant::Default };
+    // setActiveNames 批量同步期间抑制逐项 activeNamesChanged,但不阻断条目自身信号
+    bool activating { false };
 };
 
 /**
@@ -78,6 +100,64 @@ void DACollapseWidget::setAccordion(bool on)
 }
 
 /**
+ * @brief 打开/关闭键盘导航
+ * @param on 是否开启(默认 false)
+ * @details 开启时每个标题变为 StrongFocus;关闭时收回焦点策略并释放焦点
+ */
+void DACollapseWidget::setKeyboardNavigation(bool on)
+{
+    DA_D(d);
+    if (d->keyboardNavigation == on)
+        return;
+    d->keyboardNavigation = on;
+    for (auto* it : std::as_const(d->items)) {
+        QWidget* header = it->headerWidget();
+        if (!header)
+            continue;
+        if (on) {
+            header->setFocusPolicy(Qt::StrongFocus);
+        } else {
+            header->setFocusPolicy(Qt::NoFocus);
+            if (header->hasFocus())
+                header->clearFocus();
+        }
+    }
+}
+
+/** @brief 键盘导航是否开启 */
+bool DACollapseWidget::isKeyboardNavigation() const
+{
+    DA_DC(d);
+    return d->keyboardNavigation;
+}
+
+/**
+ * @brief 设置外观变体
+ * @param variant 变体枚举(默认 Default)
+ * @details 只改间距与内留白,不碰 accordion / activeNames
+ */
+void DACollapseWidget::setVariant(Variant variant)
+{
+    DA_D(d);
+    if (d->variant == variant)
+        return;
+    d->variant = variant;
+    const QString key = variantKey(variant);
+    setProperty("daVariant", key);
+    d->layout->setSpacing(variant == Variant::Card ? 8 : 0);
+    for (auto* it : std::as_const(d->items))
+        applyVariantToItem(it);
+    d->layout->invalidate();
+}
+
+/** @brief 当前外观变体 */
+DACollapseWidget::Variant DACollapseWidget::variant() const
+{
+    DA_DC(d);
+    return d->variant;
+}
+
+/**
  * @brief 获取当前激活面板的 name 列表
  * @return 遍历所有条目收集展开项的 name
  */
@@ -130,16 +210,19 @@ void DACollapseWidget::setActiveNames(const QStringList& names)
  */
 void DACollapseWidget::activate(DACollapseItem* item, bool on)
 {
+    DA_D(d);
     if (!item) {
         return;
     }
     // 禁用面板不可激活(对标 Element UI disabled),折叠则不受限
     if (on && item->disabled())
         return;
-    // 临时阻断信号,避免 setActiveNames 过程中逐个触发 onItemExpandChanged 造成抖动
-    item->blockSignals(true);
+    // 用标志位抑制 onItemExpandChanged 的逐项发射,而不是 blockSignals():
+    // 后者会连 contentRequested 一起吞掉,破坏 setActiveNames 触发的懒加载
+    const bool prev = d->activating;
+    d->activating  = true;
     item->setExpanded(on);
-    item->blockSignals(false);
+    d->activating = prev;
 }
 
 /**
@@ -157,7 +240,17 @@ void DACollapseWidget::addItem(DACollapseItem* item)
     const int idx = d->layout->count() - 1;  // 弹簧索引
     d->layout->insertWidget(idx, item);
     d->items.append(item);
+    // 键盘导航:容器统一监听标题按键
+    if (QWidget* header = item->headerWidget()) {
+        header->installEventFilter(this);
+        if (d->keyboardNavigation)
+            header->setFocusPolicy(Qt::StrongFocus);
+    }
+    connect(item, &DACollapseItem::contentRequested, this,
+            [ this, item ] { Q_EMIT expandRequested(item->name()); });
     connect(item, &DACollapseItem::expandChanged, this, [ this ](bool) { onItemExpandChanged(); });
+    // 后加入的条目也要吃到当前变体
+    applyVariantToItem(item);
 }
 
 /**
@@ -209,6 +302,8 @@ void DACollapseWidget::removeItem(DACollapseItem* item)
     const int i = d->items.indexOf(item);
     if (i < 0)
         return;
+    if (QWidget* header = item->headerWidget())
+        header->removeEventFilter(this);
     d->items.removeAt(i);
     d->layout->removeWidget(item);
     delete item;
@@ -223,6 +318,8 @@ void DACollapseWidget::clear()
 {
     DA_D(d);
     for (auto* it : std::as_const(d->items)) {
+        if (QWidget* header = it->headerWidget())
+            header->removeEventFilter(this);
         d->layout->removeWidget(it);
         delete it;
     }
@@ -238,6 +335,8 @@ void DACollapseWidget::clear()
 void DACollapseWidget::onItemExpandChanged()
 {
     DA_D(d);
+    if (d->activating)
+        return;
     auto* src = qobject_cast< DACollapseItem* >(sender());
     if (!src)
         return;
@@ -254,6 +353,60 @@ void DACollapseWidget::onItemExpandChanged()
         }
     }
     Q_EMIT activeNamesChanged(activeNames());
+}
+
+/**
+ * @brief 事件过滤器:标题上的 ↑/↓ 面板间导航
+ * @param watched 被监听对象(标题控件)
+ * @param event 事件
+ * @details 跳过禁用项、到首尾不循环;方向键一律吞掉,避免焦点跑出容器
+ */
+bool DACollapseWidget::eventFilter(QObject* watched, QEvent* event)
+{
+    DA_D(d);
+    if (!d->keyboardNavigation || event->type() != QEvent::KeyPress || d->items.isEmpty())
+        return QWidget::eventFilter(watched, event);
+
+    auto* ke           = static_cast< QKeyEvent* >(event);
+    const int key      = ke->key();
+    if (key != Qt::Key_Up && key != Qt::Key_Down)
+        return QWidget::eventFilter(watched, event);
+
+    DACollapseItem* current = nullptr;
+    for (auto* it : std::as_const(d->items)) {
+        if (it->headerWidget() == watched) {
+            current = it;
+            break;
+        }
+    }
+    if (!current)
+        return QWidget::eventFilter(watched, event);
+
+    const int dir   = (key == Qt::Key_Down) ? 1 : -1;
+    const int start = d->items.indexOf(current);
+    for (int i = start + dir; i >= 0 && i < d->items.size(); i += dir) {
+        DACollapseItem* candidate = d->items.at(i);
+        if (candidate->disabled())
+            continue;
+        if (QWidget* header = candidate->headerWidget()) {
+            header->setFocus(Qt::ShortcutFocusReason);
+            break;
+        }
+    }
+    return true;
+}
+
+/**
+ * @brief 把当前变体下发给单个条目
+ * @param item 目标条目
+ */
+void DACollapseWidget::applyVariantToItem(DACollapseItem* item)
+{
+    DA_D(d);
+    if (!item)
+        return;
+    item->setProperty("daVariant", variantKey(d->variant));
+    item->applyVariantChrome();
 }
 
 /** @brief 推荐尺寸,委托基类实现 */

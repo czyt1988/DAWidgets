@@ -24,7 +24,7 @@ class DACollapseLayout;
  *
  * 用法:
  * ```cpp
- * auto *c = new DA::DACollapse;
+ * auto *c = new DA::DACollapseWidget;
  * c->addItem(QStringLiteral("一致性"), QStringLiteral("1"));
  * c->addItem(QStringLiteral("反馈"), QStringLiteral("2"));
  * c->setActiveNames({ QStringLiteral("1") });
@@ -37,6 +37,14 @@ class DAWIDGETS_EXPORT DACollapseWidget : public QWidget
     Q_PROPERTY(QStringList activeNames READ activeNames WRITE setActiveNames NOTIFY activeNamesChanged)
     DA_DECLARE_PRIVATE(DACollapseWidget)
 public:
+    /// 外观变体。Default 与加入枚举前逐像素一致。
+    enum class Variant {
+        Default,    ///< 现状:无内置装饰,间距 0,内留白 12
+        Borderless, ///< 无框 + 贴边:标题内留白 0/8,内容内留白 0/4/0/8
+        Card        ///< 卡片间距:条目间距 8;边框由调用方用 [daVariant="card"] qss 提供
+    };
+    Q_ENUM(Variant)
+
     // 构造折叠面板容器
     explicit DACollapseWidget(QWidget* parent = nullptr);
     // 析构,释放内部条目与布局
@@ -46,6 +54,16 @@ public:
     bool accordion() const;
     // 启用/禁用手风琴模式
     void setAccordion(bool on);
+
+    // 键盘导航:Tab 聚焦标题、↑/↓ 移动焦点、Enter/Space 开合(默认 false)
+    void setKeyboardNavigation(bool on);
+    // 键盘导航是否开启
+    bool isKeyboardNavigation() const;
+
+    // 外观变体(默认 Variant::Default)
+    void setVariant(Variant variant);
+    // 当前外观变体
+    Variant variant() const;
 
     // 获取当前激活(展开)面板的 name 列表
     QStringList activeNames() const;
@@ -90,11 +108,21 @@ Q_SIGNALS:
      * @param activeNames 当前激活面板的 name 列表
      */
     void activeNamesChanged(const QStringList& activeNames);
+    /**
+     * @brief 首次展开且内容区为空时,在展开动画开始前发射;宿主可在槽里 setContentWidget()
+     * @param name 触发条目的 name
+     */
+    void expandRequested(const QString& name);
+
+protected:
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
     void init();
     void activate(DACollapseItem* item, bool on);
     void onItemExpandChanged();
+    // 把当前变体下发给单个条目
+    void applyVariantToItem(DACollapseItem* item);
 };
 }  // namespace DA
 

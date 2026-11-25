@@ -1,10 +1,12 @@
 #include "DACollapseItem.h"
 #include "DACollapseLayout.h"
 
+#include <QAbstractButton>
 #include <QColor>
 #include <QEvent>
 #include <QHBoxLayout>
 #include <QIcon>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QPainter>
@@ -12,6 +14,7 @@
 #include <QPixmap>
 #include <QPropertyAnimation>
 #include <QStyle>
+#include <QStyleOption>
 #include <QSvgRenderer>
 #include <QVBoxLayout>
 
@@ -36,6 +39,106 @@ const QIcon& arrowDownIcon()
     static const QIcon icon(QStringLiteral(":/DAWidgetsIcons/arrow-down.svg"));
     return icon;
 }
+
+/**
+ * @brief 标题栏按钮(仅本文件内使用,不带 Q_OBJECT)
+ * @details 用 QAbstractButton 提供 Button 无障碍角色与 Space 语义,同时保持
+ *          "按下即切换"的旧交互。没有 Q_OBJECT 意味着:不能定义信号(直接复用
+ *          clicked)、qobject_cast 到本类型不可靠、qss 类选择器只能写
+ *          QAbstractButton#header 或 #header —— 容器反查条目依赖 parentWidget()。
+ */
+class DACollapseHeaderButton : public QAbstractButton
+{
+public:
+    explicit DACollapseHeaderButton(QWidget* parent = nullptr) : QAbstractButton(parent)
+    {
+        setObjectName(QStringLiteral("header"));
+        setCursor(Qt::PointingHandCursor);
+        setFocusPolicy(Qt::NoFocus);
+        setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+        // 让调用方的 #header { background: ... } 仍然生效
+        setAttribute(Qt::WA_StyledBackground, true);
+    }
+
+    // QAbstractButton 会按 text/icon 走样式算高度,会改标题高度;标题高度由内部布局决定
+    QSize sizeHint() const override
+    {
+        return QWidget::sizeHint();
+    }
+    QSize minimumSizeHint() const override
+    {
+        return QWidget::minimumSizeHint();
+    }
+
+protected:
+    void mousePressEvent(QMouseEvent* e) override
+    {
+        // 保持旧语义:按下即开合,而不是 QAbstractButton 默认的抬起触发
+        if (e->button() == Qt::LeftButton) {
+            click();
+            e->accept();
+            return;
+        }
+        QAbstractButton::mousePressEvent(e);
+    }
+
+    void mouseReleaseEvent(QMouseEvent* e) override
+    {
+        // click() 已经在按下时复位 down,这里吞掉左键抬起避免二次触发
+        if (e->button() == Qt::LeftButton) {
+            e->accept();
+            return;
+        }
+        QAbstractButton::mouseReleaseEvent(e);
+    }
+
+    void keyPressEvent(QKeyEvent* e) override
+    {
+        switch (e->key()) {
+        case Qt::Key_Return:
+        case Qt::Key_Enter:
+        case Qt::Key_Space:
+            click();
+            e->accept();
+            return;
+        case Qt::Key_Up:
+        case Qt::Key_Down:
+            // 方向键交给容器的事件过滤器做面板间导航
+            e->ignore();
+            return;
+        default:
+            break;
+        }
+        QAbstractButton::keyPressEvent(e);
+    }
+
+    void paintEvent(QPaintEvent*) override
+    {
+        QPainter p(this);
+        QStyleOption opt;
+        opt.initFrom(this);
+        // 换成 QAbstractButton 后不再经过 QFrame 的绘制路径,qss 背景要自己接住
+        style()->drawPrimitive(QStyle::PE_Widget, &opt, &p, this);
+        if (hasFocus()) {
+            p.setRenderHint(QPainter::Antialiasing, true);
+            p.setPen(QPen(QColor(64, 158, 255, 160), 2));
+            p.setBrush(Qt::NoBrush);
+            p.drawRect(rect().adjusted(1, 1, -2, -2));
+        }
+    }
+
+    void focusInEvent(QFocusEvent* e) override
+    {
+        QAbstractButton::focusInEvent(e);
+        update();
+    }
+
+    void focusOutEvent(QFocusEvent* e) override
+    {
+        QAbstractButton::focusOutEvent(e);
+        update();
+    }
+};
 }  // namespace
 
 class DACollapseItem::PrivateData
@@ -44,7 +147,7 @@ public:
     PrivateData(DACollapseItem*)
     {
     }
-    QFrame* header { nullptr };
+    QAbstractButton* header { nullptr };
     QLabel* arrow { nullptr };
     QLabel* titleLabel { nullptr };
     QWidget* titleWidget { nullptr };
@@ -55,9 +158,12 @@ public:
     QString title;
     QString name;
     QColor titleNormalColor;  // 记录正常态标题文本色,用于禁用时还原
+    QMargins headerMargins { 12, 10, 12, 10 };
+    QMargins contentMargins { 12, 8, 12, 12 };
     bool disabled { false };
     bool expanded { false };
     bool animationEnabled { true };
+    bool contentRequested { false };
 };
 
 /**
@@ -102,17 +208,12 @@ void DACollapseItem::init()
     outer->setContentsMargins(0, 0, 0, 0);
     outer->setSpacing(0);
 
-    // ---- 标题栏 ----
-    d->header = new QFrame(this);
-    d->header->setObjectName(QStringLiteral("header"));
-    d->header->setFrameShape(QFrame::NoFrame);
-    d->header->setCursor(Qt::PointingHandCursor);
-    // 垂直方向 Fixed:给 DACollapseLayout 提供稳定的 sizeHint
-    d->header->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-    d->header->installEventFilter(this);
+    // ---- 标题栏(私有按钮,保留 objectName "header") ----
+    d->header = new DACollapseHeaderButton(this);
+    connect(d->header, &QAbstractButton::clicked, this, &DACollapseItem::onHeaderClicked);
 
     auto* headerLay = new QHBoxLayout(d->header);
-    headerLay->setContentsMargins(12, 10, 12, 10);
+    headerLay->setContentsMargins(d->headerMargins);
     headerLay->setSpacing(8);
 
     d->arrow = new QLabel(d->header);
@@ -135,7 +236,7 @@ void DACollapseItem::init()
     d->content->installEventFilter(this);  // 监听 LayoutRequest 适配动态内容/宽度变化
 
     d->contentLayout = new QVBoxLayout(d->content);
-    d->contentLayout->setContentsMargins(12, 8, 12, 12);
+    d->contentLayout->setContentsMargins(d->contentMargins);
     d->contentLayout->setSpacing(6);
 
     outer->addWidget(d->content);
@@ -175,9 +276,13 @@ void DACollapseItem::updateHeaderVisualState()
     QPalette pal   = d->titleLabel->palette();
     pal.setColor(QPalette::Active, QPalette::WindowText, c);
     pal.setColor(QPalette::Inactive, QPalette::WindowText, c);
+    // 标题按钮禁用会连带子标签进 Disabled 组,这里同步设置,否则读到 Qt 默认灰
+    pal.setColor(QPalette::Disabled, QPalette::WindowText, c);
     d->titleLabel->setPalette(pal);
     // 禁用时光标为"禁止"图标,比箭头更直观
     d->header->setCursor(d->disabled ? Qt::ForbiddenCursor : Qt::PointingHandCursor);
+    // 复用 QAbstractButton 的 disabled 语义:禁用后既不能点也拿不到焦点
+    d->header->setEnabled(!d->disabled);
     // 保留 disabled 动态属性供 qss 进一步定制(如 hover 背景抑制)
     setProperty("disabled", d->disabled);
     style()->unpolish(this);
@@ -272,40 +377,69 @@ void DACollapseItem::onAnimationFinished()
 }
 
 /**
- * @brief 事件过滤器:转发标题栏点击、适配内容区布局变化与首次显示高度修正
- * @param watched 被监听对象(自身/标题栏/内容区)
+ * @brief 重新计算内容区高度
+ * @details 未展开直接返回;动画中更新终点,否则直接修正 maximumHeight。
+ *          异步加载内容的宿主在 setContentWidget() 之后调用。
+ */
+void DACollapseItem::refreshContentHeight()
+{
+    DA_D(d);
+    if (!d->expanded)
+        return;
+    const int h = contentNaturalHeight();
+    if (d->animation->state() == QAbstractAnimation::Running) {
+        d->animation->setEndValue(h);
+    } else if (d->content->maximumHeight() != h) {
+        d->content->setMaximumHeight(h);
+        d->content->updateGeometry();
+    }
+}
+
+/**
+ * @brief 按 daVariant 动态属性重设标题/内容留白
+ * @details 只改留白,不碰展开状态;Default 与加入变体前逐像素一致
+ */
+void DACollapseItem::applyVariantChrome()
+{
+    DA_D(d);
+    const QString key = property("daVariant").toString();
+    if (key == QStringLiteral("borderless")) {
+        d->headerMargins  = QMargins(0, 8, 0, 8);
+        d->contentMargins = QMargins(0, 4, 0, 8);
+    } else {
+        d->headerMargins  = QMargins(12, 10, 12, 10);
+        d->contentMargins = QMargins(12, 8, 12, 12);
+    }
+    if (auto* lay = qobject_cast< QHBoxLayout* >(d->header->layout()))
+        lay->setContentsMargins(d->headerMargins);
+    d->contentLayout->setContentsMargins(d->contentMargins);
+    style()->unpolish(this);
+    style()->polish(this);
+    updateGeometry();
+}
+
+/** @brief 获取标题栏控件(内部按钮) */
+QWidget* DACollapseItem::headerWidget() const
+{
+    DA_DC(d);
+    return d->header;
+}
+
+/**
+ * @brief 事件过滤器:适配内容区布局变化与首次显示高度修正
+ * @param watched 被监听对象(自身/内容区)
  * @param event 事件
- * @details 标题栏 MouseButtonPress 触发展开切换;
- *          内容区 LayoutRequest 在非动画展开态下更新 maximumHeight 适配动态内容;
- *          自身 Resize 在展开态下重新计算高度——修正 widget 首次显示时
- *          width()==0 导致的初始高度估算偏差
+ * @details 内容区 LayoutRequest 与自身 Resize 都走 refreshContentHeight(),
+ *          修正 widget 首次显示时 width()==0 导致的初始高度估算偏差
  */
 bool DACollapseItem::eventFilter(QObject* watched, QEvent* event)
 {
     DA_D(d);
-    if (watched == d->header && event->type() == QEvent::MouseButtonPress) {
-        auto* me = static_cast< QMouseEvent* >(event);
-        if (me->button() == Qt::LeftButton)
-            onHeaderClicked();
-        return true;
-    }
     if (watched == d->content && event->type() == QEvent::LayoutRequest) {
-        // 展开态(非动画中)下内容变化时,更新 maximumHeight 以适应新的自然高度
-        if (d->expanded && d->animation->state() != QAbstractAnimation::Running) {
-            d->content->setMaximumHeight(contentNaturalHeight());
-        }
-    }
-    if (watched == this && event->type() == QEvent::Resize) {
-        // 首次显示时 width() 从 0 变为实际值,重新计算内容高度。
-        // 动画进行中则更新 endValue,动画结束后直接修正 maximumHeight。
-        if (d->expanded) {
-            const int h = contentNaturalHeight();
-            if (d->animation->state() == QAbstractAnimation::Running) {
-                d->animation->setEndValue(h);
-            } else if (d->content->maximumHeight() != h) {
-                d->content->setMaximumHeight(h);
-            }
-        }
+        // 展开态(含动画中)下内容变化时,更新高度或动画终点
+        refreshContentHeight();
+    } else if (watched == this && event->type() == QEvent::Resize) {
+        refreshContentHeight();
     }
     return QFrame::eventFilter(watched, event);
 }
@@ -394,7 +528,16 @@ void DACollapseItem::setExpanded(bool on)
     DA_D(d);
     if (d->expanded == on)
         return;
+    // 懒加载钩子必须在 doExpand() 之前:doExpand 立刻按当前内容算动画目标
+    if (on && !d->contentRequested && d->contentLayout->count() == 0) {
+        d->contentRequested = true;
+        Q_EMIT contentRequested();
+    }
     d->expanded = on;
+    // 维护 expanded 动态属性,让 [expanded="true"] 的 qss 选择器成立
+    setProperty("expanded", on);
+    style()->unpolish(this);
+    style()->polish(this);
     doExpand(on);
     Q_EMIT expandChanged(on);
 }
@@ -470,6 +613,9 @@ void DACollapseItem::setContentWidget(QWidget* widget)
     }
     if (widget) {
         d->contentLayout->addWidget(widget);
+        // 内容区已可见时,新加入的子控件不会自动 show,隐藏控件 sizeHint 为 0,
+        // 会让 refreshContentHeight() 算不出异步加载后的高度
+        widget->show();
     }
 }
 

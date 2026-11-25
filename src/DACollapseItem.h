@@ -23,11 +23,11 @@ namespace DA
  * qss 定制示例:
  * ```css
  * DA--DACollapseItem { border:1px solid #ebeef5; border-radius:4px; }
- * DA--DACollapseItem::header { background:#fafafa; }
- * DA--DACollapseItem::header:hover { background:#f5f7fa; }
+ * DA--DACollapseItem #header { background:#fafafa; }
+ * DA--DACollapseItem #header:hover { background:#f5f7fa; }
  * QLabel#DACollapseItemArrow { color:#909399; }
  * QLabel#DACollapseItemTitle { color:#303133; font-weight:bold; }
- * DA--DACollapseItem[disabled="true"]::header { color:#c0c4cc; }
+ * DA--DACollapseItem[disabled="true"] #header { color:#c0c4cc; }
  * ```
  *
  * 对应 Element UI:
@@ -82,6 +82,13 @@ public:
     // 获取自定义标题控件(未设置时返回 nullptr)
     QWidget *titleWidget() const;
 
+    // 标题栏控件(键盘导航与自定义样式用;当前实现是内部按钮)
+    QWidget *headerWidget() const;
+
+    // 内容高度重算:展开态下更新 maximumHeight(动画中则更新动画终点)。
+    // 异步加载内容的宿主在 setContentWidget() 之后调用它。
+    void refreshContentHeight();
+
     // 设置内容控件(取代默认内容布局)
     void setContentWidget(QWidget *widget);
     // 获取内容控件(未设置时返回 nullptr)
@@ -119,11 +126,16 @@ Q_SIGNALS:
      * @param on 是否启用动画
      */
     void animationEnabledChanged(bool on);
+    /**
+     * @brief 首次展开且内容区为空时、动画开始前发射(每个条目只发一次)
+     */
+    void contentRequested();
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
+    friend class DACollapseWidget;  // 仅用于下发变体的间距/留白
     void init();
     void updateArrow();
     void updateHeaderVisualState();
@@ -131,6 +143,8 @@ private:
     void doExpand(bool on);
     void onHeaderClicked();
     void onAnimationFinished();
+    // 按 daVariant 动态属性重设标题/内容留白
+    void applyVariantChrome();
 };
 }  // namespace DA
 

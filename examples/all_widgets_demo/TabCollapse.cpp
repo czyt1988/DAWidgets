@@ -1,6 +1,7 @@
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include <DACollapseItem.h>
@@ -65,13 +66,8 @@ static QWidget *createCollapseContent(QWidget *parent)
     multiLayout->addWidget(multi);
     multiLayout->addStretch(1);
 
-    row->addWidget(accordionBox, 1);
-    row->addWidget(multiBox, 1);
-    v->addLayout(row);
-
     auto *log = new QLabel(QStringLiteral("当前展开: account / basic, advanced"), w);
     log->setStyleSheet(QStringLiteral("color:#909399;"));
-    v->addWidget(log);
 
     QObject::connect(accordion, &DA::DACollapseWidget::activeNamesChanged, log,
                      [log](const QStringList &names) {
@@ -85,6 +81,101 @@ static QWidget *createCollapseContent(QWidget *parent)
                                           .arg(names.isEmpty() ? QStringLiteral("(无)")
                                                                : names.join(QStringLiteral(", "))));
                      });
+
+    // ---- 第三列：键盘 + 懒加载 + 变体 ----
+    auto *extraBox    = new QGroupBox(QStringLiteral("键盘 / 懒加载 / 变体"), w);
+    auto *extraLayout = new QVBoxLayout(extraBox);
+
+    auto *kbTitle = new QLabel(QStringLiteral("键盘导航（默认关闭，此处已打开）"), extraBox);
+    QFont kbFont = kbTitle->font();
+    kbFont.setBold(true);
+    kbTitle->setFont(kbFont);
+    extraLayout->addWidget(kbTitle);
+
+    auto *kbDesc = new QLabel(QStringLiteral("Tab 聚焦标题、↑/↓ 换面板、Enter/Space 开合。"), extraBox);
+    kbDesc->setWordWrap(true);
+    extraLayout->addWidget(kbDesc);
+
+    auto *kb = new DA::DACollapseWidget(extraBox);
+    kb->setKeyboardNavigation(true);
+    addTextContent(kb->addItem(QStringLiteral("账号信息"), QStringLiteral("k1")),
+                   { QStringLiteral("Tab 到这里，↑/↓ 切换面板") });
+    addTextContent(kb->addItem(QStringLiteral("安全设置"), QStringLiteral("k2")),
+                   { QStringLiteral("Enter 或 Space 展开/折叠") });
+    addTextContent(kb->addItem(QStringLiteral("通知偏好"), QStringLiteral("k3")),
+                   { QStringLiteral("首尾不循环，禁用项会被跳过") });
+    kb->setActiveNames({ QStringLiteral("k1") });
+    extraLayout->addWidget(kb);
+
+    auto *lazyTitle = new QLabel(QStringLiteral("懒加载（expandRequested）"), extraBox);
+    lazyTitle->setFont(kbFont);
+    extraLayout->addWidget(lazyTitle);
+
+    auto *lazyDesc = new QLabel(
+        QStringLiteral("首次展开时预约内容，400ms 后调用 refreshContentHeight() 刷新高度。"), extraBox);
+    lazyDesc->setWordWrap(true);
+    extraLayout->addWidget(lazyDesc);
+
+    auto *lazy     = new DA::DACollapseWidget(extraBox);
+    auto *lazyItem = lazy->addItem(QStringLiteral("异步加载的内容"), QStringLiteral("lazy"));
+    auto *lazyLog  = new QLabel(QStringLiteral("尚未展开"), extraBox);
+    lazyLog->setStyleSheet(QStringLiteral("color:#909399;"));
+    QObject::connect(lazy, &DA::DACollapseWidget::expandRequested, lazy,
+                     [lazyItem, lazyLog](const QString &name) {
+                         lazyLog->setText(QStringLiteral("expandRequested: ") + name);
+                         lazyItem->setContentWidget(new QLabel(QStringLiteral("加载中…"), lazyItem));
+                         lazyItem->refreshContentHeight();
+                         QTimer::singleShot(400, lazyItem, [lazyItem, lazyLog]() {
+                             auto *label = new QLabel(
+                                 QStringLiteral("加载完成：这里可以替换成耗时构建的表格或图表。"), lazyItem);
+                             label->setWordWrap(true);
+                             lazyItem->setContentWidget(label);
+                             lazyItem->refreshContentHeight();
+                             lazyLog->setText(QStringLiteral("内容已加载，高度已刷新"));
+                         });
+                     });
+    extraLayout->addWidget(lazy);
+    extraLayout->addWidget(lazyLog);
+
+    auto *variantTitle = new QLabel(QStringLiteral("外观变体"), extraBox);
+    variantTitle->setFont(kbFont);
+    extraLayout->addWidget(variantTitle);
+
+    auto makeVariant = [extraBox](DA::DACollapseWidget::Variant variant, const QString &caption) {
+        auto *box = new QWidget(extraBox);
+        auto *lay = new QVBoxLayout(box);
+        lay->setContentsMargins(0, 0, 0, 0);
+        lay->setSpacing(2);
+        auto *captionLabel = new QLabel(caption, box);
+        captionLabel->setStyleSheet(QStringLiteral("color:#909399;"));
+        auto *collapse = new DA::DACollapseWidget(box);
+        collapse->setVariant(variant);
+        addTextContent(collapse->addItem(QStringLiteral("面板 A"), QStringLiteral("a")),
+                       { QStringLiteral("变体只改间距与留白，不改 activeNames。") });
+        addTextContent(collapse->addItem(QStringLiteral("面板 B"), QStringLiteral("b")),
+                       { QStringLiteral("Card 的边框由调用方 qss 提供。") });
+        collapse->setActiveNames({ QStringLiteral("a") });
+        lay->addWidget(captionLabel);
+        lay->addWidget(collapse);
+        return box;
+    };
+
+    extraLayout->addWidget(makeVariant(DA::DACollapseWidget::Variant::Default,
+                                       QStringLiteral("Default（现状）")));
+    extraLayout->addWidget(makeVariant(DA::DACollapseWidget::Variant::Borderless,
+                                       QStringLiteral("Borderless（贴边）")));
+    auto *cardBox = makeVariant(DA::DACollapseWidget::Variant::Card,
+                                QStringLiteral("Card（8px 间距 + qss 边框）"));
+    cardBox->setStyleSheet(QStringLiteral(
+        "DA--DACollapseItem[daVariant=\"card\"] { border:1px solid #EBEEF5; border-radius:4px; }"));
+    extraLayout->addWidget(cardBox);
+    extraLayout->addStretch(1);
+
+    row->addWidget(accordionBox, 1);
+    row->addWidget(multiBox, 1);
+    row->addWidget(extraBox, 1);
+    v->addLayout(row);
+    v->addWidget(log);
 
     return w;
 }
@@ -141,7 +232,7 @@ static QWidget *createCollapseItemContent(QWidget *parent)
 QVector< DemoScene > collapseScenes()
 {
     return {
-        { QStringLiteral("collapse"), QStringLiteral("DACollapseWidget — 折叠面板（手风琴/非手风琴）"),
+        { QStringLiteral("collapse"), QStringLiteral("DACollapseWidget — 折叠面板（手风琴/键盘/懒加载/变体）"),
           createCollapseContent, 0 },
         { QStringLiteral("collapse-item"), QStringLiteral("DACollapseItem — 折叠条目（禁用/自定义标题）"),
           createCollapseItemContent, 0 },
