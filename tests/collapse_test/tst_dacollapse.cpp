@@ -4,6 +4,7 @@
 #include <QPixmap>
 #include <QResizeEvent>
 #include <QSignalSpy>
+#include <QVBoxLayout>
 
 #include "DACollapseWidget.h"
 #include "DACollapseItem.h"
@@ -30,7 +31,41 @@ private Q_SLOTS:
     void testContentNaturalHeightForWordWrap();
     void testExpandDoesNotFlickerSibling();
     void testMixedWidgets();
+    void testKeyboardNavigationDisabledByDefault();
+    void testKeyboardNavigationFocusOrder();
+    void testKeyboardNavigationNoWrap();
+    void testKeyboardNavigationSkipsDisabled();
+    void testKeyboardNavigationEnterAndSpaceToggle();
+    void testKeyboardNavigationKeepsAccordion();
+    void testKeyboardNavigationOffRestoresFocusPolicy();
+    void testExpandRequestedOnceBeforeAnimation();
+    void testExpandRequestedSkippedWhenContentPresent();
+    void testExpandRequestedFromSetActiveNames();
+    void testRefreshContentHeightAfterAsyncLoad();
+    void testVariantDoesNotChangeActiveNames();
+    void testVariantCardSpacing();
+    void testVariantBorderlessCompactPadding();
+    void testVariantPropertyForQss();
+    void testFocusRingPixels();
 };
+
+namespace {
+/// 显示并激活窗口,让焦点断言在离屏/Windows 平台都成立
+void showAndActivate(QWidget* w, const QSize& size = QSize(360, 320))
+{
+    w->resize(size);
+    w->show();
+    QTest::qWaitForWindowExposed(w);
+    w->activateWindow();
+    QTest::qWaitForWindowActive(w);
+    QTest::qWait(20);
+}
+
+QWidget* headerOf(DACollapseItem* item)
+{
+    return item ? item->headerWidget() : nullptr;
+}
+}  // namespace
 
 void DACollapseTest::testBasicExpand()
 {
@@ -442,6 +477,381 @@ void DACollapseTest::testMixedWidgets()
 
     delete w1;
     delete w3;
+}
+
+void DACollapseTest::testKeyboardNavigationDisabledByDefault()
+{
+    DACollapseWidget c;
+    auto* i1 = c.addItem(QStringLiteral("a"), QStringLiteral("1"));
+    c.addItem(QStringLiteral("b"), QStringLiteral("2"));
+
+    QVERIFY(!c.isKeyboardNavigation());
+    for (auto* it : c.items())
+        QCOMPARE(it->headerWidget()->focusPolicy(), Qt::NoFocus);
+
+    // NoFocus 下主动 setFocus 也拿不到焦点
+    headerOf(i1)->setFocus();
+    QVERIFY(!headerOf(i1)->hasFocus());
+}
+
+void DACollapseTest::testKeyboardNavigationFocusOrder()
+{
+    DACollapseWidget c;
+    c.setKeyboardNavigation(true);
+    auto* i1 = c.addItem(QStringLiteral("a"), QStringLiteral("1"));
+    auto* i2 = c.addItem(QStringLiteral("b"), QStringLiteral("2"));
+    auto* i3 = c.addItem(QStringLiteral("c"), QStringLiteral("3"));
+    showAndActivate(&c);
+
+    QWidget* h1 = headerOf(i1);
+    QWidget* h2 = headerOf(i2);
+    QWidget* h3 = headerOf(i3);
+    QCOMPARE(h1->focusPolicy(), Qt::StrongFocus);
+
+    h1->setFocus(Qt::TabFocusReason);
+    QVERIFY(h1->hasFocus());
+
+    QTest::keyClick(h1, Qt::Key_Down);
+    QVERIFY(h2->hasFocus());
+
+    QTest::keyClick(h2, Qt::Key_Up);
+    QVERIFY(h1->hasFocus());
+
+    // 依次 Tab 能停在每个标题上
+    h2->setFocus(Qt::TabFocusReason);
+    QVERIFY(h2->hasFocus());
+    h3->setFocus(Qt::TabFocusReason);
+    QVERIFY(h3->hasFocus());
+}
+
+void DACollapseTest::testKeyboardNavigationNoWrap()
+{
+    DACollapseWidget c;
+    c.setKeyboardNavigation(true);
+    auto* i1 = c.addItem(QStringLiteral("a"), QStringLiteral("1"));
+    auto* i2 = c.addItem(QStringLiteral("b"), QStringLiteral("2"));
+    showAndActivate(&c);
+
+    QWidget* h1 = headerOf(i1);
+    QWidget* h2 = headerOf(i2);
+    h2->setFocus(Qt::TabFocusReason);
+    QVERIFY(h2->hasFocus());
+    QTest::keyClick(h2, Qt::Key_Down);
+    QVERIFY(h2->hasFocus());
+
+    h1->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(h1, Qt::Key_Up);
+    QVERIFY(h1->hasFocus());
+}
+
+void DACollapseTest::testKeyboardNavigationSkipsDisabled()
+{
+    DACollapseWidget c;
+    c.setKeyboardNavigation(true);
+    auto* i1 = c.addItem(QStringLiteral("a"), QStringLiteral("1"));
+    auto* i2 = c.addItem(QStringLiteral("b"), QStringLiteral("2"));
+    auto* i3 = c.addItem(QStringLiteral("c"), QStringLiteral("3"));
+    i2->setDisabled(true);
+    showAndActivate(&c);
+
+    QWidget* h1 = headerOf(i1);
+    h1->setFocus(Qt::TabFocusReason);
+    QVERIFY(h1->hasFocus());
+    QTest::keyClick(h1, Qt::Key_Down);
+    QVERIFY(headerOf(i3)->hasFocus());
+    QVERIFY(!headerOf(i2)->hasFocus());
+}
+
+void DACollapseTest::testKeyboardNavigationEnterAndSpaceToggle()
+{
+    DACollapseWidget c;
+    c.setKeyboardNavigation(true);
+    auto* i1 = c.addItem(QStringLiteral("a"), QStringLiteral("1"));
+    i1->setAnimationEnabled(false);
+    showAndActivate(&c);
+
+    QSignalSpy spy(i1, &DACollapseItem::expandChanged);
+    QWidget* h1 = headerOf(i1);
+    h1->setFocus(Qt::TabFocusReason);
+    QVERIFY(h1->hasFocus());
+
+    QTest::keyClick(h1, Qt::Key_Return);
+    QVERIFY(i1->expanded());
+    QCOMPARE(spy.count(), 1);
+
+    QTest::keyClick(h1, Qt::Key_Space);
+    QVERIFY(!i1->expanded());
+    QCOMPARE(spy.count(), 2);
+}
+
+void DACollapseTest::testKeyboardNavigationKeepsAccordion()
+{
+    DACollapseWidget c;
+    c.setAccordion(true);
+    c.setKeyboardNavigation(true);
+    auto* i1 = c.addItem(QStringLiteral("a"), QStringLiteral("1"));
+    auto* i2 = c.addItem(QStringLiteral("b"), QStringLiteral("2"));
+    i1->setAnimationEnabled(false);
+    i2->setAnimationEnabled(false);
+    showAndActivate(&c);
+
+    QWidget* h2 = headerOf(i2);
+    h2->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(h2, Qt::Key_Return);
+    QVERIFY(i2->expanded());
+    QVERIFY(!i1->expanded());
+    QCOMPARE(c.activeNames(), QStringList{ QStringLiteral("2") });
+}
+
+void DACollapseTest::testKeyboardNavigationOffRestoresFocusPolicy()
+{
+    DACollapseWidget c;
+    c.setKeyboardNavigation(true);
+    auto* i1 = c.addItem(QStringLiteral("a"), QStringLiteral("1"));
+    auto* i2 = c.addItem(QStringLiteral("b"), QStringLiteral("2"));
+    showAndActivate(&c);
+
+    QWidget* h1 = headerOf(i1);
+    h1->setFocus(Qt::TabFocusReason);
+    QVERIFY(h1->hasFocus());
+
+    c.setKeyboardNavigation(false);
+    QCOMPARE(h1->focusPolicy(), Qt::NoFocus);
+    QCOMPARE(headerOf(i2)->focusPolicy(), Qt::NoFocus);
+    QVERIFY(!h1->hasFocus());
+
+    // 关闭后方向键不再移动焦点
+    QTest::keyClick(h1, Qt::Key_Down);
+    QVERIFY(!headerOf(i2)->hasFocus());
+    QVERIFY(!h1->hasFocus());
+}
+
+void DACollapseTest::testExpandRequestedOnceBeforeAnimation()
+{
+    DACollapseWidget c;
+    auto* item = c.addItem(QStringLiteral("a"), QStringLiteral("1"));
+    QSignalSpy contentSpy(item, &DACollapseItem::contentRequested);
+    QSignalSpy requestSpy(&c, &DACollapseWidget::expandRequested);
+
+    int heightInSlot = -1;
+    QObject::connect(&c, &DACollapseWidget::expandRequested, [&](const QString& name) {
+        auto* content = c.item(name)->findChild< QFrame* >(QStringLiteral("DACollapseItemContent"));
+        if (content)
+            heightInSlot = content->height();
+    });
+
+    item->setExpanded(true);
+    QCOMPARE(contentSpy.count(), 1);
+    QCOMPARE(requestSpy.count(), 1);
+    QCOMPARE(requestSpy.at(0).at(0).toString(), QStringLiteral("1"));
+    // 信号在动画开始前发出,此时内容区尚未展开
+    QCOMPARE(heightInSlot, 0);
+
+    // 同一面板再次展开不应重复请求
+    item->setExpanded(false);
+    item->setExpanded(true);
+    QCOMPARE(contentSpy.count(), 1);
+    QCOMPARE(requestSpy.count(), 1);
+
+    // 宿主在槽里同步提供内容时,展开高度直接等于自然高度
+    DACollapseWidget c2;
+    auto* item2 = c2.addItem(QStringLiteral("b"), QStringLiteral("2"));
+    item2->setAnimationEnabled(false);
+    QObject::connect(&c2, &DACollapseWidget::expandRequested, [item2](const QString&) {
+        auto* lbl = new QLabel(QStringLiteral("synchronous content"));
+        lbl->setMinimumHeight(48);
+        item2->setContentWidget(lbl);
+    });
+    item2->setExpanded(true);
+    auto* content2 = item2->findChild< QFrame* >(QStringLiteral("DACollapseItemContent"));
+    QVERIFY(content2);
+    QVERIFY2(content2->maximumHeight() >= 48,
+             qPrintable(QStringLiteral("maxHeight=%1").arg(content2->maximumHeight())));
+}
+
+void DACollapseTest::testExpandRequestedSkippedWhenContentPresent()
+{
+    DACollapseWidget c;
+    auto* item = c.addItem(QStringLiteral("a"), QStringLiteral("1"));
+    item->setContentWidget(new QLabel(QStringLiteral("already here")));
+    item->setAnimationEnabled(false);
+    QSignalSpy contentSpy(item, &DACollapseItem::contentRequested);
+    QSignalSpy requestSpy(&c, &DACollapseWidget::expandRequested);
+
+    item->setExpanded(true);
+    QCOMPARE(contentSpy.count(), 0);
+    QCOMPARE(requestSpy.count(), 0);
+}
+
+void DACollapseTest::testExpandRequestedFromSetActiveNames()
+{
+    DACollapseWidget c;
+    c.addItem(QStringLiteral("a"), QStringLiteral("1"))->setAnimationEnabled(false);
+    c.addItem(QStringLiteral("b"), QStringLiteral("2"))->setAnimationEnabled(false);
+    QSignalSpy requestSpy(&c, &DACollapseWidget::expandRequested);
+
+    c.setActiveNames({ QStringLiteral("2") });
+    QCOMPARE(requestSpy.count(), 1);
+    QCOMPARE(requestSpy.at(0).at(0).toString(), QStringLiteral("2"));
+}
+
+void DACollapseTest::testRefreshContentHeightAfterAsyncLoad()
+{
+    DACollapseWidget c;
+    auto* i1 = c.addItem(QStringLiteral("a"), QStringLiteral("1"));
+    auto* i2 = c.addItem(QStringLiteral("b"), QStringLiteral("2"));
+    i1->setAnimationEnabled(false);
+    i2->setAnimationEnabled(false);
+    showAndActivate(&c);
+
+    i1->setExpanded(true);
+    QTest::qWait(30);
+    auto* content = i1->findChild< QFrame* >(QStringLiteral("DACollapseItemContent"));
+    QVERIFY(content);
+    const int emptyHeight = content->maximumHeight();
+
+    auto* lbl = new QLabel(QStringLiteral("async line 1\nasync line 2\nasync line 3"));
+    lbl->setMinimumHeight(64);
+    i1->setContentWidget(lbl);
+    i1->refreshContentHeight();
+
+    QVERIFY2(content->maximumHeight() >= 64 && content->maximumHeight() > emptyHeight,
+             qPrintable(QStringLiteral("maxHeight=%1 empty=%2")
+                            .arg(content->maximumHeight())
+                            .arg(emptyHeight)));
+
+    // 折叠态调用 refreshContentHeight 必须早退,不能把 maximumHeight 改掉
+    auto* content2 = i2->findChild< QFrame* >(QStringLiteral("DACollapseItemContent"));
+    QVERIFY(content2);
+    i2->refreshContentHeight();
+    QCOMPARE(content2->maximumHeight(), 0);
+}
+
+void DACollapseTest::testVariantDoesNotChangeActiveNames()
+{
+    DACollapseWidget c;
+    c.addItem(QStringLiteral("a"), QStringLiteral("1"))->setAnimationEnabled(false);
+    c.addItem(QStringLiteral("b"), QStringLiteral("2"))->setAnimationEnabled(false);
+    c.addItem(QStringLiteral("c"), QStringLiteral("3"))->setAnimationEnabled(false);
+    c.setActiveNames({ QStringLiteral("1"), QStringLiteral("3") });
+
+    QSignalSpy spy(&c, &DACollapseWidget::activeNamesChanged);
+    c.setVariant(DACollapseWidget::Variant::Borderless);
+    c.setVariant(DACollapseWidget::Variant::Card);
+    c.setVariant(DACollapseWidget::Variant::Default);
+
+    QCOMPARE(c.activeNames(), (QStringList{ QStringLiteral("1"), QStringLiteral("3") }));
+    QCOMPARE(spy.count(), 0);
+    QVERIFY(c.item(QStringLiteral("1"))->expanded());
+    QVERIFY(!c.item(QStringLiteral("2"))->expanded());
+    QVERIFY(c.item(QStringLiteral("3"))->expanded());
+}
+
+void DACollapseTest::testVariantCardSpacing()
+{
+    DACollapseWidget c;
+    c.addItem(QStringLiteral("a"), QStringLiteral("1"))->setAnimationEnabled(false);
+    c.addItem(QStringLiteral("b"), QStringLiteral("2"))->setAnimationEnabled(false);
+    showAndActivate(&c, QSize(360, 400));
+
+    auto gap = [&c]() {
+        c.layout()->activate();
+        QCoreApplication::processEvents();
+        const auto items = c.items();
+        return items.at(1)->geometry().top() - items.at(0)->geometry().bottom() - 1;
+    };
+
+    QCOMPARE(gap(), 0);
+    c.setVariant(DACollapseWidget::Variant::Card);
+    QCOMPARE(gap(), 8);
+    c.setVariant(DACollapseWidget::Variant::Default);
+    QCOMPARE(gap(), 0);
+}
+
+void DACollapseTest::testVariantBorderlessCompactPadding()
+{
+    DACollapseWidget c;
+    auto* item = c.addItem(QStringLiteral("a"), QStringLiteral("1"));
+    item->setAnimationEnabled(false);
+    showAndActivate(&c);
+
+    auto* arrow = item->findChild< QLabel* >(QStringLiteral("DACollapseItemArrow"));
+    QVERIFY(arrow);
+
+    auto settle = [&]() {
+        c.layout()->activate();
+        if (auto* hl = item->headerWidget()->layout())
+            hl->activate();
+        QCoreApplication::processEvents();
+    };
+
+    settle();
+    QCOMPARE(arrow->x(), 12);
+    QCOMPARE(item->contentLayout()->contentsMargins().left(), 12);
+
+    c.setVariant(DACollapseWidget::Variant::Borderless);
+    settle();
+    QCOMPARE(arrow->x(), 0);
+    QCOMPARE(item->contentLayout()->contentsMargins().left(), 0);
+
+    c.setVariant(DACollapseWidget::Variant::Default);
+    settle();
+    QCOMPARE(arrow->x(), 12);
+    QCOMPARE(item->contentLayout()->contentsMargins().left(), 12);
+}
+
+void DACollapseTest::testVariantPropertyForQss()
+{
+    DACollapseWidget c;
+    auto* i1 = c.addItem(QStringLiteral("a"), QStringLiteral("1"));
+    auto* i2 = c.addItem(QStringLiteral("b"), QStringLiteral("2"));
+    QCOMPARE(i1->property("daVariant").toString(), QStringLiteral("default"));
+
+    c.setVariant(DACollapseWidget::Variant::Card);
+    QCOMPARE(c.property("daVariant").toString(), QStringLiteral("card"));
+    QCOMPARE(i1->property("daVariant").toString(), QStringLiteral("card"));
+    QCOMPARE(i2->property("daVariant").toString(), QStringLiteral("card"));
+
+    auto* i3 = c.addItem(QStringLiteral("c"), QStringLiteral("3"));
+    QCOMPARE(i3->property("daVariant").toString(), QStringLiteral("card"));
+}
+
+void DACollapseTest::testFocusRingPixels()
+{
+    DACollapseWidget c;
+    c.setKeyboardNavigation(true);
+    auto* item = c.addItem(QStringLiteral("a"), QStringLiteral("1"));
+    item->setAnimationEnabled(false);
+    showAndActivate(&c, QSize(360, 200));
+
+    QWidget* header = headerOf(item);
+    QVERIFY(header);
+    // 窗口激活时 Qt 可能已把焦点给第一个可聚焦控件,先确保失焦再取基准图
+    header->clearFocus();
+    QTest::qWait(20);
+    QVERIFY(!header->hasFocus());
+    const QImage unfocused = header->grab().toImage();
+
+    header->setFocus(Qt::TabFocusReason);
+    QVERIFY(header->hasFocus());
+    QTest::qWait(30);
+    const QImage focused = header->grab().toImage();
+
+    QCOMPARE(focused.size(), unfocused.size());
+    int diff = 0;
+    int nearEdge = 0;
+    for (int y = 0; y < focused.height(); ++y) {
+        for (int x = 0; x < focused.width(); ++x) {
+            if (focused.pixel(x, y) == unfocused.pixel(x, y))
+                continue;
+            ++diff;
+            if (x <= 5 || y <= 5 || x >= focused.width() - 6 || y >= focused.height() - 6)
+                ++nearEdge;
+        }
+    }
+    QVERIFY2(diff > 40, qPrintable(QStringLiteral("focus ring diff pixels=%1").arg(diff)));
+    QVERIFY2(nearEdge > 40,
+             qPrintable(QStringLiteral("focus ring pixels near edge=%1 of %2").arg(nearEdge).arg(diff)));
 }
 
 QTEST_MAIN(DACollapseTest)
