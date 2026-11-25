@@ -276,6 +276,9 @@ int DAFlowLayout::doLayout(const QRect &rect, bool testOnly) const
 
 	for (int i = 0; i < n; ++i) {
 		QLayoutItem *item = d->items.at(i);
+		// 隐藏控件(例如折叠的标签 chip)不占位,也不吃水平/垂直间距
+		if (item->isEmpty())
+			continue;
 		const bool trailing = d->trailingExpanding && (i == n - 1);
 
 		if (trailing) {
@@ -338,8 +341,10 @@ int DAFlowLayout::smartSpacing(QStyle::PixelMetric pm) const
 
 
 /*** Start of inlined file: DAChip.cpp ***/
+#include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLayout>
 #include <QMouseEvent>
 #include <QToolButton>
 
@@ -351,6 +356,7 @@ public:
 	PrivateData(DAChip *) {}
 	QString text;
 	bool closable { true };
+	int elideWidth { 0 };
 	QLabel *label { nullptr };
 	QToolButton *closeBtn { nullptr };
 };
@@ -414,6 +420,7 @@ void DAChip::init()
 	d->closeBtn->setVisible(d->closable);
 
 	setAttribute(Qt::WA_LayoutUsesWidgetRect);
+	applyElide();
 }
 
 /**
@@ -437,7 +444,7 @@ void DAChip::setText(const QString &text)
 	if (d->text == text)
 		return;
 	d->text = text;
-	d->label->setText(text);
+	applyElide();
 	Q_EMIT textChanged(text);
 }
 
@@ -463,7 +470,69 @@ void DAChip::setClosable(bool on)
 		return;
 	d->closable = on;
 	d->closeBtn->setVisible(on);
+	// 关闭按钮显隐会改变 label 可用宽度，省略结果需要重算
+	applyElide();
 	Q_EMIT closableChanged(on);
+}
+
+/**
+ * @brief 设置标签最大宽度
+ * @param px 最大宽度（像素），0 表示不省略
+ * @details 超过宽度时 label 以 … 结尾显示，全文进入 tooltip；text() 仍返回全文。
+ *          tooltip 由本控件接管，会覆盖调用方通过 setToolTip() 设置的内容。
+ */
+void DAChip::setElideWidth(int px)
+{
+	DA_D(d);
+	px = qMax(0, px);
+	if (d->elideWidth == px)
+		return;
+	d->elideWidth = px;
+	applyElide();
+}
+
+/**
+ * @brief 获取标签最大宽度
+ * @return 最大宽度（像素），0 表示不省略
+ */
+int DAChip::elideWidth() const
+{
+	DA_DC(d);
+	return d->elideWidth;
+}
+
+/**
+ * @brief 按 elideWidth 重新计算显示文本
+ * @details 关闭时恢复全文、清空 tooltip 与最大宽度；开启时按布局可用宽度做右侧省略。
+ */
+void DAChip::applyElide()
+{
+	DA_D(d);
+	if (!d->label)
+		return;
+	if (d->elideWidth <= 0) {
+		d->label->setText(d->text);
+		d->label->setToolTip(QString());
+		setToolTip(QString());
+		setMaximumWidth(QWIDGETSIZE_MAX);
+		updateGeometry();
+		return;
+	}
+	QLayout *lay = layout();
+	const QMargins m = lay->contentsMargins();
+	int avail = d->elideWidth - m.left() - m.right() - lay->spacing();
+	// 用 closable 而不是 closeBtn->isVisible()：控件 show() 之前 isVisible() 恒为 false，
+	// 会算出偏大的可用宽度，导致第一次布局时省略结果不准
+	if (d->closable && d->closeBtn)
+		avail -= d->closeBtn->sizeHint().width();
+	// 宽度过小时至少给关闭按钮留出空间，避免负宽度
+	avail = qMax(avail, 0);
+	const QFontMetrics fm(d->label->font());
+	d->label->setText(fm.elidedText(d->text, Qt::ElideRight, avail));
+	d->label->setToolTip(d->text);
+	setToolTip(d->text);
+	setMaximumWidth(d->elideWidth);
+	updateGeometry();
 }
 
 /**
@@ -483,10 +552,18 @@ void DAChip::mousePressEvent(QMouseEvent *e)
 
 
 /*** Start of inlined file: DAChipsEdit.cpp ***/
+#include <QClipboard>
+#include <QColor>
 #include <QFocusEvent>
+#include <QGuiApplication>
+#include <QInputMethodEvent>
 #include <QKeyEvent>
+#include <QKeySequence>
+#include <QLabel>
 #include <QLineEdit>
+#include <QPalette>
 #include <QRegularExpression>
+#include <QResizeEvent>
 #include <QSet>
 
 namespace DA
@@ -505,6 +582,13 @@ public:
 	int maxCount { -1 };
 	QList<Separator> separators;
 	QSet<QChar> extraSeparators;
+	bool pasteSplitEnabled { false };
+	bool imeComposing { false };
+	int tagElideWidth { 0 };
+	bool showCount { false };
+	QLabel *countLabel { nullptr };
+	// 打开计数前 layout 的底部 margin，关闭时原样恢复
+	int countMarginBackup { -1 };
 };
 
 /**
@@ -537,6 +621,8 @@ DAChipsEdit::DAChipsEdit(QWidget *parent) : QFrame(parent), DA_PIMPL_CONSTRUCT
 	connect(d->input, &QLineEdit::returnPressed, this, &DAChipsEdit::commitInput);
 	connect(d->input, &QLineEdit::textEdited, this, &DAChipsEdit::onInputEdited);
 	connect(d->input, &QLineEdit::textChanged, this, &DAChipsEdit::inputTextChanged);
+	// 计数标签文本由标签列表统一驱动，覆盖 append/insert/remove/clear/setTags/截断
+	connect(this, &DAChipsEdit::tagsChanged, this, [this] { updateCountLabel(); });
 }
 
 /**
@@ -738,6 +824,131 @@ void DAChipsEdit::setAllowDuplicate(bool on)
 }
 
 /**
+ * @brief 打开/关闭粘贴批量拆分
+ * @param on 是否开启（默认 false）
+ * @details 关闭时不拦截任何按键、不读剪贴板，行为与旧版本一致
+ */
+void DAChipsEdit::setPasteSplitEnabled(bool on)
+{
+	DA_D(d);
+	d->pasteSplitEnabled = on;
+}
+
+/**
+ * @brief 粘贴批量拆分是否开启
+ * @return 开启返回 true
+ */
+bool DAChipsEdit::isPasteSplitEnabled() const
+{
+	DA_DC(d);
+	return d->pasteSplitEnabled;
+}
+
+/**
+ * @brief 粘贴的唯一入口
+ * @param text 待粘贴文本
+ * @details 开关关闭或 allowCreate 为 false 时退化为普通插入输入框；
+ *          开启时按分隔符拆成 token，先发 pasteSplit，再逐个追加为标签。
+ *          快捷键、单测与 demo 的"模拟粘贴"共用本函数。
+ */
+void DAChipsEdit::pasteText(const QString &text)
+{
+	DA_D(d);
+	if (text.trimmed().isEmpty())
+		return;
+	if (!d->allowCreate || !d->pasteSplitEnabled) {
+		d->input->insert(text);
+		return;
+	}
+	const QStringList tokens = splitForPaste(text);
+	if (tokens.isEmpty())
+		return;
+	Q_EMIT pasteSplit(tokens);
+	applyPastedTokens(tokens);
+}
+
+/**
+ * @brief 设置 chip 最大宽度
+ * @param px 最大宽度（像素），0 表示不省略（默认）
+ */
+void DAChipsEdit::setTagElideWidth(int px)
+{
+	DA_D(d);
+	px = qMax(0, px);
+	d->tagElideWidth = px;
+	for (DAChip *chip : d->chips)
+		chip->setElideWidth(px);
+	d->layout->invalidate();
+}
+
+/**
+ * @brief 获取 chip 最大宽度
+ * @return 最大宽度（像素），0 表示不省略
+ */
+int DAChipsEdit::tagElideWidth() const
+{
+	DA_DC(d);
+	return d->tagElideWidth;
+}
+
+/**
+ * @brief 显示/隐藏右下角数量计数
+ * @param on 是否显示（默认 false）
+ * @details 开启时创建私有 QLabel 并预留底部 margin，标签不进 DAFlowLayout，
+ *          因此不会夺走末尾输入框的自动伸展；关闭时删除标签并恢复原 margin。
+ */
+void DAChipsEdit::setShowCount(bool on)
+{
+	DA_D(d);
+	if (d->showCount == on)
+		return;
+	d->showCount = on;
+	QMargins m = d->layout->contentsMargins();
+	if (on) {
+		if (!d->countLabel) {
+			d->countLabel = new QLabel(this);
+			d->countLabel->setObjectName(QStringLiteral("DAChipsEditCount"));
+			d->countLabel->setFocusPolicy(Qt::NoFocus);
+			d->countLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+			QFont f = d->countLabel->font();
+			f.setPixelSize(11);
+			d->countLabel->setFont(f);
+			QPalette pal = d->countLabel->palette();
+			pal.setColor(QPalette::WindowText, QColor(0xA8, 0xAB, 0xB2));
+			d->countLabel->setPalette(pal);
+		}
+		// 记下调用方当前 margin，关闭时原样恢复，不写死 4
+		d->countMarginBackup = m.bottom();
+		m.setBottom(m.bottom() + d->countLabel->sizeHint().height() + 2);
+		d->layout->setContentsMargins(m);
+		updateCountLabel();
+		d->countLabel->show();
+		d->countLabel->raise();
+	} else {
+		if (d->countLabel) {
+			d->countLabel->hide();
+			d->countLabel->deleteLater();
+			d->countLabel = nullptr;
+		}
+		if (d->countMarginBackup >= 0) {
+			m.setBottom(d->countMarginBackup);
+			d->layout->setContentsMargins(m);
+			d->countMarginBackup = -1;
+		}
+	}
+}
+
+/**
+ * @brief 是否显示右下角数量计数
+ * @return 显示返回 true
+ */
+bool DAChipsEdit::showCount() const
+{
+	DA_DC(d);
+	return d->showCount;
+}
+
+/**
  * @brief 获取标签数量上限
  * @return 上限值，-1 表示无限制
  */
@@ -761,6 +972,8 @@ void DAChipsEdit::setMaxCount(int count)
 		rebuildChips();
 		Q_EMIT tagsChanged(d->tags);
 	}
+	// 未触发截断时没有 tagsChanged，计数标签仍要跟着换分母
+	updateCountLabel();
 }
 
 /**
@@ -851,8 +1064,9 @@ QSize DAChipsEdit::minimumSizeHint() const
  * @param watched 被监听的对象
  * @param event 事件
  * @return 是否拦截事件
- * @details FocusIn/FocusOut 发射 inputFocusChanged；KeyPress 先发射 inputKeyEvent
- *          供外部拦截，未拦截时处理 Backspace 删末尾标签、Tab 提交、Escape 清空
+ * @details FocusIn/FocusOut 发射 inputFocusChanged；KeyPress 先做 IME 组字与粘贴
+ *          拦截，再发射 inputKeyEvent 供外部拦截，未拦截时处理 Backspace 删末尾标签、
+ *          Tab 提交、Escape 清空
  */
 bool DAChipsEdit::eventFilter(QObject *watched, QEvent *event)
 {
@@ -863,13 +1077,32 @@ bool DAChipsEdit::eventFilter(QObject *watched, QEvent *event)
 			Q_EMIT inputFocusChanged(true);
 		} else if (t == QEvent::FocusOut) {
 			Q_EMIT inputFocusChanged(false);
+		} else if (t == QEvent::InputMethod) {
+			// 只观察不消费：组字中（preedit 非空且无 commit）与组字结束的判定
+			auto *ime = static_cast< QInputMethodEvent * >(event);
+			if (!ime->commitString().isEmpty() || ime->replacementLength() > 0)
+				d->imeComposing = false;
+			else if (!ime->preeditString().isEmpty())
+				d->imeComposing = true;
 		} else if (t == QEvent::KeyPress) {
 			auto *ke = static_cast< QKeyEvent * >(event);
+			const int key = ke->key();
+			// IME 守卫必须在 inputKeyEvent 之前：否则 DASelectComboBox 已经选中候选
+			if (d->imeComposing && (key == Qt::Key_Return || key == Qt::Key_Enter))
+				return true;
+			// 粘贴拦截同样先于 inputKeyEvent，避免外部先消费 Ctrl+V
+			if (d->pasteSplitEnabled && ke->matches(QKeySequence::Paste)) {
+				const QString clip = QGuiApplication::clipboard()->text();
+				if (clip.isEmpty())
+					Q_EMIT pasteRejected(QStringLiteral("clipboard"));
+				else
+					pasteText(clip);
+				return true;
+			}
 			bool handled = false;
 			Q_EMIT inputKeyEvent(ke, &handled);
 			if (handled)
 				return true;
-			const int key = ke->key();
 			if (key == Qt::Key_Backspace && d->input->text().isEmpty() && !d->chips.isEmpty()) {
 				removeAt(d->chips.size() - 1);
 				return true;
@@ -899,6 +1132,17 @@ void DAChipsEdit::focusInEvent(QFocusEvent *event)
 }
 
 /**
+ * @brief 尺寸变化时重新定位右下角计数标签
+ * @param event 尺寸事件
+ * @details 只做 setGeometry，不改 margin，避免与流式布局互相触发
+ */
+void DAChipsEdit::resizeEvent(QResizeEvent *event)
+{
+	QFrame::resizeEvent(event);
+	positionCountLabel();
+}
+
+/**
  * @brief 重建所有 DAChip 子控件
  * @details 先删除现有所有 chip，再按 d->tags 逐一创建。用于标签列表整体替换后刷新视图
  */
@@ -925,6 +1169,7 @@ void DAChipsEdit::addChipWidget(const QString &text)
 	DA_D(d);
 	auto *chip = new DAChip(text, this);
 	chip->setClosable(true);
+	chip->setElideWidth(d->tagElideWidth);
 	const int idx = d->chips.size();  // 插在末尾输入框之前
 	d->layout->insertWidget(idx, chip);
 	d->chips.append(chip);
@@ -945,6 +1190,9 @@ void DAChipsEdit::addChipWidget(const QString &text)
 void DAChipsEdit::commitInput()
 {
 	DA_D(d);
+	// 第二道闸：returnPressed 可能绕过事件过滤器
+	if (d->imeComposing)
+		return;
 	const QString raw = d->input->text();
 	if (raw.isEmpty())
 		return;
@@ -1024,6 +1272,107 @@ QRegularExpression DAChipsEdit::separatorRegex() const
 	pattern += QStringLiteral("]");
 	return QRegularExpression(pattern);
 }
+
+/**
+ * @brief 按分隔符拆分待粘贴文本
+ * @param text 原始粘贴文本
+ * @return 已 trim、已丢弃空串的 token 列表
+ * @details 换行先归一为 \n；仅当分隔符集合含 Enter 时把 \n 当作分隔符，
+ *          避免 DASelectComboBox（无分隔符）里粘贴一行文字被拆成多个候选过滤词。
+ *          上界：分隔符集合为空时整段作为一个 token。
+ */
+QStringList DAChipsEdit::splitForPaste(const QString &text) const
+{
+	DA_DC(d);
+	QString normalized = text;
+	normalized.replace(QStringLiteral("\r\n"), QStringLiteral("\n"));
+	normalized.replace(QLatin1Char('\r'), QLatin1Char('\n'));
+
+	// 字符集来自 QSet，天然去重；空集合不能构造 "[]" 这种非法正则
+	QString chars;
+	for (const QChar &c : separatorChars())
+		chars += c;
+	if (d->separators.contains(Separator::Enter))
+		chars += QLatin1Char('\n');
+	if (chars.isEmpty()) {
+		const QString whole = normalized.trimmed();
+		return whole.isEmpty() ? QStringList() : QStringList { whole };
+	}
+
+	QString pattern = QStringLiteral("[");
+	for (const QChar &c : chars) {
+		if (c == QLatin1Char(']') || c == QLatin1Char('\\') || c == QLatin1Char('^')
+			|| c == QLatin1Char('-') || c == QLatin1Char('['))
+			pattern += QLatin1Char('\\');
+		pattern += c;
+	}
+	pattern += QStringLiteral("]");
+
+#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
+	const QStringList parts = normalized.split(QRegularExpression(pattern), Qt::SkipEmptyParts);
+#else
+	const QStringList parts = normalized.split(QRegularExpression(pattern), QString::SkipEmptyParts);
+#endif
+	QStringList out;
+	out.reserve(parts.size());
+	for (const QString &p : parts) {
+		const QString s = p.trimmed();
+		if (!s.isEmpty())
+			out << s;
+	}
+	return out;
+}
+
+/**
+ * @brief 把粘贴拆出的 token 逐个追加为标签
+ * @param tokens splitForPaste() 的输出
+ * @details 去重与 maxCount 仍由 appendTag() 判定；只有被 maxCount 挡住时才发
+ *          pasteRejected("maxCount")，重复项按既有语义静默丢弃。
+ */
+void DAChipsEdit::applyPastedTokens(const QStringList &tokens)
+{
+	DA_D(d);
+	bool hitMaxCount = false;
+	for (const QString &t : tokens) {
+		if (d->maxCount >= 0 && d->tags.size() >= d->maxCount) {
+			hitMaxCount = true;
+			break;
+		}
+		appendTag(t);
+	}
+	if (hitMaxCount)
+		Q_EMIT pasteRejected(QStringLiteral("maxCount"));
+}
+
+/**
+ * @brief 刷新右下角计数标签文本与位置
+ * @details maxCount >= 0 显示 "n / max"，否则只显示 n
+ */
+void DAChipsEdit::updateCountLabel()
+{
+	DA_D(d);
+	if (!d->countLabel)
+		return;
+	const int n = d->tags.size();
+	d->countLabel->setText(d->maxCount >= 0
+							   ? QStringLiteral("%1 / %2").arg(n).arg(d->maxCount)
+							   : QString::number(n));
+	positionCountLabel();
+}
+
+/**
+ * @brief 把计数标签定位到右下角
+ * @details 标签不进 DAFlowLayout，否则会抢走末尾输入框的伸展
+ */
+void DAChipsEdit::positionCountLabel()
+{
+	DA_D(d);
+	if (!d->countLabel)
+		return;
+	const QSize hint = d->countLabel->sizeHint();
+	d->countLabel->setGeometry(width() - 4 - hint.width(), height() - 4 - hint.height(),
+							   hint.width(), hint.height());
+}
 }  // namespace DA
 
 /*** End of inlined file: DAChipsEdit.cpp ***/
@@ -1031,20 +1380,28 @@ QRegularExpression DAChipsEdit::separatorRegex() const
 
 /*** Start of inlined file: DASelectComboBox.cpp ***/
 #include <QApplication>
+#include <QIcon>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QListWidgetItem>
+#include <QPainter>
+#include <QPointer>
+#include <QPushButton>
 #include <QResizeEvent>
 #include <QScrollArea>
 #include <QStyle>
 #include <QStyleOptionComboBox>
 #include <QTimer>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 namespace DA
 {
 namespace {
+constexpr int kGroupRole = Qt::UserRole + 1;
+
 // 隐形占位 QLineEdit：QComboBox editable 模式需要一个 lineEdit，这里让它透明、
 // 不绘制、不接收鼠标、不参与焦点，编辑区完全交给覆盖在上层的 DAChipsEdit。
 class HiddenLineEdit : public QLineEdit
@@ -1061,6 +1418,97 @@ public:
 protected:
 	void paintEvent(QPaintEvent *) override {}
 };
+
+// 空态面板：叠在弹层 viewport 上的覆盖控件（不插占位 item，popup->clear() 不会波及）
+class EmptyPanel : public QWidget
+{
+public:
+	explicit EmptyPanel(QWidget *parent = nullptr) : QWidget(parent)
+	{
+		setObjectName(QStringLiteral("DASelectEmptyPanel"));
+		auto *lay = new QVBoxLayout(this);
+		lay->setContentsMargins(8, 8, 8, 8);
+		lay->setSpacing(8);
+		lay->addStretch(1);
+
+		m_text = new QLabel(this);
+		m_text->setObjectName(QStringLiteral("DASelectEmptyText"));
+		m_text->setAlignment(Qt::AlignCenter);
+		m_text->setWordWrap(true);
+		lay->addWidget(m_text);
+
+		m_create = new QPushButton(this);
+		m_create->setObjectName(QStringLiteral("DASelectCreateButton"));
+		m_create->setCursor(Qt::PointingHandCursor);
+		m_create->hide();
+		lay->addWidget(m_create, 0, Qt::AlignHCenter);
+		lay->addStretch(1);
+
+		setStyleSheet(QStringLiteral(
+			"QLabel#DASelectEmptyText { color:#909399; }"
+			"QPushButton#DASelectCreateButton { color:#409eff; border:1px solid #d9ecff;"
+			" border-radius:4px; padding:2px 10px; background:#ecf5ff; }"
+			"QPushButton#DASelectCreateButton:hover { background:#d9ecff; }"));
+	}
+
+	void setText(const QString &text) { m_text->setText(text); }
+	void setCreateText(const QString &text) { m_create->setText(text); }
+	void setCreateVisible(bool on) { m_create->setVisible(on); }
+	QPushButton *createButton() const { return m_create; }
+
+private:
+	QLabel *m_text { nullptr };
+	QPushButton *m_create { nullptr };
+};
+
+QPixmap makeClearPixmap(const QColor &color)
+{
+	QPixmap pm(12, 12);
+	pm.fill(Qt::transparent);
+	QPainter p(&pm);
+	p.setRenderHint(QPainter::Antialiasing, true);
+	p.setPen(QPen(color, 1.6, Qt::SolidLine, Qt::RoundCap));
+	p.drawLine(QPointF(3.5, 3.5), QPointF(8.5, 8.5));
+	p.drawLine(QPointF(8.5, 3.5), QPointF(3.5, 8.5));
+	p.end();
+	return pm;
+}
+
+bool isGroupHeader(const QListWidgetItem *item)
+{
+	return item && item->data(kGroupRole).isValid();
+}bool isActionable(const QListWidgetItem *item)
+{
+	return item && (item->flags() & Qt::ItemIsSelectable);
+}
+
+int nextActionableRow(QListWidget *popup, int from, int step)
+{
+	if (!popup || step == 0)
+		return -1;
+	int i = from;
+	if (i < 0) {
+		if (step < 0)
+			return -1;
+		i = -1;
+	}
+	for (i += step; i >= 0 && i < popup->count(); i += step) {
+		if (isActionable(popup->item(i)))
+			return i;
+	}
+	return -1;
+}
+
+int firstActionableRow(QListWidget *popup)
+{
+	if (!popup)
+		return -1;
+	for (int i = 0; i < popup->count(); ++i) {
+		if (isActionable(popup->item(i)))
+			return i;
+	}
+	return -1;
+}
 }  // namespace
 
 class DASelectComboBox::PrivateData
@@ -1072,11 +1520,24 @@ public:
 	QScrollArea *scroll { nullptr };
 	QListWidget *popup { nullptr };
 	QStringList options;
+	QVector< DASelectGroup > groups;
 	bool allowCreate { true };
 	bool filterable { true };
 	HeightMode heightMode { HeightMode::GrowWithTags };
 	int fixedRowCount { 1 };
 	bool popupVisible { false };
+
+	bool emptyStateEnabled { false };
+	QString noMatchText;
+	EmptyPanel *emptyPanel { nullptr };
+	QPointer< QWidget > emptyWidget;
+
+	bool clearable { false };
+	bool collapseTags { false };
+	int collapseTagCount { 2 };
+	QToolButton *clearButton { nullptr };
+	QLabel *collapseLabel { nullptr };
+	bool hovered { false };
 };
 
 /**
@@ -1122,6 +1583,12 @@ DASelectComboBox::DASelectComboBox(QWidget *parent) : QComboBox(parent), DA_PIMP
 	d->popup->setMinimumHeight(40);
 	d->popup->hide();
 
+	// 空态面板是弹层 viewport 上的覆盖控件:popup->clear() 不会销毁它
+	d->emptyPanel = new EmptyPanel(d->popup);
+	d->emptyPanel->hide();
+	d->noMatchText = tr("No matching items");  //cn:没有匹配项
+	connect(d->emptyPanel->createButton(), &QPushButton::clicked, this, [this] { activateByInput(); });
+
 	connect(d->chips, &DAChipsEdit::inputTextChanged, this, &DASelectComboBox::onInputTextChanged);
 	connect(d->chips, &DAChipsEdit::inputFocusChanged, this, &DASelectComboBox::onInputFocusChanged);
 	connect(d->chips, &DAChipsEdit::inputKeyEvent, this, &DASelectComboBox::onInputKey);
@@ -1131,6 +1598,7 @@ DASelectComboBox::DASelectComboBox(QWidget *parent) : QComboBox(parent), DA_PIMP
 			updateGeometry();
 	});
 	connect(d->chips, &DAChipsEdit::tagsChanged, this, &DASelectComboBox::tagsChanged);
+	connect(d->chips, &DAChipsEdit::tagsChanged, this, [this] { updateEditOverlays(); });
 	connect(d->popup, &QListWidget::itemClicked, this, &DASelectComboBox::onPopupItemClicked);
 
 	// 监听全局鼠标按下：popup 可见时点击外部（非 combobox、非 popup 自身）应关闭。
@@ -1144,9 +1612,22 @@ DASelectComboBox::DASelectComboBox(QWidget *parent) : QComboBox(parent), DA_PIMP
 
 /**
  * @brief 析构
- * @details PIMPL 指针由 DA_PIMPL_CONSTRUCT 宏自动释放
+ * @details 弹层是无父顶层窗口，必须显式删除；PIMPL 指针由宏自动释放
  */
-DASelectComboBox::~DASelectComboBox() = default;
+DASelectComboBox::~DASelectComboBox()
+{
+	DA_D(d);
+	// 先断开子控件的信号与全局过滤器：~QWidget 删除子控件时会触发焦点变化，
+	// 此时本对象的 d_ptr 已释放，槽里再访问私有数据就是 use-after-free
+	qApp->removeEventFilter(this);
+	if (d->chips)
+		d->chips->disconnect(this);
+	if (d->popup) {
+		d->popup->hide();
+		delete d->popup;
+		d->popup = nullptr;
+	}
+}
 
 /**
  * @brief 应用默认现代化样式
@@ -1204,9 +1685,36 @@ QStringList DASelectComboBox::options() const
 void DASelectComboBox::setOptions(const QStringList &options)
 {
 	DA_D(d);
+	d->groups.clear();
 	d->options = options;
 	if (d->popupVisible)
 		refreshPopup(d->chips->inputText());
+}
+
+/**
+ * @brief 设置分组候选
+ * @param groups 分组列表，title 为空串表示无标题组
+ * @details 同时把组内候选按「组顺序 + 组内顺序」扁平化到 options()，弹层可见时立即刷新
+ */
+void DASelectComboBox::setGroupedOptions(const QVector< DASelectGroup > &groups)
+{
+	DA_D(d);
+	d->groups = groups;
+	d->options.clear();
+	for (const DASelectGroup &g : groups)
+		d->options.append(g.options);
+	if (d->popupVisible)
+		refreshPopup(d->chips->inputText());
+}
+
+/**
+ * @brief 获取分组候选
+ * @return 分组列表副本
+ */
+QVector< DASelectGroup > DASelectComboBox::groupedOptions() const
+{
+	DA_DC(d);
+	return d->groups;
 }
 
 /**
@@ -1231,8 +1739,8 @@ void DASelectComboBox::setTags(const QStringList &tags)
 }
 
 /**
- * @brief 清空所有已选标签与候选选项
- * @details 同时清空 DAChipsEdit 标签与输入框，并关闭弹出框
+ * @brief 清空所有已选标签与输入文本
+ * @details 不修改候选选项；清空后关闭弹层（保持旧行为）
  */
 void DASelectComboBox::clear()
 {
@@ -1240,6 +1748,7 @@ void DASelectComboBox::clear()
 	d->chips->clear();
 	d->chips->clearInput();
 	hideCustomPopup();
+	updateEditOverlays();
 }
 
 /**
@@ -1351,6 +1860,183 @@ void DASelectComboBox::setFixedRowCount(int rows)
 }
 
 /**
+ * @brief 打开/关闭空态面板
+ * @param on 是否启用（默认 false）
+ * @details 关闭时保持旧行为：无匹配立即关闭弹层
+ */
+void DASelectComboBox::setEmptyStateEnabled(bool on)
+{
+	DA_D(d);
+	if (d->emptyStateEnabled == on)
+		return;
+	d->emptyStateEnabled = on;
+	if (d->popupVisible) {
+		refreshPopup(d->chips->inputText());
+		if (!on && firstActionableRow(d->popup) < 0)
+			hideCustomPopup();
+	}
+	updateEmptyOverlay();
+}
+
+/** @brief 空态面板是否启用 */
+bool DASelectComboBox::isEmptyStateEnabled() const
+{
+	DA_DC(d);
+	return d->emptyStateEnabled;
+}
+
+/**
+ * @brief 设置空态主文案
+ * @param text 文案
+ */
+void DASelectComboBox::setNoMatchText(const QString &text)
+{
+	DA_D(d);
+	d->noMatchText = text;
+	updateEmptyOverlay();
+}
+
+/** @brief 获取空态主文案 */
+QString DASelectComboBox::noMatchText() const
+{
+	DA_DC(d);
+	return d->noMatchText;
+}
+
+/**
+ * @brief 设置自定义空态控件
+ * @param w 控件（接管所有权，随弹层析构）；nullptr 还原内置面板
+ */
+void DASelectComboBox::setEmptyWidget(QWidget *w)
+{
+	DA_D(d);
+	if (d->emptyWidget == w)
+		return;
+	if (d->emptyWidget) {
+		d->emptyWidget->hide();
+		d->emptyWidget->deleteLater();
+	}
+	d->emptyWidget = w;
+	if (w) {
+		w->setParent(d->popup);
+		w->hide();
+	}
+	updateEmptyOverlay();
+}
+
+/** @brief 获取自定义空态控件 */
+QWidget *DASelectComboBox::emptyWidget() const
+{
+	DA_DC(d);
+	return d->emptyWidget.data();
+}
+
+/**
+ * @brief 打开/关闭编辑区清空按钮
+ * @param on 是否启用（默认 false）
+ * @details 关闭时销毁按钮子控件，保持默认视觉与旧行为一致
+ */
+void DASelectComboBox::setClearable(bool on)
+{
+	DA_D(d);
+	if (d->clearable == on)
+		return;
+	d->clearable = on;
+	if (on && !d->clearButton) {
+		d->clearButton = new QToolButton(this);
+		d->clearButton->setObjectName(QStringLiteral("DASelectClearButton"));
+		// 用绘制的图标而不是文本 ×：不依赖平台字体，跨平台像素断言才稳定
+		QIcon icon;
+		icon.addPixmap(makeClearPixmap(QColor(0xC0, 0xC4, 0xCC)), QIcon::Normal);
+		icon.addPixmap(makeClearPixmap(QColor(0x90, 0x93, 0x99)), QIcon::Active);
+		d->clearButton->setIcon(icon);
+		d->clearButton->setIconSize(QSize(10, 10));
+		d->clearButton->setAccessibleName(tr("Clear all"));  //cn:清空全部
+		d->clearButton->setAutoRaise(true);
+		d->clearButton->setFocusPolicy(Qt::NoFocus);
+		d->clearButton->setCursor(Qt::ArrowCursor);
+		d->clearButton->setFixedSize(20, 20);
+		d->clearButton->setStyleSheet(QStringLiteral(
+			"QToolButton#DASelectClearButton { border:none; background:transparent; padding:0; }"));
+		d->clearButton->hide();
+		connect(d->clearButton, &QToolButton::clicked, this, [this] {
+			DA_D(d);
+			d->chips->clear();
+			d->chips->clearInput();
+			if (d->popupVisible)
+				refreshPopup(QString());
+			updateEditOverlays();
+			Q_EMIT clearClicked();
+		});
+	}
+	if (!on && d->clearButton) {
+		d->clearButton->hide();
+		d->clearButton->deleteLater();
+		d->clearButton = nullptr;
+	}
+	updateEditOverlays();
+}
+
+/** @brief 是否启用清空按钮 */
+bool DASelectComboBox::isClearable() const
+{
+	DA_DC(d);
+	return d->clearable;
+}
+
+/**
+ * @brief 打开/关闭已选标签折叠
+ * @param on 是否启用（默认 false）
+ */
+void DASelectComboBox::setCollapseTags(bool on)
+{
+	DA_D(d);
+	if (d->collapseTags == on)
+		return;
+	d->collapseTags = on;
+	if (on && !d->collapseLabel) {
+		d->collapseLabel = new QLabel(this);
+		d->collapseLabel->setObjectName(QStringLiteral("DASelectTagSummary"));
+		d->collapseLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+		d->collapseLabel->setStyleSheet(QStringLiteral(
+			"QLabel#DASelectTagSummary { color:#909399; background:#f4f4f5; border-radius:8px;"
+			" padding:1px 6px; }"));
+		d->collapseLabel->hide();
+	}
+	if (!on && d->collapseLabel) {
+		d->collapseLabel->hide();
+		d->collapseLabel->deleteLater();
+		d->collapseLabel = nullptr;
+	}
+	updateEditOverlays();
+}
+
+/** @brief 是否启用已选标签折叠 */
+bool DASelectComboBox::collapseTags() const
+{
+	DA_DC(d);
+	return d->collapseTags;
+}
+
+/**
+ * @brief 设置折叠后保留的标签数
+ * @param count 保留数，小于 1 时按 1 处理
+ */
+void DASelectComboBox::setCollapseTagCount(int count)
+{
+	DA_D(d);
+	d->collapseTagCount = qMax(1, count);
+	updateEditOverlays();
+}
+
+/** @brief 折叠后保留的标签数 */
+int DASelectComboBox::collapseTagCount() const
+{
+	DA_DC(d);
+	return d->collapseTagCount;
+}
+
+/**
  * @brief 计算推荐尺寸
  * @return 推荐的 QSize
  * @details GrowWithTags 模式下用 layout()->heightForWidth 计算换行高度，
@@ -1425,11 +2111,7 @@ QSize DASelectComboBox::minimumSizeHint() const
 void DASelectComboBox::resizeEvent(QResizeEvent *event)
 {
 	QComboBox::resizeEvent(event);
-	DA_D(d);
-	QStyleOptionComboBox opt;
-	initStyleOption(&opt);
-	const QRect field = style()->subControlRect(QStyle::CC_ComboBox, &opt, QStyle::SC_ComboBoxEditField, this);
-	d->container->setGeometry(field);
+	updateOverlayGeometry();
 }
 
 /**
@@ -1451,20 +2133,31 @@ void DASelectComboBox::showPopup()
  * @param watched 被监听的对象
  * @param event 事件
  * @return 是否拦截事件
- * @details popup 可见时，外部鼠标按下关闭下拉（点 popup 内部由 itemClicked 处理），
- *          Tab/Backtab 焦点切换也关闭下拉
+ * @details popup 可见时，外部鼠标按下关闭下拉（点 popup 内部与自身覆盖层除外），
+ *          Tab/Backtab 焦点切换也关闭下拉；Enter/Leave 维护清空按钮的悬停显隐
  */
 bool DASelectComboBox::eventFilter(QObject *watched, QEvent *event)
 {
 	DA_D(d);
+	if (event->type() == QEvent::Enter) {
+		if (watched == this || (d->clearButton && watched == d->clearButton)) {
+			d->hovered = true;
+			updateEditOverlays();
+		}
+	} else if (event->type() == QEvent::Leave) {
+		if (watched == this || (d->clearButton && watched == d->clearButton)) {
+			d->hovered = false;
+			updateEditOverlays();
+		}
+	}
 	if (d->popupVisible) {
 		switch (event->type()) {
 		case QEvent::MouseButtonPress: {
 			// 任何鼠标按下都关闭，除非点在 popup 内部（由 itemClicked 处理选中）。
-			// 点在 combobox 上时，showPopup 的 toggle 逻辑会接管开关，这里也关闭，
-			// 随后 QComboBox 触发的 showPopup 会重新打开——实现"点箭头不闪、点其它关闭"。
+			// × 与 +N 是本控件的覆盖层，点它们时不能把弹层关掉（否则“清空后保持打开”做不到）。
 			auto *w = qobject_cast< QWidget * >(watched);
-			if (w && w != d->popup && !d->popup->isAncestorOf(w))
+			const bool ownOverlay = (w && (w == d->clearButton || w == d->collapseLabel));
+			if (w && w != d->popup && !d->popup->isAncestorOf(w) && !ownOverlay)
 				hideCustomPopup();
 			break;
 		}
@@ -1510,6 +2203,9 @@ void DASelectComboBox::onInputTextChanged(const QString &text)
  */
 void DASelectComboBox::onInputFocusChanged(bool focused)
 {
+	// 控件析构时子控件删除会引发焦点变化，此时 d_ptr 可能已释放
+	if (!d_func())
+		return;
 	DA_D(d);
 	if (focused) {
 		if (d->filterable && !d->options.isEmpty())
@@ -1517,6 +2213,7 @@ void DASelectComboBox::onInputFocusChanged(bool focused)
 	}
 	// 失焦时不主动关闭：Qt::Popup 在外部点击时自动关闭，选中/Esc 会显式关闭，
 	// 避免与 popup itemClicked 的点击事件竞争导致误关。
+	updateEditOverlays();
 }
 
 /**
@@ -1531,29 +2228,23 @@ void DASelectComboBox::onInputKey(QKeyEvent *event, bool *handled)
 	DA_D(d);
 	const int key = event->key();
 	if (key == Qt::Key_Return || key == Qt::Key_Enter) {
-		if (d->popupVisible && d->popup->currentItem()) {
+		QListWidgetItem *current = d->popup->currentItem();
+		if (d->popupVisible && current && isActionable(current)) {
 			pickCurrent();
 			*handled = true;
 		} else if (d->allowCreate && !d->chips->inputText().trimmed().isEmpty()) {
-			const QString text = d->chips->inputText().trimmed();
-			d->chips->appendTag(text);
-			Q_EMIT created(text);
-			d->chips->clearInput();
+			activateByInput();
 			*handled = true;
 		}
 		return;
 	}
 	if (!d->popupVisible)
 		return;
-	if (key == Qt::Key_Down) {
-		const int r = d->popup->currentRow();
-		if (r < d->popup->count() - 1)
-			d->popup->setCurrentRow(r + 1);
-		*handled = true;
-	} else if (key == Qt::Key_Up) {
-		const int r = d->popup->currentRow();
-		if (r > 0)
-			d->popup->setCurrentRow(r - 1);
+	if (key == Qt::Key_Down || key == Qt::Key_Up) {
+		const int step = (key == Qt::Key_Down) ? 1 : -1;
+		const int row  = nextActionableRow(d->popup, d->popup->currentRow(), step);
+		if (row >= 0)
+			d->popup->setCurrentRow(row);
 		*handled = true;
 	} else if (key == Qt::Key_Escape) {
 		hideCustomPopup();
@@ -1565,12 +2256,12 @@ void DASelectComboBox::onInputKey(QKeyEvent *event, bool *handled)
 /**
  * @brief 点击弹出列表项时选中该项
  * @param item 被点击的列表项
- * @details 将项文本追加为标签并发射 optionSelected，清空输入框并刷新候选列表
+ * @details 组标题不可选；候选追加为标签并发射 optionSelected
  */
 void DASelectComboBox::onPopupItemClicked(QListWidgetItem *item)
 {
 	DA_D(d);
-	if (!item)
+	if (!isActionable(item))
 		return;
 	d->chips->appendTag(item->text());
 	Q_EMIT optionSelected(item->text());
@@ -1612,7 +2303,8 @@ void DASelectComboBox::applyHeightMode()
 
 /**
  * @brief 显示自定义候选弹出框
- * @details 刷新候选列表后定位到 combobox 正下方，设置默认选中第一项（default-first-option）
+ * @details 刷新候选列表后定位到 combobox 正下方；default-first-option 取首个可选行；
+ *          空态开启时即使没有候选也保持弹层并显示覆盖面板
  */
 void DASelectComboBox::showCustomPopup()
 {
@@ -1620,21 +2312,33 @@ void DASelectComboBox::showCustomPopup()
 	if (d->popupVisible)
 		return;
 	refreshPopup(d->chips->inputText());
-	if (d->popup->count() == 0)
+	if (d->popup->count() == 0 && !d->emptyStateEnabled)
 		return;
 	d->popup->setFixedWidth(width());
-	const int h = qMin(d->popup->sizeHintForRow(0) * d->popup->count() + 6, 220);
-	d->popup->setFixedHeight(h);
+	int h = 0;
+	if (d->popup->count() == 0) {
+		// 空态：按面板/自定义控件的高度给一个不低于最小高度的弹层
+		QWidget *w = d->emptyWidget ? d->emptyWidget.data() : d->emptyPanel;
+		h = qMax(w ? w->sizeHint().height() + 6 : 0, 40);
+	} else {
+		int contentH = 0;
+		for (int i = 0; i < d->popup->count(); ++i)
+			contentH += d->popup->sizeHintForRow(i);
+		h = qMin(contentH + 6, 220);
+	}
+	d->popup->setFixedHeight(qMax(h, 40));
 	d->popup->move(mapToGlobal(QPoint(0, height())));
 	d->popup->show();
 	d->popup->raise();
-	d->popup->setCurrentRow(0);  // default-first-option
+	const int first = firstActionableRow(d->popup);
+	if (first >= 0)
+		d->popup->setCurrentRow(first);  // default-first-option
 	d->popupVisible = true;
+	updateEmptyOverlay();
+	updateEditOverlays();
 }
 
-/**
- * @brief 隐藏自定义候选弹出框
- */
+/** @brief 隐藏自定义候选弹出框并收起空态面板 */
 void DASelectComboBox::hideCustomPopup()
 {
 	DA_D(d);
@@ -1642,47 +2346,209 @@ void DASelectComboBox::hideCustomPopup()
 		return;
 	d->popup->hide();
 	d->popupVisible = false;
+	updateEmptyOverlay();
+	updateEditOverlays();
 }
 
 /**
  * @brief 刷新弹出框候选列表
  * @param filter 过滤文本，空字符串表示显示全部
- * @details 排除已选标签，按过滤文本模糊匹配；无匹配项时自动关闭弹出框
+ * @details 无分组时保持原扁平路径；有分组时插入不可选组标题，
+ *          组内无命中则整组隐藏。无匹配且未开空态时关闭弹层。
  */
 void DASelectComboBox::refreshPopup(const QString &filter)
 {
 	DA_D(d);
 	d->popup->clear();
 	const QStringList selected = d->chips->tags();
-	for (const QString &opt : d->options) {
-		if (selected.contains(opt))
-			continue;
-		if (filter.isEmpty() || opt.contains(filter, Qt::CaseInsensitive))
-			d->popup->addItem(opt);
+	if (d->groups.isEmpty()) {
+		// 默认路径：与加入分组前逐项一致
+		for (const QString &opt : d->options) {
+			if (selected.contains(opt))
+				continue;
+			if (filter.isEmpty() || opt.contains(filter, Qt::CaseInsensitive))
+				d->popup->addItem(opt);
+		}
+	} else {
+		for (int gi = 0; gi < d->groups.size(); ++gi) {
+			const DASelectGroup &group = d->groups.at(gi);
+			QStringList hits;
+			for (const QString &opt : group.options) {
+				if (selected.contains(opt))
+					continue;
+				if (filter.isEmpty() || opt.contains(filter, Qt::CaseInsensitive))
+					hits << opt;
+			}
+			if (hits.isEmpty())
+				continue;
+			if (!group.title.isEmpty()) {
+				auto *header = new QListWidgetItem(group.title, d->popup);
+				header->setFlags(header->flags() & ~Qt::ItemIsSelectable & ~Qt::ItemIsEnabled);
+				header->setData(kGroupRole, gi);
+				header->setSizeHint(QSize(0, 22));
+			}
+			for (const QString &opt : hits)
+				d->popup->addItem(opt);
+		}
 	}
-	if (d->popup->count() == 0 && d->popupVisible) {
-		hideCustomPopup();
-		return;
+
+	const int first = firstActionableRow(d->popup);
+	if (first < 0) {
+		if (d->popupVisible && !d->emptyStateEnabled) {
+			hideCustomPopup();
+			return;
+		}
+	} else {
+		d->popup->setCurrentRow(first);
 	}
-	if (d->popup->count() > 0)
-		d->popup->setCurrentRow(0);
+	updateEmptyOverlay();
 }
 
 /**
  * @brief 选中当前高亮的候选项
- * @details 将当前项文本追加为标签并发射 optionSelected，清空输入框并刷新候选列表
+ * @details 组标题不可选；候选追加为标签并发射 optionSelected
  */
 void DASelectComboBox::pickCurrent()
 {
 	DA_D(d);
 	QListWidgetItem *item = d->popup->currentItem();
-	if (!item)
+	if (!isActionable(item))
 		return;
 	d->chips->appendTag(item->text());
 	Q_EMIT optionSelected(item->text());
 	d->chips->clearInput();
 	if (d->popupVisible)
 		refreshPopup(QString());
+}
+
+/** @brief 回车与空态「创建」按钮共用的创建入口 */
+void DASelectComboBox::activateByInput()
+{
+	DA_D(d);
+	const QString text = d->chips->inputText().trimmed();
+	if (text.isEmpty())
+		return;
+	d->chips->appendTag(text);
+	Q_EMIT created(text);
+	d->chips->clearInput();
+	if (d->popupVisible)
+		refreshPopup(QString());
+}
+
+/**
+ * @brief 刷新空态覆盖层
+ * @details 只在「开关打开 + 弹层可见 + 没有任何可选候选行」时显示；
+ *          面板不是 item，popup->clear() 不会销毁它
+ */
+void DASelectComboBox::updateEmptyOverlay()
+{
+	DA_D(d);
+	if (!d->emptyPanel)
+		return;
+	const bool show = d->emptyStateEnabled && d->popupVisible && firstActionableRow(d->popup) < 0;
+	if (!show) {
+		d->emptyPanel->hide();
+		if (d->emptyWidget)
+			d->emptyWidget->hide();
+		return;
+	}
+	QWidget *w = d->emptyWidget ? d->emptyWidget.data() : d->emptyPanel;
+	if (w == d->emptyPanel) {
+		d->emptyPanel->setText(d->noMatchText);
+		const QString input  = d->chips->inputText().trimmed();
+		const bool canCreate = d->allowCreate && !input.isEmpty();
+		d->emptyPanel->setCreateVisible(canCreate);
+		if (canCreate)
+			d->emptyPanel->setCreateText(tr("Create \"%1\"").arg(input));  //cn:创建“%1”
+	}
+	const QRect viewportRect = d->popup->viewport()->geometry();
+	w->setGeometry(viewportRect);
+	w->show();
+	w->raise();
+	if (w != d->emptyPanel)
+		d->emptyPanel->hide();
+}
+
+/**
+ * @brief 刷新 × 与 +N 的几何
+ * @details 唯一度量来源是 style()->subControlRect(SC_ComboBoxEditField)
+ */
+void DASelectComboBox::updateOverlayGeometry()
+{
+	if (!d_func())
+		return;
+	DA_D(d);
+	if (!d->container)
+		return;
+	QStyleOptionComboBox opt;
+	initStyleOption(&opt);
+	const QRect field = style()->subControlRect(QStyle::CC_ComboBox, &opt, QStyle::SC_ComboBoxEditField, this);
+
+	QRect containerRect = field;
+	if (d->clearable && !tags().isEmpty())
+		containerRect.adjust(0, 0, -24, 0);
+	d->container->setGeometry(containerRect);
+
+	const int rowH = d->chips->rowHeightHint();
+	if (d->clearButton) {
+		const int b = 20;
+		const int y = field.top() + qMax(0, (rowH - b) / 2);
+		d->clearButton->setGeometry(field.right() - b + 1, y, b, b);
+	}
+	if (d->collapseLabel) {
+		const QSize hint = d->collapseLabel->sizeHint();
+		int right        = field.right();
+		if (d->clearButton && d->clearButton->isVisible())
+			right = d->clearButton->geometry().left() - 4;
+		const int y = field.top() + qMax(0, (rowH - hint.height()) / 2);
+		d->collapseLabel->setGeometry(right - hint.width(), y, hint.width(), hint.height());
+	}
+}
+
+/**
+ * @brief 按折叠状态隐藏/显示 chip 与 +N 摘要
+ * @details 只切可见性，不改写 tags()；聚焦或弹层展开时恢复全部
+ */
+void DASelectComboBox::updateTagCollapse()
+{
+	DA_D(d);
+	QList< DAChip * > chips;
+	if (auto *lay = d->chips->layout()) {
+		for (int i = 0; i < lay->count(); ++i) {
+			if (auto *chip = qobject_cast< DAChip * >(lay->itemAt(i)->widget()))
+				chips << chip;
+		}
+	}
+	const int n     = d->chips->tags().size();
+	const int keep  = qMax(1, d->collapseTagCount);
+	const bool collapse = d->collapseTags && n > keep;
+	QWidget *focus      = QApplication::focusWidget();
+	const bool focused  = d->chips->hasFocus() || (focus && d->chips->isAncestorOf(focus));
+	const bool showAll  = !collapse || focused || d->popupVisible;
+	for (int i = 0; i < chips.size(); ++i)
+		chips[i]->setVisible(showAll || i < keep);
+	if (d->collapseLabel) {
+		d->collapseLabel->setText(QStringLiteral("+%1").arg(n - keep));
+		d->collapseLabel->setVisible(collapse && !showAll);
+	}
+	if (auto *lay = d->chips->layout())
+		lay->invalidate();
+	d->chips->updateGeometry();
+	updateGeometry();
+}
+
+/** @brief 综合刷新悬停态、× 与折叠摘要 */
+void DASelectComboBox::updateEditOverlays()
+{
+	if (!d_func())
+		return;
+	DA_D(d);
+	if (d->clearButton) {
+		const bool show = d->clearable && d->hovered && !tags().isEmpty() && isEnabled();
+		d->clearButton->setVisible(show);
+	}
+	updateTagCollapse();
+	updateOverlayGeometry();
 }
 }  // namespace DA
 
@@ -1890,10 +2756,12 @@ void DACollapseLayout::addStretch(int stretch)
 
 
 /*** Start of inlined file: DACollapseItem.cpp ***/
+#include <QAbstractButton>
 #include <QColor>
 #include <QEvent>
 #include <QHBoxLayout>
 #include <QIcon>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QPainter>
@@ -1901,6 +2769,7 @@ void DACollapseLayout::addStretch(int stretch)
 #include <QPixmap>
 #include <QPropertyAnimation>
 #include <QStyle>
+#include <QStyleOption>
 #include <QSvgRenderer>
 #include <QVBoxLayout>
 
@@ -1925,6 +2794,106 @@ const QIcon& arrowDownIcon()
 	static const QIcon icon(QStringLiteral(":/DAWidgetsIcons/arrow-down.svg"));
 	return icon;
 }
+
+/**
+ * @brief 标题栏按钮(仅本文件内使用,不带 Q_OBJECT)
+ * @details 用 QAbstractButton 提供 Button 无障碍角色与 Space 语义,同时保持
+ *          "按下即切换"的旧交互。没有 Q_OBJECT 意味着:不能定义信号(直接复用
+ *          clicked)、qobject_cast 到本类型不可靠、qss 类选择器只能写
+ *          QAbstractButton#header 或 #header —— 容器反查条目依赖 parentWidget()。
+ */
+class DACollapseHeaderButton : public QAbstractButton
+{
+public:
+	explicit DACollapseHeaderButton(QWidget* parent = nullptr) : QAbstractButton(parent)
+	{
+		setObjectName(QStringLiteral("header"));
+		setCursor(Qt::PointingHandCursor);
+		setFocusPolicy(Qt::NoFocus);
+		setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+		// 让调用方的 #header { background: ... } 仍然生效
+		setAttribute(Qt::WA_StyledBackground, true);
+	}
+
+	// QAbstractButton 会按 text/icon 走样式算高度,会改标题高度;标题高度由内部布局决定
+	QSize sizeHint() const override
+	{
+		return QWidget::sizeHint();
+	}
+	QSize minimumSizeHint() const override
+	{
+		return QWidget::minimumSizeHint();
+	}
+
+protected:
+	void mousePressEvent(QMouseEvent* e) override
+	{
+		// 保持旧语义:按下即开合,而不是 QAbstractButton 默认的抬起触发
+		if (e->button() == Qt::LeftButton) {
+			click();
+			e->accept();
+			return;
+		}
+		QAbstractButton::mousePressEvent(e);
+	}
+
+	void mouseReleaseEvent(QMouseEvent* e) override
+	{
+		// click() 已经在按下时复位 down,这里吞掉左键抬起避免二次触发
+		if (e->button() == Qt::LeftButton) {
+			e->accept();
+			return;
+		}
+		QAbstractButton::mouseReleaseEvent(e);
+	}
+
+	void keyPressEvent(QKeyEvent* e) override
+	{
+		switch (e->key()) {
+		case Qt::Key_Return:
+		case Qt::Key_Enter:
+		case Qt::Key_Space:
+			click();
+			e->accept();
+			return;
+		case Qt::Key_Up:
+		case Qt::Key_Down:
+			// 方向键交给容器的事件过滤器做面板间导航
+			e->ignore();
+			return;
+		default:
+			break;
+		}
+		QAbstractButton::keyPressEvent(e);
+	}
+
+	void paintEvent(QPaintEvent*) override
+	{
+		QPainter p(this);
+		QStyleOption opt;
+		opt.initFrom(this);
+		// 换成 QAbstractButton 后不再经过 QFrame 的绘制路径,qss 背景要自己接住
+		style()->drawPrimitive(QStyle::PE_Widget, &opt, &p, this);
+		if (hasFocus()) {
+			p.setRenderHint(QPainter::Antialiasing, true);
+			p.setPen(QPen(QColor(64, 158, 255, 160), 2));
+			p.setBrush(Qt::NoBrush);
+			p.drawRect(rect().adjusted(1, 1, -2, -2));
+		}
+	}
+
+	void focusInEvent(QFocusEvent* e) override
+	{
+		QAbstractButton::focusInEvent(e);
+		update();
+	}
+
+	void focusOutEvent(QFocusEvent* e) override
+	{
+		QAbstractButton::focusOutEvent(e);
+		update();
+	}
+};
 }  // namespace
 
 class DACollapseItem::PrivateData
@@ -1933,7 +2902,7 @@ public:
 	PrivateData(DACollapseItem*)
 	{
 	}
-	QFrame* header { nullptr };
+	QAbstractButton* header { nullptr };
 	QLabel* arrow { nullptr };
 	QLabel* titleLabel { nullptr };
 	QWidget* titleWidget { nullptr };
@@ -1944,9 +2913,12 @@ public:
 	QString title;
 	QString name;
 	QColor titleNormalColor;  // 记录正常态标题文本色,用于禁用时还原
+	QMargins headerMargins { 12, 10, 12, 10 };
+	QMargins contentMargins { 12, 8, 12, 12 };
 	bool disabled { false };
 	bool expanded { false };
 	bool animationEnabled { true };
+	bool contentRequested { false };
 };
 
 /**
@@ -1991,17 +2963,12 @@ void DACollapseItem::init()
 	outer->setContentsMargins(0, 0, 0, 0);
 	outer->setSpacing(0);
 
-	// ---- 标题栏 ----
-	d->header = new QFrame(this);
-	d->header->setObjectName(QStringLiteral("header"));
-	d->header->setFrameShape(QFrame::NoFrame);
-	d->header->setCursor(Qt::PointingHandCursor);
-	// 垂直方向 Fixed:给 DACollapseLayout 提供稳定的 sizeHint
-	d->header->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-	d->header->installEventFilter(this);
+	// ---- 标题栏(私有按钮,保留 objectName "header") ----
+	d->header = new DACollapseHeaderButton(this);
+	connect(d->header, &QAbstractButton::clicked, this, &DACollapseItem::onHeaderClicked);
 
 	auto* headerLay = new QHBoxLayout(d->header);
-	headerLay->setContentsMargins(12, 10, 12, 10);
+	headerLay->setContentsMargins(d->headerMargins);
 	headerLay->setSpacing(8);
 
 	d->arrow = new QLabel(d->header);
@@ -2024,7 +2991,7 @@ void DACollapseItem::init()
 	d->content->installEventFilter(this);  // 监听 LayoutRequest 适配动态内容/宽度变化
 
 	d->contentLayout = new QVBoxLayout(d->content);
-	d->contentLayout->setContentsMargins(12, 8, 12, 12);
+	d->contentLayout->setContentsMargins(d->contentMargins);
 	d->contentLayout->setSpacing(6);
 
 	outer->addWidget(d->content);
@@ -2064,9 +3031,13 @@ void DACollapseItem::updateHeaderVisualState()
 	QPalette pal   = d->titleLabel->palette();
 	pal.setColor(QPalette::Active, QPalette::WindowText, c);
 	pal.setColor(QPalette::Inactive, QPalette::WindowText, c);
+	// 标题按钮禁用会连带子标签进 Disabled 组,这里同步设置,否则读到 Qt 默认灰
+	pal.setColor(QPalette::Disabled, QPalette::WindowText, c);
 	d->titleLabel->setPalette(pal);
 	// 禁用时光标为"禁止"图标,比箭头更直观
 	d->header->setCursor(d->disabled ? Qt::ForbiddenCursor : Qt::PointingHandCursor);
+	// 复用 QAbstractButton 的 disabled 语义:禁用后既不能点也拿不到焦点
+	d->header->setEnabled(!d->disabled);
 	// 保留 disabled 动态属性供 qss 进一步定制(如 hover 背景抑制)
 	setProperty("disabled", d->disabled);
 	style()->unpolish(this);
@@ -2161,40 +3132,69 @@ void DACollapseItem::onAnimationFinished()
 }
 
 /**
- * @brief 事件过滤器:转发标题栏点击、适配内容区布局变化与首次显示高度修正
- * @param watched 被监听对象(自身/标题栏/内容区)
+ * @brief 重新计算内容区高度
+ * @details 未展开直接返回;动画中更新终点,否则直接修正 maximumHeight。
+ *          异步加载内容的宿主在 setContentWidget() 之后调用。
+ */
+void DACollapseItem::refreshContentHeight()
+{
+	DA_D(d);
+	if (!d->expanded)
+		return;
+	const int h = contentNaturalHeight();
+	if (d->animation->state() == QAbstractAnimation::Running) {
+		d->animation->setEndValue(h);
+	} else if (d->content->maximumHeight() != h) {
+		d->content->setMaximumHeight(h);
+		d->content->updateGeometry();
+	}
+}
+
+/**
+ * @brief 按 daVariant 动态属性重设标题/内容留白
+ * @details 只改留白,不碰展开状态;Default 与加入变体前逐像素一致
+ */
+void DACollapseItem::applyVariantChrome()
+{
+	DA_D(d);
+	const QString key = property("daVariant").toString();
+	if (key == QStringLiteral("borderless")) {
+		d->headerMargins  = QMargins(0, 8, 0, 8);
+		d->contentMargins = QMargins(0, 4, 0, 8);
+	} else {
+		d->headerMargins  = QMargins(12, 10, 12, 10);
+		d->contentMargins = QMargins(12, 8, 12, 12);
+	}
+	if (auto* lay = qobject_cast< QHBoxLayout* >(d->header->layout()))
+		lay->setContentsMargins(d->headerMargins);
+	d->contentLayout->setContentsMargins(d->contentMargins);
+	style()->unpolish(this);
+	style()->polish(this);
+	updateGeometry();
+}
+
+/** @brief 获取标题栏控件(内部按钮) */
+QWidget* DACollapseItem::headerWidget() const
+{
+	DA_DC(d);
+	return d->header;
+}
+
+/**
+ * @brief 事件过滤器:适配内容区布局变化与首次显示高度修正
+ * @param watched 被监听对象(自身/内容区)
  * @param event 事件
- * @details 标题栏 MouseButtonPress 触发展开切换;
- *          内容区 LayoutRequest 在非动画展开态下更新 maximumHeight 适配动态内容;
- *          自身 Resize 在展开态下重新计算高度——修正 widget 首次显示时
- *          width()==0 导致的初始高度估算偏差
+ * @details 内容区 LayoutRequest 与自身 Resize 都走 refreshContentHeight(),
+ *          修正 widget 首次显示时 width()==0 导致的初始高度估算偏差
  */
 bool DACollapseItem::eventFilter(QObject* watched, QEvent* event)
 {
 	DA_D(d);
-	if (watched == d->header && event->type() == QEvent::MouseButtonPress) {
-		auto* me = static_cast< QMouseEvent* >(event);
-		if (me->button() == Qt::LeftButton)
-			onHeaderClicked();
-		return true;
-	}
 	if (watched == d->content && event->type() == QEvent::LayoutRequest) {
-		// 展开态(非动画中)下内容变化时,更新 maximumHeight 以适应新的自然高度
-		if (d->expanded && d->animation->state() != QAbstractAnimation::Running) {
-			d->content->setMaximumHeight(contentNaturalHeight());
-		}
-	}
-	if (watched == this && event->type() == QEvent::Resize) {
-		// 首次显示时 width() 从 0 变为实际值,重新计算内容高度。
-		// 动画进行中则更新 endValue,动画结束后直接修正 maximumHeight。
-		if (d->expanded) {
-			const int h = contentNaturalHeight();
-			if (d->animation->state() == QAbstractAnimation::Running) {
-				d->animation->setEndValue(h);
-			} else if (d->content->maximumHeight() != h) {
-				d->content->setMaximumHeight(h);
-			}
-		}
+		// 展开态(含动画中)下内容变化时,更新高度或动画终点
+		refreshContentHeight();
+	} else if (watched == this && event->type() == QEvent::Resize) {
+		refreshContentHeight();
 	}
 	return QFrame::eventFilter(watched, event);
 }
@@ -2283,7 +3283,16 @@ void DACollapseItem::setExpanded(bool on)
 	DA_D(d);
 	if (d->expanded == on)
 		return;
+	// 懒加载钩子必须在 doExpand() 之前:doExpand 立刻按当前内容算动画目标
+	if (on && !d->contentRequested && d->contentLayout->count() == 0) {
+		d->contentRequested = true;
+		Q_EMIT contentRequested();
+	}
 	d->expanded = on;
+	// 维护 expanded 动态属性,让 [expanded="true"] 的 qss 选择器成立
+	setProperty("expanded", on);
+	style()->unpolish(this);
+	style()->polish(this);
 	doExpand(on);
 	Q_EMIT expandChanged(on);
 }
@@ -2359,6 +3368,9 @@ void DACollapseItem::setContentWidget(QWidget* widget)
 	}
 	if (widget) {
 		d->contentLayout->addWidget(widget);
+		// 内容区已可见时,新加入的子控件不会自动 show,隐藏控件 sizeHint 为 0,
+		// 会让 refreshContentHeight() 算不出异步加载后的高度
+		widget->show();
 	}
 }
 
@@ -2391,11 +3403,29 @@ QSize DACollapseItem::sizeHint() const
 
 
 /*** Start of inlined file: DACollapseWidget.cpp ***/
+#include <QKeyEvent>
 #include <QSet>
 #include <QVBoxLayout>
 
 namespace DA
 {
+namespace
+{
+/// 变体的 qss 动态属性值
+QString variantKey(DACollapseWidget::Variant v)
+{
+	switch (v) {
+	case DACollapseWidget::Variant::Borderless:
+		return QStringLiteral("borderless");
+	case DACollapseWidget::Variant::Card:
+		return QStringLiteral("card");
+	case DACollapseWidget::Variant::Default:
+		break;
+	}
+	return QStringLiteral("default");
+}
+}  // namespace
+
 class DACollapseWidget::PrivateData
 {
 public:
@@ -2405,6 +3435,10 @@ public:
 	DACollapseLayout* layout { nullptr };
 	QList< DACollapseItem* > items;
 	bool accordion { false };
+	bool keyboardNavigation { false };
+	Variant variant { Variant::Default };
+	// setActiveNames 批量同步期间抑制逐项 activeNamesChanged,但不阻断条目自身信号
+	bool activating { false };
 };
 
 /**
@@ -2468,6 +3502,64 @@ void DACollapseWidget::setAccordion(bool on)
 }
 
 /**
+ * @brief 打开/关闭键盘导航
+ * @param on 是否开启(默认 false)
+ * @details 开启时每个标题变为 StrongFocus;关闭时收回焦点策略并释放焦点
+ */
+void DACollapseWidget::setKeyboardNavigation(bool on)
+{
+	DA_D(d);
+	if (d->keyboardNavigation == on)
+		return;
+	d->keyboardNavigation = on;
+	for (auto* it : std::as_const(d->items)) {
+		QWidget* header = it->headerWidget();
+		if (!header)
+			continue;
+		if (on) {
+			header->setFocusPolicy(Qt::StrongFocus);
+		} else {
+			header->setFocusPolicy(Qt::NoFocus);
+			if (header->hasFocus())
+				header->clearFocus();
+		}
+	}
+}
+
+/** @brief 键盘导航是否开启 */
+bool DACollapseWidget::isKeyboardNavigation() const
+{
+	DA_DC(d);
+	return d->keyboardNavigation;
+}
+
+/**
+ * @brief 设置外观变体
+ * @param variant 变体枚举(默认 Default)
+ * @details 只改间距与内留白,不碰 accordion / activeNames
+ */
+void DACollapseWidget::setVariant(Variant variant)
+{
+	DA_D(d);
+	if (d->variant == variant)
+		return;
+	d->variant = variant;
+	const QString key = variantKey(variant);
+	setProperty("daVariant", key);
+	d->layout->setSpacing(variant == Variant::Card ? 8 : 0);
+	for (auto* it : std::as_const(d->items))
+		applyVariantToItem(it);
+	d->layout->invalidate();
+}
+
+/** @brief 当前外观变体 */
+DACollapseWidget::Variant DACollapseWidget::variant() const
+{
+	DA_DC(d);
+	return d->variant;
+}
+
+/**
  * @brief 获取当前激活面板的 name 列表
  * @return 遍历所有条目收集展开项的 name
  */
@@ -2520,16 +3612,19 @@ void DACollapseWidget::setActiveNames(const QStringList& names)
  */
 void DACollapseWidget::activate(DACollapseItem* item, bool on)
 {
+	DA_D(d);
 	if (!item) {
 		return;
 	}
 	// 禁用面板不可激活(对标 Element UI disabled),折叠则不受限
 	if (on && item->disabled())
 		return;
-	// 临时阻断信号,避免 setActiveNames 过程中逐个触发 onItemExpandChanged 造成抖动
-	item->blockSignals(true);
+	// 用标志位抑制 onItemExpandChanged 的逐项发射,而不是 blockSignals():
+	// 后者会连 contentRequested 一起吞掉,破坏 setActiveNames 触发的懒加载
+	const bool prev = d->activating;
+	d->activating  = true;
 	item->setExpanded(on);
-	item->blockSignals(false);
+	d->activating = prev;
 }
 
 /**
@@ -2547,7 +3642,17 @@ void DACollapseWidget::addItem(DACollapseItem* item)
 	const int idx = d->layout->count() - 1;  // 弹簧索引
 	d->layout->insertWidget(idx, item);
 	d->items.append(item);
+	// 键盘导航:容器统一监听标题按键
+	if (QWidget* header = item->headerWidget()) {
+		header->installEventFilter(this);
+		if (d->keyboardNavigation)
+			header->setFocusPolicy(Qt::StrongFocus);
+	}
+	connect(item, &DACollapseItem::contentRequested, this,
+			[ this, item ] { Q_EMIT expandRequested(item->name()); });
 	connect(item, &DACollapseItem::expandChanged, this, [ this ](bool) { onItemExpandChanged(); });
+	// 后加入的条目也要吃到当前变体
+	applyVariantToItem(item);
 }
 
 /**
@@ -2599,6 +3704,8 @@ void DACollapseWidget::removeItem(DACollapseItem* item)
 	const int i = d->items.indexOf(item);
 	if (i < 0)
 		return;
+	if (QWidget* header = item->headerWidget())
+		header->removeEventFilter(this);
 	d->items.removeAt(i);
 	d->layout->removeWidget(item);
 	delete item;
@@ -2613,6 +3720,8 @@ void DACollapseWidget::clear()
 {
 	DA_D(d);
 	for (auto* it : std::as_const(d->items)) {
+		if (QWidget* header = it->headerWidget())
+			header->removeEventFilter(this);
 		d->layout->removeWidget(it);
 		delete it;
 	}
@@ -2628,6 +3737,8 @@ void DACollapseWidget::clear()
 void DACollapseWidget::onItemExpandChanged()
 {
 	DA_D(d);
+	if (d->activating)
+		return;
 	auto* src = qobject_cast< DACollapseItem* >(sender());
 	if (!src)
 		return;
@@ -2644,6 +3755,60 @@ void DACollapseWidget::onItemExpandChanged()
 		}
 	}
 	Q_EMIT activeNamesChanged(activeNames());
+}
+
+/**
+ * @brief 事件过滤器:标题上的 ↑/↓ 面板间导航
+ * @param watched 被监听对象(标题控件)
+ * @param event 事件
+ * @details 跳过禁用项、到首尾不循环;方向键一律吞掉,避免焦点跑出容器
+ */
+bool DACollapseWidget::eventFilter(QObject* watched, QEvent* event)
+{
+	DA_D(d);
+	if (!d->keyboardNavigation || event->type() != QEvent::KeyPress || d->items.isEmpty())
+		return QWidget::eventFilter(watched, event);
+
+	auto* ke           = static_cast< QKeyEvent* >(event);
+	const int key      = ke->key();
+	if (key != Qt::Key_Up && key != Qt::Key_Down)
+		return QWidget::eventFilter(watched, event);
+
+	DACollapseItem* current = nullptr;
+	for (auto* it : std::as_const(d->items)) {
+		if (it->headerWidget() == watched) {
+			current = it;
+			break;
+		}
+	}
+	if (!current)
+		return QWidget::eventFilter(watched, event);
+
+	const int dir   = (key == Qt::Key_Down) ? 1 : -1;
+	const int start = d->items.indexOf(current);
+	for (int i = start + dir; i >= 0 && i < d->items.size(); i += dir) {
+		DACollapseItem* candidate = d->items.at(i);
+		if (candidate->disabled())
+			continue;
+		if (QWidget* header = candidate->headerWidget()) {
+			header->setFocus(Qt::ShortcutFocusReason);
+			break;
+		}
+	}
+	return true;
+}
+
+/**
+ * @brief 把当前变体下发给单个条目
+ * @param item 目标条目
+ */
+void DACollapseWidget::applyVariantToItem(DACollapseItem* item)
+{
+	DA_D(d);
+	if (!item)
+		return;
+	item->setProperty("daVariant", variantKey(d->variant));
+	item->applyVariantChrome();
 }
 
 /** @brief 推荐尺寸,委托基类实现 */
@@ -3166,15 +4331,96 @@ void DAAbstractWidgetOverlay::draw(QPainter* painter) const
 
 
 /*** Start of inlined file: DAUndoHistoryWidget.cpp ***/
-#include <QUndoGroup>
-#include <QUndoView>
-#include <QSpinBox>
-#include <QLabel>
-#include <QVBoxLayout>
+#include <QAbstractItemModel>
+#include <QFontMetrics>
 #include <QHBoxLayout>
+#include <QLabel>
+#include <QPainter>
+#include <QSpinBox>
+#include <QStyleOptionViewItem>
+#include <QStyledItemDelegate>
+#include <QUndoCommand>
+#include <QUndoGroup>
+#include <QUndoStack>
+#include <QUndoView>
+#include <QVBoxLayout>
+#include <functional>
 
 namespace DA
 {
+namespace
+{
+// 私有 delegate：左侧状态点 + 右侧时间；两个开关都关时完全交给基类
+class UndoRowDelegate : public QStyledItemDelegate
+{
+public:
+	using StampFn   = std::function< QDateTime(int row) >;
+	using AppliedFn = std::function< bool(int row) >;
+	using FlagFn    = std::function< bool() >;
+
+	UndoRowDelegate(FlagFn timestamps, FlagFn icons, StampFn stamp, AppliedFn applied, QObject* parent)
+		: QStyledItemDelegate(parent)
+		, mTimestampsOn(std::move(timestamps))
+		, mIconsOn(std::move(icons))
+		, mStamp(std::move(stamp))
+		, mApplied(std::move(applied))
+	{
+	}
+
+	void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override
+	{
+		const bool timestamps = mTimestampsOn && mTimestampsOn();
+		const bool icons      = mIconsOn && mIconsOn();
+		if (!timestamps && !icons) {
+			QStyledItemDelegate::paint(painter, option, index);
+			return;
+		}
+		QStyleOptionViewItem opt(option);
+		initStyleOption(&opt, index);
+		const QRect full = opt.rect;
+		const QFontMetrics fm(opt.font);
+		QString timeText;
+		QRect timeRect;
+		if (timestamps) {
+			const QDateTime dt = mStamp ? mStamp(index.row()) : QDateTime();
+			if (dt.isValid()) {
+				timeText       = dt.toString(QStringLiteral("HH:mm:ss"));
+				const int tw   = Qt5Qt6Compat_fontMetrics_width(fm, timeText);
+				timeRect       = QRect(full.right() - tw - 2, full.top(), tw, full.height());
+				opt.rect.setRight(full.right() - tw - 8);
+			}
+		}
+		if (icons)
+			opt.rect.setLeft(full.left() + 14);
+		QStyledItemDelegate::paint(painter, opt, index);
+
+		painter->save();
+		painter->setRenderHint(QPainter::Antialiasing);
+		if (icons && mApplied) {
+			const QRect dot(full.left() + 6, full.center().y() - 3, 7, 7);
+			if (mApplied(index.row())) {
+				painter->setPen(Qt::NoPen);
+				painter->setBrush(QColor(0x67, 0xC2, 0x3A));
+			} else {
+				painter->setPen(QPen(QColor(0xC0, 0xC4, 0xCC), 1.2));
+				painter->setBrush(Qt::NoBrush);
+			}
+			painter->drawEllipse(dot);
+		}
+		if (!timeText.isEmpty()) {
+			painter->setPen(QColor(0x90, 0x93, 0x99));
+			painter->drawText(timeRect, Qt::AlignRight | Qt::AlignVCenter, timeText);
+		}
+		painter->restore();
+	}
+
+private:
+	FlagFn mTimestampsOn;
+	FlagFn mIconsOn;
+	StampFn mStamp;
+	AppliedFn mApplied;
+};
+}  // namespace
 
 /**
  * @brief 构造：撤销深度调节行 + QUndoView
@@ -3199,6 +4445,13 @@ DAUndoHistoryWidget::DAUndoHistoryWidget(QWidget* parent) : QWidget(parent)
 	// 历史列表（QUndoView：跟随激活栈、点击条目回退/前进、显示命令描述）
 	mView = new QUndoView(this);
 	mView->setObjectName(QStringLiteral("undoHistoryView"));
+	mView->setItemDelegate(new UndoRowDelegate(
+		[ this ]() { return mTimestampsVisible; }, [ this ]() { return mIconsVisible; },
+		[ this ](int row) {
+			const int idx = rowToCommandIndex(row);
+			return (idx >= 0 && idx < mStamps.size()) ? mStamps.at(idx) : QDateTime();
+		},
+		[ this ](int row) { return isRowApplied(row); }, mView));
 	main->addWidget(mView, 1);
 	connect(mSpinLimit, QOverload< int >::of(&QSpinBox::valueChanged), this, [ this ](int v) {
 		if (mUpdatingLimit) {
@@ -3206,6 +4459,11 @@ DAUndoHistoryWidget::DAUndoHistoryWidget(QWidget* parent) : QWidget(parent)
 		}
 		Q_EMIT undoLimitChangeRequested(v);
 	});
+	if (QAbstractItemModel* model = mView->model()) {
+		connect(model, &QAbstractItemModel::modelReset, this, [ this ]() { refilterRows(); });
+		connect(model, &QAbstractItemModel::rowsInserted, this, [ this ]() { refilterRows(); });
+		connect(model, &QAbstractItemModel::rowsRemoved, this, [ this ]() { refilterRows(); });
+	}
 }
 
 DAUndoHistoryWidget::~DAUndoHistoryWidget()
@@ -3218,8 +4476,18 @@ DAUndoHistoryWidget::~DAUndoHistoryWidget()
  */
 void DAUndoHistoryWidget::setUndoGroup(QUndoGroup* group)
 {
-	if (mView) {
-		mView->setGroup(group);
+	if (!mView) {
+		return;
+	}
+	if (QUndoGroup* old = mView->group())
+		disconnect(old, &QUndoGroup::activeStackChanged, this, &DAUndoHistoryWidget::attachStack);
+	mView->setGroup(group);
+	if (group) {
+		connect(group, &QUndoGroup::activeStackChanged, this, &DAUndoHistoryWidget::attachStack,
+				Qt::UniqueConnection);
+		attachStack(group->activeStack());
+	} else {
+		attachStack(nullptr);
 	}
 }
 
@@ -3245,6 +4513,137 @@ void DAUndoHistoryWidget::setUndoLimit(int limit)
 	mUpdatingLimit = true;
 	mSpinLimit->setValue(qBound(mSpinLimit->minimum(), limit, mSpinLimit->maximum()));
 	mUpdatingLimit = false;
+}
+
+/**
+ * @brief 打开/关闭每行右侧时间
+ * @param on 是否显示（默认 false）
+ */
+void DAUndoHistoryWidget::setTimestampsVisible(bool on)
+{
+	if (mTimestampsVisible == on)
+		return;
+	mTimestampsVisible = on;
+	if (mView)
+		mView->viewport()->update();
+}
+
+/** @brief 时间显示是否启用 */
+bool DAUndoHistoryWidget::timestampsVisible() const
+{
+	return mTimestampsVisible;
+}
+
+/**
+ * @brief 打开/关闭每行左侧状态点
+ * @param on 是否显示（默认 false）
+ */
+void DAUndoHistoryWidget::setIconsVisible(bool on)
+{
+	if (mIconsVisible == on)
+		return;
+	mIconsVisible = on;
+	if (mView)
+		mView->viewport()->update();
+}
+
+/** @brief 状态点是否启用 */
+bool DAUndoHistoryWidget::iconsVisible() const
+{
+	return mIconsVisible;
+}
+
+/**
+ * @brief 打开/关闭空命令隐藏
+ * @param on 是否隐藏文本为空的命令行（默认 false）
+ */
+void DAUndoHistoryWidget::setEmptyCommandFilterEnabled(bool on)
+{
+	if (mEmptyFilterEnabled == on)
+		return;
+	mEmptyFilterEnabled = on;
+	refilterRows();
+}
+
+/** @brief 空命令隐藏是否启用 */
+bool DAUndoHistoryWidget::isEmptyCommandFilterEnabled() const
+{
+	return mEmptyFilterEnabled;
+}
+
+/**
+ * @brief 查询某条命令的入栈时刻
+ * @param index 与 QUndoStack 下标一致
+ * @return 本地时间；未记录或越界返回无效值
+ */
+QDateTime DAUndoHistoryWidget::commandTimestamp(int index) const
+{
+	if (index < 0 || index >= mStamps.size())
+		return QDateTime();
+	return mStamps.at(index);
+}
+
+int DAUndoHistoryWidget::rowToCommandIndex(int row) const
+{
+	// QUndoModel: row 0 = 初始状态，row r = 命令 r-1
+	if (!mWatchedStack || row <= 0)
+		return -1;
+	const int idx = row - 1;
+	if (idx >= mWatchedStack->count())
+		return -1;
+	return idx;
+}
+
+bool DAUndoHistoryWidget::isRowApplied(int row) const
+{
+	const int idx = rowToCommandIndex(row);
+	return idx >= 0 && mWatchedStack && idx < mWatchedStack->index();
+}
+
+void DAUndoHistoryWidget::attachStack(QUndoStack* stack)
+{
+	if (mWatchedStack)
+		disconnect(mWatchedStack, nullptr, this, nullptr);
+	mWatchedStack = stack;
+	mStamps.clear();
+	if (!stack) {
+		refilterRows();
+		return;
+	}
+	// 已有历史补一份当前时间（用户中途打开显示也能看到时间）
+	const QDateTime now = QDateTime::currentDateTime();
+	for (int i = 0; i < stack->count(); ++i)
+		mStamps.append(now);
+	connect(stack, &QUndoStack::indexChanged, this, [ this ](int) {
+		noteStackChange(mWatchedStack ? mWatchedStack->count() : 0);
+		refilterRows();
+	});
+	refilterRows();
+}
+
+void DAUndoHistoryWidget::noteStackChange(int count)
+{
+	if (count > mStamps.size()) {
+		while (mStamps.size() < count)
+			mStamps.append(QDateTime::currentDateTime());
+	} else if (count < mStamps.size()) {
+		// redo 分支被截断：旧时间作废
+		mStamps.resize(count);
+	}
+}
+
+void DAUndoHistoryWidget::refilterRows()
+{
+	if (!mView || !mView->model())
+		return;
+	const int rows = mView->model()->rowCount();
+	for (int row = 0; row < rows; ++row) {
+		bool hide = false;
+		const int idx = rowToCommandIndex(row);
+		if (mEmptyFilterEnabled && idx >= 0 && mWatchedStack)
+			hide = mWatchedStack->text(idx).trimmed().isEmpty();
+		mView->setRowHidden(row, hide);
+	}
 }
 
 }  // end of namespace DA
@@ -4682,8 +6081,10 @@ void DATextAlignmentEditWidget::changeEvent(QEvent* e)
 #include <QtGui/QIcon>
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QHBoxLayout>
+#include <QtWidgets/QLabel>
 #include <QtWidgets/QLineEdit>
 #include <QtWidgets/QToolButton>
+#include <QtWidgets/QVBoxLayout>
 #include <QtWidgets/QWidget>
 
 QT_BEGIN_NAMESPACE
@@ -4691,16 +6092,27 @@ QT_BEGIN_NAMESPACE
 class Ui_DAFilePathEditWidget
 {
 public:
+	QVBoxLayout *verticalLayout;
 	QHBoxLayout *horizontalLayout;
 	QLineEdit *lineEdit;
+	QToolButton *toolButtonRecent;
 	QToolButton *toolButtonOpen;
+	QWidget *widgetStatus;
+	QHBoxLayout *statusLayout;
+	QLabel *labelStatusIcon;
+	QLabel *labelStatusText;
+	QLabel *labelDropHint;
 
 	void setupUi(QWidget *DAFilePathEditWidget)
 	{
 		if (DAFilePathEditWidget->objectName().isEmpty())
 			DAFilePathEditWidget->setObjectName("DAFilePathEditWidget");
 		DAFilePathEditWidget->resize(274, 22);
-		horizontalLayout = new QHBoxLayout(DAFilePathEditWidget);
+		verticalLayout = new QVBoxLayout(DAFilePathEditWidget);
+		verticalLayout->setSpacing(2);
+		verticalLayout->setObjectName("verticalLayout");
+		verticalLayout->setContentsMargins(0, 0, 0, 0);
+		horizontalLayout = new QHBoxLayout();
 		horizontalLayout->setSpacing(1);
 		horizontalLayout->setObjectName("horizontalLayout");
 		horizontalLayout->setContentsMargins(0, 0, 0, 0);
@@ -4709,15 +6121,57 @@ public:
 
 		horizontalLayout->addWidget(lineEdit);
 
+		toolButtonRecent = new QToolButton(DAFilePathEditWidget);
+		toolButtonRecent->setObjectName("toolButtonRecent");
+		QIcon icon;
+		icon.addFile(QString::fromUtf8(":/DAWidgetsIcons/arrow-down.svg"), QSize(), QIcon::Mode::Normal, QIcon::State::Off);
+		toolButtonRecent->setIcon(icon);
+		toolButtonRecent->setIconSize(QSize(16, 16));
+		toolButtonRecent->setPopupMode(QToolButton::InstantPopup);
+		toolButtonRecent->setAutoRaise(true);
+
+		horizontalLayout->addWidget(toolButtonRecent);
+
 		toolButtonOpen = new QToolButton(DAFilePathEditWidget);
 		toolButtonOpen->setObjectName("toolButtonOpen");
-		QIcon icon;
-		icon.addFile(QString::fromUtf8(":/DAWidgetsIcons/open.svg"), QSize(), QIcon::Mode::Normal, QIcon::State::Off);
-		toolButtonOpen->setIcon(icon);
+		QIcon icon1;
+		icon1.addFile(QString::fromUtf8(":/DAWidgetsIcons/open.svg"), QSize(), QIcon::Mode::Normal, QIcon::State::Off);
+		toolButtonOpen->setIcon(icon1);
 		toolButtonOpen->setIconSize(QSize(16, 16));
 		toolButtonOpen->setAutoRaise(true);
 
 		horizontalLayout->addWidget(toolButtonOpen);
+
+		verticalLayout->addLayout(horizontalLayout);
+
+		widgetStatus = new QWidget(DAFilePathEditWidget);
+		widgetStatus->setObjectName("widgetStatus");
+		statusLayout = new QHBoxLayout(widgetStatus);
+		statusLayout->setSpacing(4);
+		statusLayout->setObjectName("statusLayout");
+		statusLayout->setContentsMargins(0, 0, 0, 0);
+		labelStatusIcon = new QLabel(widgetStatus);
+		labelStatusIcon->setObjectName("labelStatusIcon");
+		labelStatusIcon->setMinimumSize(QSize(13, 13));
+		labelStatusIcon->setMaximumSize(QSize(13, 13));
+
+		statusLayout->addWidget(labelStatusIcon);
+
+		labelStatusText = new QLabel(widgetStatus);
+		labelStatusText->setObjectName("labelStatusText");
+
+		statusLayout->addWidget(labelStatusText);
+
+		verticalLayout->addWidget(widgetStatus);
+
+		labelDropHint = new QLabel(DAFilePathEditWidget);
+		labelDropHint->setObjectName("labelDropHint");
+		labelDropHint->setFrameShape(QFrame::StyledPanel);
+		labelDropHint->setAlignment(Qt::AlignCenter);
+		labelDropHint->setMinimumHeight(54);
+		labelDropHint->setWordWrap(true);
+
+		verticalLayout->addWidget(labelDropHint);
 
 		retranslateUi(DAFilePathEditWidget);
 
@@ -4727,10 +6181,16 @@ public:
 	void retranslateUi(QWidget *DAFilePathEditWidget)
 	{
 		DAFilePathEditWidget->setWindowTitle(QCoreApplication::translate("DAFilePathEditWidget", "File Path Edit", nullptr));
+#if QT_CONFIG(tooltip)
+		toolButtonRecent->setToolTip(QCoreApplication::translate("DAFilePathEditWidget", "Recent paths", nullptr));
+#endif // QT_CONFIG(tooltip)
 		toolButtonOpen->setText(QCoreApplication::translate("DAFilePathEditWidget", "Open", nullptr));
 #if QT_CONFIG(shortcut)
 		toolButtonOpen->setShortcut(QCoreApplication::translate("DAFilePathEditWidget", "Ctrl+O", nullptr));
 #endif // QT_CONFIG(shortcut)
+		labelStatusIcon->setText(QString());
+		labelStatusText->setText(QString());
+		labelDropHint->setText(QCoreApplication::translate("DAFilePathEditWidget", "Drop a file or folder here", nullptr));
 	} // retranslateUi
 
 };
@@ -4745,8 +6205,17 @@ QT_END_NAMESPACE
 
 /*** End of inlined file: ui_DAFilePathEditWidget.h ***/
 
+#include <QDragEnterEvent>
+#include <QDragLeaveEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QLabel>
+#include <QMenu>
+#include <QMimeData>
+#include <QStyle>
+#include <QUrl>
 namespace DA
 {
 
@@ -4756,15 +6225,55 @@ class DAFilePathEditWidget::PrivateData
 public:
 	PrivateData(DAFilePathEditWidget* p);
 
+	enum class ValidationState
+	{
+		Hidden,
+		Valid,
+		Invalid
+	};
+
+	bool computeValid(const QString& path) const;
+
 public:
 	QStringList mNameFilters;
 	Mode mMode { Mode::OpenFile };
 	QString mStartDirectory;
 	QString mDefaultSuffix;
+	bool mDropEnabled { false };
+	bool mValidationEnabled { false };
+	bool mHasValidation { false };
+	bool mLastValid { false };
+	ValidationState mState { ValidationState::Hidden };
+	QStringList mRecentPaths;
+	QMenu* mRecentMenu { nullptr };
 };
 
 DAFilePathEditWidget::PrivateData::PrivateData(DAFilePathEditWidget* p) : q_ptr(p)
 {
+}
+
+/**
+ * @brief 按当前模式判断路径是否可用
+ * @details SaveFile 允许目标文件不存在，只要求父目录存在且可写
+ */
+bool DAFilePathEditWidget::PrivateData::computeValid(const QString& path) const
+{
+	const QString p = path.trimmed();
+	if (p.isEmpty())
+		return false;
+	const QFileInfo fi(p);
+	switch (mMode) {
+	case Mode::OpenFile:
+		return fi.isFile();
+	case Mode::ExistingDirectory:
+		return fi.isDir();
+	case Mode::SaveFile:
+		if (fi.exists())
+			return !fi.isDir();
+		// 不存在的保存目标是正常输入：只要求父目录存在且可写
+		return QFileInfo(fi.absolutePath()).isDir() && QFileInfo(fi.absolutePath()).isWritable();
+	}
+	return false;
 }
 
 //===============================================================
@@ -4781,6 +6290,13 @@ DAFilePathEditWidget::DAFilePathEditWidget(QWidget* parent)
 {
 	ensureResourcesInitialized();  // 静态库需显式注册 qrc 资源,否则被链接器丢弃
 	ui->setupUi(this);
+	// 新控件默认隐藏；不依赖 .ui 的 visible 属性
+	ui->toolButtonRecent->setVisible(false);
+	ui->widgetStatus->setVisible(false);
+	ui->labelDropHint->setVisible(false);
+	ui->lineEdit->installEventFilter(this);
+	d_ptr->mRecentMenu = new QMenu(this);
+	ui->toolButtonRecent->setMenu(d_ptr->mRecentMenu);
 	connect(ui->toolButtonOpen, &QToolButton::clicked, this, &DAFilePathEditWidget::onToolButtonOpenClicked);
 	connect(ui->lineEdit, &QLineEdit::editingFinished, this, &DAFilePathEditWidget::onLineEditEditingFinished);
 	connect(ui->lineEdit, &QLineEdit::textChanged, this, [ this ](const QString& t) { Q_EMIT pathChanged(t); });
@@ -4792,6 +6308,10 @@ DAFilePathEditWidget::DAFilePathEditWidget(QWidget* parent)
  */
 DAFilePathEditWidget::~DAFilePathEditWidget()
 {
+	// 析构时 QWidget 隐藏子控件还会触发 focusOut → editingFinished，
+	// 必须先断开，否则槽里访问已 delete 的 ui 会崩
+	ui->lineEdit->disconnect(this);
+	ui->toolButtonOpen->disconnect(this);
 	delete ui;
 }
 
@@ -4957,17 +6477,246 @@ void DAFilePathEditWidget::onToolButtonOpenClicked()
 	if (fileDialog.exec()) {
 		auto files = fileDialog.selectedFiles();
 		if (!files.isEmpty()) {
-			QString p = files.back();
-			ui->lineEdit->setText(p);
-			emit selectedPath(p);
+			const QString p = files.back();
+			setPathAndValidate(p);
+			Q_EMIT selectedPath(p);
 		}
 	}
 }
 
 void DAFilePathEditWidget::onLineEditEditingFinished()
 {
-	QString p = getFilePath();
-	emit selectedPath(p);
+	if (d_ptr->mValidationEnabled)
+		validateNow();
+	Q_EMIT selectedPath(getFilePath());
+}
+
+/**
+ * @brief 打开/关闭拖放
+ * @param on 是否启用（默认 false）
+ */
+void DAFilePathEditWidget::setDropEnabled(bool on)
+{
+	d_ptr->mDropEnabled = on;
+	setAcceptDrops(on);
+	ui->labelDropHint->setVisible(on);
+	if (!on)
+		resetDragActive();
+}
+
+/** @brief 拖放是否启用 */
+bool DAFilePathEditWidget::isDropEnabled() const
+{
+	return d_ptr->mDropEnabled;
+}
+
+/**
+ * @brief 打开/关闭路径校验
+ * @param on 是否启用（默认 false）
+ */
+void DAFilePathEditWidget::setValidationEnabled(bool on)
+{
+	d_ptr->mValidationEnabled = on;
+	ui->lineEdit->setClearButtonEnabled(on);
+	if (on) {
+		if (d_ptr->mState != PrivateData::ValidationState::Hidden)
+			ui->widgetStatus->setVisible(true);
+	} else {
+		ui->widgetStatus->setVisible(false);
+		ui->lineEdit->setProperty("invalid", false);
+		ui->widgetStatus->setProperty("invalid", false);
+		ui->lineEdit->style()->unpolish(ui->lineEdit);
+		ui->lineEdit->style()->polish(ui->lineEdit);
+		ui->lineEdit->update();
+	}
+}
+
+/** @brief 校验是否启用 */
+bool DAFilePathEditWidget::isValidationEnabled() const
+{
+	return d_ptr->mValidationEnabled;
+}
+
+/**
+ * @brief 立即校验当前路径
+ * @return 是否合法；空路径返回 false，且不发信号、不显示状态行
+ */
+bool DAFilePathEditWidget::validateNow()
+{
+	const QString path = getFilePath().trimmed();
+	if (path.isEmpty()) {
+		d_ptr->mState = PrivateData::ValidationState::Hidden;
+		d_ptr->mHasValidation = false;
+		ui->widgetStatus->setVisible(false);
+		ui->lineEdit->setProperty("invalid", false);
+		ui->lineEdit->style()->unpolish(ui->lineEdit);
+		ui->lineEdit->style()->polish(ui->lineEdit);
+		ui->lineEdit->update();
+		return false;
+	}
+	const bool valid = d_ptr->computeValid(path);
+	const bool changed = !d_ptr->mHasValidation || d_ptr->mLastValid != valid;
+	d_ptr->mHasValidation = true;
+	d_ptr->mLastValid = valid;
+	d_ptr->mState = valid ? PrivateData::ValidationState::Valid : PrivateData::ValidationState::Invalid;
+	if (d_ptr->mValidationEnabled)
+		refreshValidationVisual(valid);
+	if (changed)
+		Q_EMIT validationChanged(valid);
+	return valid;
+}
+
+/**
+ * @brief 设置最近路径
+ * @param paths 入参顺序为“最近 → 最旧”，去重后截断到 5
+ */
+void DAFilePathEditWidget::setRecentPaths(const QStringList& paths)
+{
+	d_ptr->mRecentPaths.clear();
+	for (const QString& raw : paths) {
+		const QString p = raw.trimmed();
+		if (p.isEmpty() || d_ptr->mRecentPaths.contains(p))
+			continue;
+		d_ptr->mRecentPaths << p;
+		if (d_ptr->mRecentPaths.size() >= 5)
+			break;
+	}
+	rebuildRecentMenu();
+	ui->toolButtonRecent->setVisible(!d_ptr->mRecentPaths.isEmpty());
+}
+
+/** @brief 当前最近路径（最近优先） */
+QStringList DAFilePathEditWidget::recentPaths() const
+{
+	return d_ptr->mRecentPaths;
+}
+
+void DAFilePathEditWidget::rebuildRecentMenu()
+{
+	d_ptr->mRecentMenu->clear();
+	for (const QString& path : d_ptr->mRecentPaths) {
+		QAction* action = d_ptr->mRecentMenu->addAction(path);
+		connect(action, &QAction::triggered, this, [ this, path ]() { onRecentPathActivated(path); });
+	}
+}
+
+void DAFilePathEditWidget::onRecentPathActivated(const QString& path)
+{
+	setPathAndValidate(path);
+	Q_EMIT recentPathActivated(path);
+	Q_EMIT selectedPath(path);
+}
+
+void DAFilePathEditWidget::setPathAndValidate(const QString& path)
+{
+	ui->lineEdit->setText(path);
+	if (d_ptr->mValidationEnabled)
+		validateNow();
+}
+
+void DAFilePathEditWidget::refreshValidationVisual(bool valid)
+{
+	ui->widgetStatus->setVisible(true);
+	ui->labelStatusIcon->setPixmap(style()
+									   ->standardIcon(valid ? QStyle::SP_DialogApplyButton
+															: QStyle::SP_MessageBoxCritical)
+									   .pixmap(13, 13));
+	ui->labelStatusText->setText(valid ? tr("Path exists")       //cn:文件存在
+									   : tr("Path not found"));  //cn:路径不存在
+	ui->lineEdit->setProperty("invalid", !valid);
+	ui->widgetStatus->setProperty("invalid", !valid);
+	for (QWidget* w : { static_cast< QWidget* >(ui->lineEdit), ui->widgetStatus }) {
+		w->style()->unpolish(w);
+		w->style()->polish(w);
+		w->update();
+	}
+}
+
+void DAFilePathEditWidget::resetDragActive()
+{
+	ui->labelDropHint->setProperty("dragActive", false);
+	ui->labelDropHint->style()->unpolish(ui->labelDropHint);
+	ui->labelDropHint->style()->polish(ui->labelDropHint);
+	ui->labelDropHint->update();
+}
+
+void DAFilePathEditWidget::dragEnterEvent(QDragEnterEvent* e)
+{
+	if (!d_ptr->mDropEnabled || !e->mimeData()->hasUrls()) {
+		e->ignore();
+		return;
+	}
+	e->acceptProposedAction();
+	ui->labelDropHint->setProperty("dragActive", true);
+	ui->labelDropHint->style()->unpolish(ui->labelDropHint);
+	ui->labelDropHint->style()->polish(ui->labelDropHint);
+	ui->labelDropHint->update();
+}
+
+void DAFilePathEditWidget::dragLeaveEvent(QDragLeaveEvent* e)
+{
+	Q_UNUSED(e);
+	resetDragActive();
+}
+
+void DAFilePathEditWidget::dropEvent(QDropEvent* e)
+{
+	resetDragActive();
+	if (!d_ptr->mDropEnabled || !e->mimeData()->hasUrls()) {
+		e->ignore();
+		return;
+	}
+	const QList< QUrl > urls = e->mimeData()->urls();
+	if (urls.isEmpty()) {
+		e->ignore();
+		return;
+	}
+	const QString path = urls.first().toLocalFile();
+	if (path.isEmpty()) {  // 远程 URL 不接管
+		e->ignore();
+		return;
+	}
+	setPathAndValidate(path);
+	Q_EMIT selectedPath(path);
+	e->acceptProposedAction();
+}
+
+bool DAFilePathEditWidget::eventFilter(QObject* watched, QEvent* event)
+{
+	if (watched == ui->lineEdit && d_ptr->mDropEnabled) {
+		switch (event->type()) {
+		case QEvent::DragEnter: {
+			auto* de = static_cast< QDragEnterEvent* >(event);
+			if (de->mimeData()->hasUrls()) {
+				dragEnterEvent(de);
+				return true;
+			}
+			break;
+		}
+		case QEvent::DragMove: {
+			auto* dm = static_cast< QDragMoveEvent* >(event);
+			if (dm->mimeData()->hasUrls()) {
+				dm->acceptProposedAction();
+				return true;
+			}
+			break;
+		}
+		case QEvent::DragLeave:
+			resetDragActive();
+			return true;
+		case QEvent::Drop: {
+			auto* de = static_cast< QDropEvent* >(event);
+			if (de->mimeData()->hasUrls()) {
+				dropEvent(de);
+				return true;
+			}
+			break;
+		}
+		default:
+			break;
+		}
+	}
+	return QWidget::eventFilter(watched, event);
 }
 
 void DAFilePathEditWidget::changeEvent(QEvent* e)
@@ -4976,6 +6725,9 @@ void DAFilePathEditWidget::changeEvent(QEvent* e)
 	switch (e->type()) {
 	case QEvent::LanguageChange:
 		ui->retranslateUi(this);
+		if (d_ptr->mValidationEnabled && d_ptr->mState != PrivateData::ValidationState::Hidden) {
+			refreshValidationVisual(d_ptr->mState == PrivateData::ValidationState::Valid);
+		}
 		break;
 	default:
 		break;
@@ -4989,14 +6741,169 @@ void DAFilePathEditWidget::changeEvent(QEvent* e)
 
 /*** Start of inlined file: DATextEditWidget.cpp ***/
 #include <QAction>
+#include <QCheckBox>
 #include <QFontDatabase>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QLineEdit>
+#include <QPainter>
 #include <QPlainTextEdit>
+#include <QShortcut>
 #include <QSignalBlocker>
+#include <QStyle>
+#include <QTextBlock>
+#include <QTextDocument>
+#include <QTextEdit>
 #include <QToolBar>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 namespace DA
 {
+namespace
+{
+class DAInternalTextEdit;
+
+// 行号区：只负责把绘制转回编辑器
+class DAInternalLineNumberArea : public QWidget
+{
+public:
+	explicit DAInternalLineNumberArea(DAInternalTextEdit* editor);
+	QSize sizeHint() const override;
+	void paintEvent(QPaintEvent* e) override;
+
+private:
+	DAInternalTextEdit* mEditor { nullptr };
+};
+
+// 编辑器子类：用 viewportMargins 在左侧挤出宽度并自绘行号
+class DAInternalTextEdit : public QPlainTextEdit
+{
+public:
+	explicit DAInternalTextEdit(QWidget* parent = nullptr);
+
+	int lineNumberAreaWidth() const;
+	void setLineNumberAreaVisible(bool on);
+	bool lineNumberAreaVisible() const
+	{
+		return mLineNumbers;
+	}
+	void paintLineNumbers(QPaintEvent* e);
+	void updateLineNumberAreaWidth(int newBlockCount);
+	void updateLineNumberArea(const QRect& rect, int dy);
+
+protected:
+	void resizeEvent(QResizeEvent* e) override;
+
+private:
+	QWidget* mLineNumberArea { nullptr };
+	bool mLineNumbers { false };
+};
+
+DAInternalLineNumberArea::DAInternalLineNumberArea(DAInternalTextEdit* editor)
+	: QWidget(editor), mEditor(editor)
+{
+	setObjectName(QStringLiteral("lineNumberArea"));
+}
+
+QSize DAInternalLineNumberArea::sizeHint() const
+{
+	return QSize(mEditor ? mEditor->lineNumberAreaWidth() : 0, 0);
+}
+
+void DAInternalLineNumberArea::paintEvent(QPaintEvent* e)
+{
+	if (mEditor)
+		mEditor->paintLineNumbers(e);
+}
+
+DAInternalTextEdit::DAInternalTextEdit(QWidget* parent) : QPlainTextEdit(parent)
+{
+	mLineNumberArea = new DAInternalLineNumberArea(this);
+	mLineNumberArea->hide();
+	connect(this, &QPlainTextEdit::blockCountChanged, this, &DAInternalTextEdit::updateLineNumberAreaWidth);
+	connect(this, &QPlainTextEdit::updateRequest, this, &DAInternalTextEdit::updateLineNumberArea);
+	updateLineNumberAreaWidth(0);
+}
+
+int DAInternalTextEdit::lineNumberAreaWidth() const
+{
+	int digits = 1;
+	int max    = qMax(1, blockCount());
+	while (max >= 10) {
+		max /= 10;
+		++digits;
+	}
+	return 8 + Qt5Qt6Compat_fontMetrics_width(fontMetrics(), QString(digits, QLatin1Char('9')));
+}
+
+void DAInternalTextEdit::setLineNumberAreaVisible(bool on)
+{
+	if (mLineNumbers == on)
+		return;
+	mLineNumbers = on;
+	if (on) {
+		mLineNumberArea->show();
+		updateLineNumberAreaWidth(0);
+	} else {
+		mLineNumberArea->hide();
+		setViewportMargins(0, 0, 0, 0);
+	}
+}
+
+void DAInternalTextEdit::updateLineNumberAreaWidth(int)
+{
+	const int width = mLineNumbers ? lineNumberAreaWidth() : 0;
+	setViewportMargins(width, 0, 0, 0);
+	if (mLineNumbers && mLineNumberArea) {
+		const QRect cr = contentsRect();
+		mLineNumberArea->setGeometry(QRect(cr.left(), cr.top(), width, cr.height()));
+	}
+}
+
+void DAInternalTextEdit::updateLineNumberArea(const QRect& rect, int dy)
+{
+	if (!mLineNumbers || !mLineNumberArea)
+		return;
+	if (dy)
+		mLineNumberArea->scroll(0, dy);
+	else
+		mLineNumberArea->update(0, rect.y(), mLineNumberArea->width(), rect.height());
+	if (rect.contains(viewport()->rect()))
+		updateLineNumberAreaWidth(0);
+}
+
+void DAInternalTextEdit::resizeEvent(QResizeEvent* e)
+{
+	QPlainTextEdit::resizeEvent(e);
+	if (!mLineNumbers || !mLineNumberArea)
+		return;
+	const QRect cr = contentsRect();
+	mLineNumberArea->setGeometry(QRect(cr.left(), cr.top(), lineNumberAreaWidth(), cr.height()));
+}
+
+void DAInternalTextEdit::paintLineNumbers(QPaintEvent* e)
+{
+	QPainter painter(mLineNumberArea);
+	painter.fillRect(e->rect(), QColor(0xF5, 0xF7, 0xFA));
+	painter.setPen(QColor(0x90, 0x93, 0x99));
+
+	QTextBlock block = firstVisibleBlock();
+	int blockNumber  = block.blockNumber();
+	int top          = qRound(blockBoundingGeometry(block).translated(contentOffset()).top());
+	int bottom       = top + qRound(blockBoundingRect(block).height());
+	while (block.isValid() && top <= e->rect().bottom()) {
+		if (block.isVisible() && bottom >= e->rect().top()) {
+			painter.drawText(0, top, mLineNumberArea->width() - 4, fontMetrics().height(),
+							 Qt::AlignRight, QString::number(blockNumber + 1));
+		}
+		block = block.next();
+		top    = bottom;
+		bottom = top + qRound(blockBoundingRect(block).height());
+		++blockNumber;
+	}
+}
+}  // namespace
 
 class DATextEditWidget::PrivateData
 {
@@ -5004,11 +6911,31 @@ class DATextEditWidget::PrivateData
 public:
 	PrivateData(DATextEditWidget* p);
 	void init();
+	void buildFindBar();
+	int collectMatches(const QString& key, QVector< QPair< int, int > >& ranges) const;
+	void applyFindHighlight();
+	void updateFindCount();
+	void clearFindState();
+	void refreshFind(bool jumpToFirst);
+	void moveToMatch(bool forward);
 
 	QToolBar* mToolbar { nullptr };
-	QPlainTextEdit* mEdit { nullptr };
+	DAInternalTextEdit* mEdit { nullptr };
 	QFont mDefaultFont;
 	bool mMonospace { false };
+
+	QWidget* mFindBar { nullptr };
+	QLineEdit* mFindEdit { nullptr };
+	QLabel* mFindCount { nullptr };
+	QCheckBox* mFindCase { nullptr };
+	QToolButton* mFindPrev { nullptr };
+	QToolButton* mFindNext { nullptr };
+	QToolButton* mFindClose { nullptr };
+	QAction* mFindAction { nullptr };
+	bool mFindEnabled { false };
+	bool mFindCaseSensitive { false };
+	QVector< QPair< int, int > > mFindRanges;
+	int mFindIndex { -1 };
 };
 
 DATextEditWidget::PrivateData::PrivateData(DATextEditWidget* p) : q_ptr(p)
@@ -5030,12 +6957,179 @@ void DATextEditWidget::PrivateData::init()
 	mToolbar->setVisible(false);
 	root->addWidget(mToolbar);
 
-	mEdit = new QPlainTextEdit(q);
+	buildFindBar();
+	mFindBar->setVisible(false);
+	root->addWidget(mFindBar);
+
+	mEdit = new DAInternalTextEdit(q);
 	mEdit->setObjectName(QStringLiteral("textEdit"));
 	mDefaultFont = mEdit->font();
 	root->addWidget(mEdit, 1);
 
+	// 查找动作：context 限定在控件子树，只读时同样可用
+	mFindAction = new QAction(q);
+	mFindAction->setShortcut(QKeySequence::Find);
+	mFindAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+	mFindAction->setEnabled(false);
+	QObject::connect(mFindAction, &QAction::triggered, q, [ q ]() { q->showFindBar(); });
+	q->addAction(mFindAction);
+
 	QObject::connect(mEdit, &QPlainTextEdit::textChanged, q, [ q ]() { Q_EMIT q->textChanged(); });
+}
+
+void DATextEditWidget::PrivateData::buildFindBar()
+{
+	DA_Q(DATextEditWidget, q);
+	mFindBar = new QWidget(q);
+	mFindBar->setObjectName(QStringLiteral("findBar"));
+	auto* lay = new QHBoxLayout(mFindBar);
+	lay->setContentsMargins(4, 2, 4, 2);
+	lay->setSpacing(4);
+
+	mFindEdit = new QLineEdit(mFindBar);
+	mFindEdit->setObjectName(QStringLiteral("findEdit"));
+	mFindEdit->setPlaceholderText(DATextEditWidget::tr("Find in text"));  //cn:在文本中查找
+
+	mFindPrev = new QToolButton(mFindBar);
+	mFindPrev->setObjectName(QStringLiteral("findPrev"));
+	mFindPrev->setAutoRaise(true);
+	mFindPrev->setIcon(q->style()->standardIcon(QStyle::SP_ArrowUp));
+	mFindPrev->setToolTip(DATextEditWidget::tr("Previous"));  //cn:上一个
+
+	mFindNext = new QToolButton(mFindBar);
+	mFindNext->setObjectName(QStringLiteral("findNext"));
+	mFindNext->setAutoRaise(true);
+	mFindNext->setIcon(q->style()->standardIcon(QStyle::SP_ArrowDown));
+	mFindNext->setToolTip(DATextEditWidget::tr("Next"));  //cn:下一个
+
+	mFindCount = new QLabel(QStringLiteral("0 / 0"), mFindBar);
+	mFindCount->setObjectName(QStringLiteral("findCount"));
+
+	mFindCase = new QCheckBox(DATextEditWidget::tr("Match case"), mFindBar);  //cn:区分大小写
+	mFindCase->setObjectName(QStringLiteral("findCase"));
+
+	mFindClose = new QToolButton(mFindBar);
+	mFindClose->setObjectName(QStringLiteral("findClose"));
+	mFindClose->setAutoRaise(true);
+	mFindClose->setIcon(q->style()->standardIcon(QStyle::SP_TitleBarCloseButton));
+	mFindClose->setToolTip(DATextEditWidget::tr("Close"));  //cn:关闭
+
+	lay->addWidget(mFindEdit, 1);
+	lay->addWidget(mFindPrev);
+	lay->addWidget(mFindNext);
+	lay->addWidget(mFindCount);
+	lay->addWidget(mFindCase);
+	lay->addWidget(mFindClose);
+
+	QObject::connect(mFindEdit, &QLineEdit::textChanged, q, [ this ](const QString&) { refreshFind(true); });
+	QObject::connect(mFindPrev, &QToolButton::clicked, q, [ this ]() { moveToMatch(false); });
+	QObject::connect(mFindNext, &QToolButton::clicked, q, [ this ]() { moveToMatch(true); });
+	QObject::connect(mFindClose, &QToolButton::clicked, q, [ q ]() { q->hideFindBar(); });
+	QObject::connect(mFindCase, &QCheckBox::toggled, q, [ q ](bool on) { q->setFindCaseSensitive(on); });
+
+	auto* esc = new QShortcut(QKeySequence(Qt::Key_Escape), mFindEdit);
+	QObject::connect(esc, &QShortcut::activated, q, [ q ]() { q->hideFindBar(); });
+}
+
+int DATextEditWidget::PrivateData::collectMatches(const QString& key,
+												  QVector< QPair< int, int > >& ranges) const
+{
+	ranges.clear();
+	if (key.isEmpty() || !mEdit)
+		return 0;
+	QTextDocument::FindFlags flags;
+	if (mFindCaseSensitive)
+		flags |= QTextDocument::FindCaseSensitively;
+	QTextCursor cursor(mEdit->document());
+	while (true) {
+		cursor = mEdit->document()->find(key, cursor, flags);
+		if (cursor.isNull())
+			break;
+		const int start = cursor.selectionStart();
+		ranges.append(qMakePair(start, cursor.selectionEnd() - start));
+	}
+	return ranges.size();
+}
+
+void DATextEditWidget::PrivateData::applyFindHighlight()
+{
+	QList< QTextEdit::ExtraSelection > selections;
+	for (int i = 0; i < mFindRanges.size(); ++i) {
+		const auto& r = mFindRanges.at(i);
+		QTextEdit::ExtraSelection sel;
+		sel.cursor = QTextCursor(mEdit->document());
+		sel.cursor.setPosition(r.first);
+		sel.cursor.setPosition(r.first + r.second, QTextCursor::KeepAnchor);
+		sel.format.setBackground(i == mFindIndex ? QColor(0xFF, 0xD6, 0x66, 180)
+												 : QColor(0xFF, 0xF1, 0xB8, 140));
+		selections.append(sel);
+	}
+	mEdit->setExtraSelections(selections);
+}
+
+void DATextEditWidget::PrivateData::updateFindCount()
+{
+	if (!mFindCount)
+		return;
+	const int total = mFindRanges.size();
+	const int shown = (total > 0 && mFindIndex >= 0) ? (mFindIndex + 1) : 0;
+	mFindCount->setText(QStringLiteral("%1 / %2").arg(shown).arg(total));
+	const bool invalid = total == 0 && mFindEdit && !mFindEdit->text().isEmpty();
+	mFindEdit->setProperty("invalid", invalid);
+	mFindEdit->style()->unpolish(mFindEdit);
+	mFindEdit->style()->polish(mFindEdit);
+	mFindEdit->update();
+}
+
+void DATextEditWidget::PrivateData::clearFindState()
+{
+	mFindRanges.clear();
+	mFindIndex = -1;
+	if (mEdit)
+		mEdit->setExtraSelections({});
+	if (mFindCount)
+		mFindCount->setText(QStringLiteral("0 / 0"));
+}
+
+void DATextEditWidget::PrivateData::refreshFind(bool jumpToFirst)
+{
+	if (!mFindEdit)
+		return;
+	const QString key = mFindEdit->text();
+	collectMatches(key, mFindRanges);
+	if (mFindRanges.isEmpty()) {
+		mFindIndex = -1;
+		mEdit->setExtraSelections({});
+		updateFindCount();
+		return;
+	}
+	mFindIndex = jumpToFirst ? 0 : qBound(0, mFindIndex, mFindRanges.size() - 1);
+	const auto& r = mFindRanges.at(mFindIndex);
+	QTextCursor c(mEdit->document());
+	c.setPosition(r.first);
+	c.setPosition(r.first + r.second, QTextCursor::KeepAnchor);
+	mEdit->setTextCursor(c);
+	mEdit->centerCursor();
+	applyFindHighlight();
+	updateFindCount();
+}
+
+void DATextEditWidget::PrivateData::moveToMatch(bool forward)
+{
+	if (mFindRanges.isEmpty()) {
+		refreshFind(true);
+		return;
+	}
+	const int total = mFindRanges.size();
+	mFindIndex      = forward ? (mFindIndex + 1) % total : (mFindIndex - 1 + total) % total;
+	const auto& r   = mFindRanges.at(mFindIndex);
+	QTextCursor c(mEdit->document());
+	c.setPosition(r.first);
+	c.setPosition(r.first + r.second, QTextCursor::KeepAnchor);
+	mEdit->setTextCursor(c);
+	mEdit->centerCursor();
+	applyFindHighlight();
+	updateFindCount();
 }
 
 //===============================================================
@@ -5097,6 +7191,7 @@ void DATextEditWidget::setMonospace(bool on)
 	} else {
 		d->mEdit->setFont(d->mDefaultFont);
 	}
+	d->mEdit->updateLineNumberAreaWidth(0);
 }
 
 /**
@@ -5138,6 +7233,11 @@ void DATextEditWidget::setText(const QString& text)
 	DA_D(d);
 	QSignalBlocker blocker(d->mEdit);
 	d->mEdit->setPlainText(text);
+	// 信号被屏蔽，blockCountChanged 不会来，行号宽度需手动重算
+	d->mEdit->updateLineNumberAreaWidth(0);
+	// 旧高亮指向旧文档，必须清掉
+	d->clearFindState();
+	d->updateFindCount();
 }
 
 /**
@@ -5191,6 +7291,121 @@ void DATextEditWidget::addToolAction(QAction* action)
 		return;
 	}
 	d->mToolbar->addAction(action);
+}
+
+/**
+ * @brief 打开/关闭左侧行号栏
+ * @param on 是否显示（默认 false）
+ */
+void DATextEditWidget::setLineNumbersVisible(bool on)
+{
+	DA_D(d);
+	d->mEdit->setLineNumberAreaVisible(on);
+}
+
+/** @brief 行号栏是否启用 */
+bool DATextEditWidget::lineNumbersVisible() const
+{
+	DA_DC(d);
+	return d->mEdit->lineNumberAreaVisible();
+}
+
+/**
+ * @brief 启用/禁用 Ctrl+F
+ * @param on 是否启用（默认 false）
+ */
+void DATextEditWidget::setFindEnabled(bool on)
+{
+	DA_D(d);
+	if (d->mFindEnabled == on)
+		return;
+	d->mFindEnabled = on;
+	if (d->mFindAction)
+		d->mFindAction->setEnabled(on);
+	if (!on)
+		hideFindBar();
+}
+
+/** @brief Ctrl+F 是否启用 */
+bool DATextEditWidget::findEnabled() const
+{
+	DA_DC(d);
+	return d->mFindEnabled;
+}
+
+/**
+ * @brief 直接显隐查找条
+ * @param on 是否显示（不检查 findEnabled）
+ */
+void DATextEditWidget::setFindBarVisible(bool on)
+{
+	DA_D(d);
+	if (on)
+		showFindBar();
+	else
+		hideFindBar();
+}
+
+/** @brief 查找条是否可见 */
+bool DATextEditWidget::findBarVisible() const
+{
+	DA_DC(d);
+	return d->mFindBar && d->mFindBar->isVisibleTo(const_cast< DATextEditWidget* >(this));
+}
+
+/**
+ * @brief 打开查找条并可预填关键词
+ * @param initialText 初始关键词；空串沿用上次
+ */
+void DATextEditWidget::showFindBar(const QString& initialText)
+{
+	DA_D(d);
+	if (!d->mFindBar)
+		return;
+	d->mFindBar->setVisible(true);
+	if (!initialText.isEmpty())
+		d->mFindEdit->setText(initialText);
+	d->mFindEdit->setFocus();
+	d->mFindEdit->selectAll();
+	d->refreshFind(true);
+}
+
+/**
+ * @brief 隐藏查找条、清空高亮并把焦点还给编辑器
+ */
+void DATextEditWidget::hideFindBar()
+{
+	DA_D(d);
+	if (!d->mFindBar)
+		return;
+	d->mFindBar->setVisible(false);
+	d->clearFindState();
+	d->mEdit->setFocus();
+}
+
+/**
+ * @brief 设置查找是否区分大小写
+ * @param on 是否区分（默认 false）
+ */
+void DATextEditWidget::setFindCaseSensitive(bool on)
+{
+	DA_D(d);
+	if (d->mFindCaseSensitive == on)
+		return;
+	d->mFindCaseSensitive = on;
+	if (d->mFindCase && d->mFindCase->isChecked() != on) {
+		QSignalBlocker blocker(d->mFindCase);
+		d->mFindCase->setChecked(on);
+	}
+	if (d->mFindBar && d->mFindBar->isVisible())
+		d->refreshFind(true);
+}
+
+/** @brief 查找是否区分大小写 */
+bool DATextEditWidget::findCaseSensitive() const
+{
+	DA_DC(d);
+	return d->mFindCaseSensitive;
 }
 
 }  // namespace DA
@@ -5893,8 +8108,11 @@ void DAPenStyleComboBox::onCurrentIndexChanged(int index)
 
 
 /*** Start of inlined file: DAColorGridWidget.cpp ***/
+#include <QBrush>
+#include <QEvent>
 #include <QGridLayout>
 #include <QButtonGroup>
+#include <QKeyEvent>
 #include <QToolButton>
 #include <QSpacerItem>
 #include <QPainter>
@@ -5903,6 +8121,22 @@ void DAPenStyleComboBox::onCurrentIndexChanged(int index)
 
 namespace DA
 {
+namespace
+{
+// 16×16、8px 见方的棋盘格（#E6E9EE / #FFFFFF）
+QPixmap makeCheckerPixmap(int cell = 8)
+{
+	QPixmap pm(cell * 2, cell * 2);
+	QPainter p(&pm);
+	p.fillRect(QRect(0, 0, cell, cell), QColor(0xE6, 0xE9, 0xEE));
+	p.fillRect(QRect(cell, 0, cell, cell), Qt::white);
+	p.fillRect(QRect(0, cell, cell, cell), Qt::white);
+	p.fillRect(QRect(cell, cell, cell, cell), QColor(0xE6, 0xE9, 0xEE));
+	p.end();
+	return pm;
+}
+}  // namespace
+
 class DAColorGridWidget::PrivateData
 {
 	DA_DECLARE_PUBLIC(DAColorGridWidget)
@@ -5915,6 +8149,9 @@ public:
 	int mColumnCount { 8 };
 	bool mColorCheckable { true };
 	bool mHorizontalSpacerToRight { false };
+	bool mKeyboardNavigation { false };
+	bool mAlphaBackground { false };
+	QPixmap mCheckerPixmap;
 };
 
 DAColorGridWidget::PrivateData::PrivateData(DAColorGridWidget* p)
@@ -5925,6 +8162,7 @@ DAColorGridWidget::PrivateData::PrivateData(DAColorGridWidget* p)
 	mGridLayout->setContentsMargins(1, 1, 1, 1);
 	mButtonGroup = new QButtonGroup(p);
 	mButtonGroup->setExclusive(true);
+	mCheckerPixmap = makeCheckerPixmap();
 }
 
 //===================================================
@@ -6296,9 +8534,13 @@ void DAColorGridWidget::setColorAt(const QColor& clr, int r, int c)
 		btn->setCheckable(d->mColorCheckable);
 		d->mButtonGroup->addButton(btn, r * 1000 + c);  // 唯一 id
 		d->mGridLayout->addWidget(btn, r, c);
+		btn->installEventFilter(this);
 	}
 	btn->setProperty("color", QVariant::fromValue(clr));
-	btn->setIcon(makeColorIcon(clr, d->mIconSize));
+	btn->setIcon(d->mAlphaBackground ? makeColorIconWithAlpha(clr, d->mIconSize)
+									 : makeColorIcon(clr, d->mIconSize));
+	if (d->mKeyboardNavigation)
+		applyFocusPolicies();
 }
 
 QIcon DAColorGridWidget::makeColorIcon(const QColor& clr, const QSize& size)
@@ -6321,6 +8563,133 @@ QIcon DAColorGridWidget::makeColorIcon(const QColor& clr, const QSize& size)
 		painter.drawRect(r.adjusted(0, 0, -1, -1));
 	}
 	return QIcon(pixmap);
+}
+
+/**
+ * @brief 带棋盘格底的色块图标（仅半透明色需要）
+ * @param clr 颜色
+ * @param size 图标尺寸
+ * @return 图标；不透明色与 makeColorIcon() 逐像素一致
+ */
+QIcon DAColorGridWidget::makeColorIconWithAlpha(const QColor& clr, const QSize& size) const
+{
+	DA_DC(d);
+	if (!clr.isValid() || clr.alpha() == 255)
+		return makeColorIcon(clr, size);
+	QPixmap pixmap(size);
+	pixmap.fill(Qt::transparent);
+	QPainter painter(&pixmap);
+	painter.fillRect(QRect(QPoint(0, 0), size), QBrush(d->mCheckerPixmap));
+	painter.fillRect(QRect(QPoint(0, 0), size), clr);
+	painter.end();
+	return QIcon(pixmap);
+}
+
+/** @brief 开启/关闭色块键盘导航（默认关闭） */
+void DAColorGridWidget::setKeyboardNavigationEnabled(bool on)
+{
+	DA_D(d);
+	if (d->mKeyboardNavigation == on)
+		return;
+	d->mKeyboardNavigation = on;
+	applyFocusPolicies();
+}
+
+/** @brief 开启/关闭棋盘格底（默认关闭） */
+void DAColorGridWidget::setAlphaBackgroundEnabled(bool on)
+{
+	DA_D(d);
+	if (d->mAlphaBackground == on)
+		return;
+	d->mAlphaBackground = on;
+	updateGridColor();
+}
+
+/** @brief columnCount()==0 时的单行规则 */
+int DAColorGridWidget::effectiveColumns() const
+{
+	DA_DC(d);
+	int col = d->mColumnCount;
+	if (col <= 0)
+		col = d->mColors.size();
+	if (col <= 0)
+		col = 1;
+	return col;
+}
+
+/**
+ * @brief 应用焦点策略
+ * @details 开启时只让首块进 Tab 链（其余 ClickFocus），关闭时恢复 QToolButton 默认 StrongFocus
+ */
+void DAColorGridWidget::applyFocusPolicies()
+{
+	DA_D(d);
+	const int n = d->mColors.size();
+	for (int i = 0; i < n; ++i) {
+		QToolButton* btn = colorButton(i);
+		if (!btn)
+			continue;
+		btn->setFocusPolicy(d->mKeyboardNavigation ? (i == 0 ? Qt::StrongFocus : Qt::ClickFocus)
+												   : Qt::StrongFocus);
+	}
+}
+
+/**
+ * @brief 色块键盘导航：方向键移动、Enter 取色
+ * @details 行列数从 effectiveColumns() 读取，不写死；越界时停在原块并吞掉按键
+ */
+bool DAColorGridWidget::eventFilter(QObject* watched, QEvent* event)
+{
+	DA_D(d);
+	if (!d->mKeyboardNavigation || event->type() != QEvent::KeyPress)
+		return QWidget::eventFilter(watched, event);
+	auto* btn = qobject_cast< QToolButton* >(watched);
+	if (!btn)
+		return QWidget::eventFilter(watched, event);
+	const int n = d->mColors.size();
+	int idx = -1;
+	for (int i = 0; i < n; ++i) {
+		if (colorButton(i) == btn) {
+			idx = i;
+			break;
+		}
+	}
+	if (idx < 0)
+		return QWidget::eventFilter(watched, event);
+
+	auto* ke = static_cast< QKeyEvent* >(event);
+	const int key = ke->key();
+	if (key == Qt::Key_Return || key == Qt::Key_Enter) {
+		btn->click();
+		return true;
+	}
+	const int cols = effectiveColumns();
+	int next = idx;
+	switch (key) {
+	case Qt::Key_Left:
+		if (idx % cols != 0)
+			next = idx - 1;
+		break;
+	case Qt::Key_Right:
+		if ((idx % cols) != (cols - 1) && idx + 1 < n)
+			next = idx + 1;
+		break;
+	case Qt::Key_Up:
+		if (idx - cols >= 0)
+			next = idx - cols;
+		break;
+	case Qt::Key_Down:
+		if (idx + cols < n)
+			next = idx + cols;
+		break;
+	default:
+		return QWidget::eventFilter(watched, event);
+	}
+	if (next != idx) {
+		if (QToolButton* nb = colorButton(next))
+			nb->setFocus(Qt::ShortcutFocusReason);
+	}
+	return true;
 }
 }  // namespace DA
 
@@ -6518,6 +8887,17 @@ bool DAColorPaletteGridWidget::isColorCheckable() const
 	return d->mMainColorList->isColorCheckable();
 }
 
+/**
+ * @brief 转发键盘导航开关到内部两个网格
+ * @param on 是否启用（默认关闭）
+ */
+void DAColorPaletteGridWidget::setKeyboardNavigationEnabled(bool on)
+{
+	DA_D(d);
+	d->mMainColorList->setKeyboardNavigationEnabled(on);
+	d->mPaletteColorGrid->setKeyboardNavigationEnabled(on);
+}
+
 QList<QColor> DAColorPaletteGridWidget::makeColorPalette(const QList<QColor>& cls) const
 {
 	DA_DC(d);
@@ -6553,9 +8933,13 @@ void DAColorPaletteGridWidget::onPaletteColorClicked(const QColor& c)
 #include <QLabel>
 #include <QWidgetAction>
 #include <QColorDialog>
+#include <QHBoxLayout>
 #include <QPainter>
 #include <QPixmap>
 #include <QPointer>
+#include <QSignalBlocker>
+#include <QSlider>
+#include <utility>
 
 namespace DA
 {
@@ -6575,6 +8959,23 @@ public:
 	QList<QColor> mCustomColors;
 	int mMaxCustomColorSize { 10 };
 	QPointer<QColorDialog> mColorDlg;
+
+	// alpha
+	bool mAlphaEnabled { false };
+	int mAlpha { 255 };
+	QWidget* mAlphaRow { nullptr };
+	QSlider* mAlphaSlider { nullptr };
+	QLabel* mAlphaValueLabel { nullptr };
+	QLabel* mAlphaPreview { nullptr };
+	QWidgetAction* mAlphaAction { nullptr };
+	QColor mLastColor;
+
+	// 最近色 / 恢复默认
+	bool mRecentColorsEnabled { false };
+	QList<QColor> mRecentColors;
+	int mMaxRecentColors { 5 };
+	QAction* mDefaultColorAction { nullptr };
+	QColor mDefaultColor;
 };
 
 DAColorMenu::PrivateData::PrivateData(DAColorMenu* p) : q_ptr(p)
@@ -6651,6 +9052,12 @@ void DAColorMenu::init(const QList<QColor>& themeCls)
 	connect(d->mCustomColorAction, &QAction::triggered, this, &DAColorMenu::onCustomColorActionTriggered);
 	connect(d->mThemeColorsWidget, &DAColorPaletteGridWidget::colorClicked, this, &DAColorMenu::emitSelectedColor);
 	connect(d->mCustomColorsWidget, &DAColorGridWidget::colorClicked, this, &DAColorMenu::emitSelectedColor);
+	// 最近色重排/预览更新推迟到菜单显示时，避免在按钮点击回调里重建网格
+	connect(this, &QMenu::aboutToShow, this, [ this ]() {
+		DA_D(d);
+		refreshRecordGrid();
+		updateAlphaPreview();
+	});
 }
 
 /**
@@ -6741,20 +9148,14 @@ QAction* DAColorMenu::noneColorAction() const
  */
 void DAColorMenu::emitSelectedColor(const QColor& c)
 {
-	Q_EMIT selectedColor(c);
-	hide();
+	selectColor(c, true);
 }
 
 void DAColorMenu::onCustomColorActionTriggered(bool)
 {
-	DA_D(d);
-	QColor c = getColorByDialog();
-	if (c.isValid()) {
-		recordCustomColor(c);
-		d->mCustomColorsWidget->setColorList(d->mCustomColors);
-		d->mCustomColorsWidget->updateGeometry();
+	const QColor c = getColorByDialog();
+	if (c.isValid())
 		emitSelectedColor(c);
-	}
 }
 
 void DAColorMenu::onNoneColorActionTriggered(bool)
@@ -6769,8 +9170,16 @@ QColor DAColorMenu::getColorByDialog()
 		d->mColorDlg = new QColorDialog(this);
 		d->mColorDlg->setOption(QColorDialog::ShowAlphaChannel, true);
 	}
+	if (d->mAlphaEnabled && d->mLastColor.isValid()) {
+		d->mColorDlg->setCurrentColor(
+			QColor(d->mLastColor.red(), d->mLastColor.green(), d->mLastColor.blue(), d->mAlpha));
+	}
 	if (d->mColorDlg->exec() == QDialog::Accepted) {
-		return d->mColorDlg->currentColor();
+		const QColor c = d->mColorDlg->currentColor();
+		// 对话框返回的 alpha 回写滑杆，保持"滑杆是唯一真源"
+		if (d->mAlphaEnabled)
+			setAlpha(c.alpha());
+		return c;
 	}
 	return QColor();
 }
@@ -6807,6 +9216,235 @@ QIcon DAColorMenu::createNoneColorIcon()
 	painter.setPen(pen);
 	painter.drawRect(r);
 	return QIcon(pixmap);
+}
+
+/**
+ * @brief 打开/关闭透明度行
+ * @param on 是否启用（默认 false）
+ * @details 打开时把行追加到菜单末尾；关闭时只移除 action，行对象保留，滑杆位置不丢
+ */
+void DAColorMenu::setAlphaEnabled(bool on)
+{
+	DA_D(d);
+	if (d->mAlphaEnabled == on)
+		return;
+	d->mAlphaEnabled = on;
+	if (on) {
+		if (!d->mAlphaAction)
+			buildAlphaRow();
+		addAction(d->mAlphaAction);
+		updateAlphaPreview();
+	} else if (d->mAlphaAction) {
+		removeAction(d->mAlphaAction);
+	}
+}
+
+/** @brief 透明度行是否启用 */
+bool DAColorMenu::isAlphaEnabled() const
+{
+	DA_DC(d);
+	return d->mAlphaEnabled;
+}
+
+/** @brief 当前 alpha（0–255） */
+int DAColorMenu::alpha() const
+{
+	DA_DC(d);
+	return d->mAlpha;
+}
+
+/**
+ * @brief 设置当前 alpha
+ * @param a 0–255，越界限幅；值不变时不发 alphaChanged
+ */
+void DAColorMenu::setAlpha(int a)
+{
+	DA_D(d);
+	const int clamped = qBound(0, a, 255);
+	if (clamped == d->mAlpha)
+		return;
+	d->mAlpha = clamped;
+	if (d->mAlphaSlider && d->mAlphaSlider->value() != clamped) {
+		QSignalBlocker blocker(d->mAlphaSlider);
+		d->mAlphaSlider->setValue(clamped);
+	}
+	updateAlphaPreview();
+	Q_EMIT alphaChanged(clamped);
+}
+
+void DAColorMenu::buildAlphaRow()
+{
+	DA_D(d);
+	d->mAlphaRow = new QWidget(this);
+	auto* lay = new QHBoxLayout(d->mAlphaRow);
+	lay->setContentsMargins(6, 2, 6, 2);
+	lay->setSpacing(6);
+
+	auto* label = new QLabel(tr("Opacity"), d->mAlphaRow);  //cn:不透明度
+	d->mAlphaSlider = new QSlider(Qt::Horizontal, d->mAlphaRow);
+	d->mAlphaSlider->setObjectName(QStringLiteral("DAAlphaSlider"));
+	d->mAlphaSlider->setRange(0, 255);
+	d->mAlphaSlider->setValue(d->mAlpha);
+
+	d->mAlphaValueLabel = new QLabel(d->mAlphaRow);
+	d->mAlphaValueLabel->setObjectName(QStringLiteral("DAAlphaValueLabel"));
+	// 定宽，避免 9%→100% 时行宽抖动
+	const int w = Qt5Qt6Compat_fontMetrics_width(d->mAlphaValueLabel->fontMetrics(), QStringLiteral("100%")) + 6;
+	d->mAlphaValueLabel->setFixedWidth(w);
+
+	d->mAlphaPreview = new QLabel(d->mAlphaRow);
+	d->mAlphaPreview->setObjectName(QStringLiteral("DAAlphaPreview"));
+	d->mAlphaPreview->setFixedSize(24, 18);
+
+	lay->addWidget(label);
+	lay->addWidget(d->mAlphaSlider, 1);
+	lay->addWidget(d->mAlphaValueLabel);
+	lay->addWidget(d->mAlphaPreview);
+
+	d->mAlphaAction = new QWidgetAction(this);
+	d->mAlphaAction->setDefaultWidget(d->mAlphaRow);
+	connect(d->mAlphaSlider, &QSlider::valueChanged, this, &DAColorMenu::setAlpha);
+	updateAlphaPreview();
+}
+
+void DAColorMenu::updateAlphaPreview()
+{
+	DA_D(d);
+	if (!d->mAlphaSlider || !d->mAlphaValueLabel || !d->mAlphaPreview)
+		return;
+	d->mAlphaValueLabel->setText(QStringLiteral("%1%").arg(qRound(d->mAlpha * 100.0 / 255.0)));
+	QPixmap pm(24, 18);
+	pm.fill(Qt::transparent);
+	QPainter p(&pm);
+	for (int y = 0; y < 18; y += 6) {
+		for (int x = 0; x < 24; x += 6) {
+			const bool odd = ((x / 6) + (y / 6)) % 2 != 0;
+			p.fillRect(QRect(x, y, 6, 6), odd ? QColor(0xE6, 0xE9, 0xEE) : QColor(Qt::white));
+		}
+	}
+	QColor c = d->mLastColor.isValid() ? d->mLastColor : QColor(64, 158, 255);
+	c.setAlpha(d->mAlpha);
+	p.fillRect(pm.rect(), c);
+	p.end();
+	d->mAlphaPreview->setPixmap(pm);
+}
+
+/**
+ * @brief 启用最近色策略
+ * @param colors 初始最近色（最近优先），去重后截断到 5
+ */
+void DAColorMenu::setRecentColors(const QList<QColor>& colors)
+{
+	DA_D(d);
+	d->mRecentColorsEnabled = true;
+	d->mRecentColors.clear();
+	for (const QColor& c : colors) {
+		if (!c.isValid())
+			continue;
+		const QRgb key = c.toRgb().rgba();
+		bool seen = false;
+		for (const QColor& e : std::as_const(d->mRecentColors)) {
+			if (e.toRgb().rgba() == key) {
+				seen = true;
+				break;
+			}
+		}
+		if (seen)
+			continue;
+		d->mRecentColors << c;
+		if (d->mRecentColors.size() >= d->mMaxRecentColors)
+			break;
+	}
+	d->mCustomColorsWidget->setAlphaBackgroundEnabled(true);
+	const QSize icon = d->mCustomColorsWidget->colorIconSize();
+	d->mCustomColorsWidget->setMinimumWidth(icon.width() * d->mMaxRecentColors
+											+ d->mCustomColorsWidget->horizontalSpacing()
+												  * (d->mMaxRecentColors - 1));
+	refreshRecordGrid();
+}
+
+/** @brief 获取最近色（最近优先）；未启用时为空 */
+QList<QColor> DAColorMenu::recentColors() const
+{
+	DA_DC(d);
+	return d->mRecentColors;
+}
+
+/** @brief 把当前生效的记录列表刷进网格 */
+void DAColorMenu::refreshRecordGrid()
+{
+	DA_D(d);
+	if (!d->mCustomColorsWidget)
+		return;
+	d->mCustomColorsWidget->setColorList(d->mRecentColorsEnabled ? d->mRecentColors : d->mCustomColors);
+	d->mCustomColorsWidget->updateGeometry();
+}
+
+void DAColorMenu::recordRecentColor(const QColor& c)
+{
+	DA_D(d);
+	const QRgb key = c.toRgb().rgba();
+	for (int i = d->mRecentColors.size() - 1; i >= 0; --i) {
+		if (d->mRecentColors.at(i).toRgb().rgba() == key)
+			d->mRecentColors.removeAt(i);
+	}
+	d->mRecentColors.prepend(c);
+	while (d->mRecentColors.size() > d->mMaxRecentColors)
+		d->mRecentColors.removeLast();
+}
+
+/**
+ * @brief 设置/移除「恢复默认」入口
+ * @param color 有效色插入 action；无效色移除入口
+ */
+void DAColorMenu::setDefaultColor(const QColor& color)
+{
+	DA_D(d);
+	d->mDefaultColor = color;
+	if (color.isValid()) {
+		if (!d->mDefaultColorAction) {
+			d->mDefaultColorAction = new QAction(tr("Restore Default"), this);  //cn:恢复默认
+			connect(d->mDefaultColorAction, &QAction::triggered, this, [ this ]() {
+				DA_D(d);
+				selectColor(d->mDefaultColor, false);
+			});
+		}
+		insertAction(d->mCustomColorAction, d->mDefaultColorAction);
+	} else if (d->mDefaultColorAction) {
+		removeAction(d->mDefaultColorAction);
+		d->mDefaultColorAction->deleteLater();
+		d->mDefaultColorAction = nullptr;
+	}
+}
+
+/** @brief 当前默认色（未设置时无效） */
+QColor DAColorMenu::defaultColor() const
+{
+	DA_DC(d);
+	return d->mDefaultColor;
+}
+
+/**
+ * @brief 统一选色出口
+ * @param c 选中的颜色
+ * @param recordToRecent true = 常规选色：应用 alpha 并记录；false = 恢复默认：原样发出
+ */
+void DAColorMenu::selectColor(const QColor& c, bool recordToRecent)
+{
+	DA_D(d);
+	QColor out = c;
+	if (d->mAlphaEnabled && recordToRecent && out.isValid())
+		out.setAlpha(d->mAlpha);
+	if (out.isValid())
+		d->mLastColor = out;
+	if (out.isValid() && recordToRecent) {
+		if (d->mRecentColorsEnabled)
+			recordRecentColor(out);
+		else
+			recordCustomColor(out);
+	}
+	Q_EMIT selectedColor(out);
+	hide();
 }
 }  // namespace DA
 
@@ -8126,30 +10764,174 @@ QT_END_NAMESPACE
 
 /*** End of inlined file: ui_DAFontEditPannelWidget.h ***/
 
-#include <QSignalBlocker>
-#include <QToolButton>
+#include <QAbstractItemView>
+#include <QAction>
 #include <QFontComboBox>
 #include <QComboBox>
-#include <QVBoxLayout>
+#include <QFontInfo>
+#include <QFontMetrics>
 #include <QHBoxLayout>
+#include <QMenu>
+#include <QPainter>
+#include <QPixmap>
+#include <QSignalBlocker>
+#include <QStyledItemDelegate>
+#include <QStyleOptionViewItem>
+#include <QToolButton>
+#include <QVBoxLayout>
 
 namespace DA
 {
+namespace
+{
+/**
+ * @brief 字体下拉的预览委托：每项用「自身 family + 面板当前样式」渲染
+ * @details 只改 option->font，选中高亮/省略/禁用等仍由基类处理
+ */
+class FontPreviewDelegate : public QStyledItemDelegate
+{
+public:
+	explicit FontPreviewDelegate(QObject* parent = nullptr) : QStyledItemDelegate(parent)
+	{
+	}
+
+	void setPreviewFont(const QFont& f)
+	{
+		mPreviewFont = f;
+	}
+
+	void setMaxRowHeight(int h)
+	{
+		mMaxRowHeight = h;
+	}
+
+protected:
+	void initStyleOption(QStyleOptionViewItem* option, const QModelIndex& index) const override
+	{
+		QStyledItemDelegate::initStyleOption(option, index);
+		const QString family = index.data(Qt::DisplayRole).toString();
+		if (family.isEmpty())
+			return;
+		QFont f = mPreviewFont;
+		f.setFamily(family);
+		// 未安装的字体族退回面板字体，避免整行豆腐块
+		if (QFontInfo(f).family() != family) {
+			f = option->font;
+		}
+		option->font = f;
+	}
+
+	QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const override
+	{
+		QSize s = QStyledItemDelegate::sizeHint(option, index);
+		if (s.height() > mMaxRowHeight)
+			s.setHeight(mMaxRowHeight);
+		return s;
+	}
+
+private:
+	QFont mPreviewFont;
+	int mMaxRowHeight { 40 };
+};
+
+// 时钟图标（不新增 qrc 资源）
+QIcon makeClockIcon()
+{
+	QPixmap pm(16, 16);
+	pm.fill(Qt::transparent);
+	QPainter p(&pm);
+	p.setRenderHint(QPainter::Antialiasing);
+	p.setPen(QPen(QColor(0x60, 0x66, 0x6E), 1.4));
+	p.drawEllipse(QRectF(1.5, 1.5, 13, 13));
+	p.drawLine(QPointF(8, 4.5), QPointF(8, 8));
+	p.drawLine(QPointF(8, 8), QPointF(11, 9.5));
+	p.end();
+	return QIcon(pm);
+}
+}  // namespace
+
 class DAFontEditPannelWidget::PrivateData
 {
 	DA_DECLARE_PUBLIC(DAFontEditPannelWidget)
 public:
 	PrivateData(DAFontEditPannelWidget* p);
 	void rebuildLayout();
+	void syncPreviewFont();
+	void initRecentUi();
+	void syncRecentMenu();
+	void applyRecentFamily(const QString& family);
 
 public:
 	Ui::DAFontEditPannelWidget ui;
 	DAFontEditPannelWidget::LayoutMode mLayoutMode { DAFontEditPannelWidget::TwoRowsLayout };
 	int mFontPointSize { 10 };
+	bool mFontPreviewEnabled { false };
+	FontPreviewDelegate* mPreviewDelegate { nullptr };
+	QAbstractItemDelegate* mQtFontDelegate { nullptr };
+	int mMaxRecentFontCount { 5 };
+	QStringList mRecentFontFamilies;
+	QToolButton* mRecentButton { nullptr };
+	QMenu* mRecentMenu { nullptr };
 };
 
 DAFontEditPannelWidget::PrivateData::PrivateData(DAFontEditPannelWidget* p) : q_ptr(p)
 {
+}
+
+void DAFontEditPannelWidget::PrivateData::initRecentUi()
+{
+	if (mRecentButton)
+		return;
+	mRecentButton = new QToolButton(q_ptr);
+	mRecentButton->setObjectName(QStringLiteral("recentFontButton"));
+	mRecentButton->setAutoRaise(true);
+	mRecentButton->setMinimumSize(16, 16);
+	mRecentButton->setPopupMode(QToolButton::InstantPopup);
+	mRecentButton->setToolTip(DAFontEditPannelWidget::tr("Recent Fonts"));  //cn:最近字体
+	mRecentButton->setIcon(makeClockIcon());
+	mRecentButton->setVisible(false);
+	mRecentMenu = new QMenu(mRecentButton);
+	mRecentMenu->setObjectName(QStringLiteral("recentFontMenu"));
+	mRecentButton->setMenu(mRecentMenu);
+}
+
+void DAFontEditPannelWidget::PrivateData::syncRecentMenu()
+{
+	if (!mRecentButton || !mRecentMenu)
+		return;
+	mRecentMenu->clear();
+	for (const QString& family : mRecentFontFamilies) {
+		QAction* action = mRecentMenu->addAction(family);
+		action->setFont(QFont(family));
+		action->setData(family);
+		QObject::connect(action, &QAction::triggered, q_ptr,
+						 [ this, family ]() { applyRecentFamily(family); });
+	}
+	mRecentButton->setVisible(!mRecentFontFamilies.isEmpty());
+	// 两排布局只有在列表非空时才把下拉和按钮包进同一行
+	rebuildLayout();
+}
+
+void DAFontEditPannelWidget::PrivateData::applyRecentFamily(const QString& family)
+{
+	// 只改字体族：字号仍由 mFontPointSize 决定（不能用本类 setCurrentFont）
+	QFont f(family);
+	f.setPointSize(mFontPointSize);
+	ui.fontComboBox->setCurrentFont(f);
+}
+
+void DAFontEditPannelWidget::PrivateData::syncPreviewFont()
+{
+	if (!mFontPreviewEnabled || !mPreviewDelegate)
+		return;
+	QFont f = q_ptr->getCurrentFont();
+	f.setPointSize(qBound(9, f.pointSize(), 20));
+	f.setFamily(QString());  // family 由委托逐项替换
+	const int base = QFontMetrics(ui.fontComboBox->font()).height() + 6;
+	mPreviewDelegate->setPreviewFont(f);
+	mPreviewDelegate->setMaxRowHeight(base * 2);
+	if (ui.fontComboBox->view())
+		ui.fontComboBox->view()->viewport()->update();
 }
 
 /**
@@ -8173,6 +10955,8 @@ void DAFontEditPannelWidget::PrivateData::rebuildLayout()
 		lay->setContentsMargins(2, 2, 2, 2);
 		lay->setSpacing(2);
 		lay->addWidget(ui.fontComboBox, 1);
+		if (mRecentButton)
+			lay->addWidget(mRecentButton);
 		lay->addWidget(ui.toolButtonBold);
 		lay->addWidget(ui.toolButtonItalic);
 		lay->addWidget(ui.toolButtonUnderline);
@@ -8186,7 +10970,15 @@ void DAFontEditPannelWidget::PrivateData::rebuildLayout()
 		QVBoxLayout* vlay = new QVBoxLayout(q_ptr);
 		vlay->setContentsMargins(2, 2, 2, 2);
 		vlay->setSpacing(5);
-		vlay->addWidget(ui.fontComboBox);
+		if (mRecentButton && !mRecentFontFamilies.isEmpty()) {
+			auto* fontRow = new QHBoxLayout();
+			fontRow->setSpacing(2);
+			fontRow->addWidget(ui.fontComboBox, 1);
+			fontRow->addWidget(mRecentButton);
+			vlay->addLayout(fontRow);
+		} else {
+			vlay->addWidget(ui.fontComboBox);
+		}
 		QHBoxLayout* hlay = new QHBoxLayout();
 		hlay->setSpacing(0);
 		hlay->addWidget(ui.toolButtonBold);
@@ -8209,6 +11001,7 @@ DAFontEditPannelWidget::DAFontEditPannelWidget(QWidget* parent)
 	: QWidget(parent), d(new PrivateData(this))
 {
 	d->ui.setupUi(this);
+	d->initRecentUi();
 	d->rebuildLayout();
 	d->ui.comboBoxFontSize->addItems(
 		{ "6", "8", "9", "10", "11", "12", "14", "16", "18", "20", "22", "24", "26", "28", "36", "48", "72" });
@@ -8336,6 +11129,90 @@ int DAFontEditPannelWidget::getFontWeight() const
 	return d->ui.comboBoxFontSize->currentText().toInt();
 }
 
+/**
+ * @brief 打开/关闭字体下拉的每项预览
+ * @param on 是否启用（默认 false）
+ * @details 关闭时把 Qt 自己的委托原样还回去，像素与原生下拉一致
+ */
+void DAFontEditPannelWidget::setFontPreviewEnabled(bool on)
+{
+	if (d->mFontPreviewEnabled == on)
+		return;
+	QAbstractItemView* view = d->ui.fontComboBox->view();
+	if (!view)
+		return;
+	d->mFontPreviewEnabled = on;
+	if (on) {
+		if (!d->mQtFontDelegate)
+			d->mQtFontDelegate = view->itemDelegate();
+		if (!d->mPreviewDelegate)
+			d->mPreviewDelegate = new FontPreviewDelegate(view);
+		// 直接设到 view：Qt5 的 QComboBox::setItemDelegate 会 delete 旧委托，
+		// 那样存下来的原生委托就成了悬空指针，关闭时无法恢复
+		view->setItemDelegate(d->mPreviewDelegate);
+		d->syncPreviewFont();
+	} else {
+		if (d->mQtFontDelegate)
+			view->setItemDelegate(d->mQtFontDelegate);
+		if (d->mPreviewDelegate) {
+			d->mPreviewDelegate->deleteLater();
+			d->mPreviewDelegate = nullptr;
+		}
+	}
+}
+
+/** @brief 字体下拉每项预览是否启用 */
+bool DAFontEditPannelWidget::isFontPreviewEnabled() const
+{
+	return d->mFontPreviewEnabled;
+}
+
+/**
+ * @brief 设置最近字体条数上限
+ * @param n 1–20，越界会限幅；变小时立即截断当前列表
+ */
+void DAFontEditPannelWidget::setMaxRecentFontCount(int n)
+{
+	const int clamped = qBound(1, n, 20);
+	if (d->mMaxRecentFontCount == clamped)
+		return;
+	d->mMaxRecentFontCount = clamped;
+	if (d->mRecentFontFamilies.size() > clamped) {
+		d->mRecentFontFamilies = d->mRecentFontFamilies.mid(0, clamped);
+	}
+	d->syncRecentMenu();
+}
+
+/** @brief 最近字体条数上限 */
+int DAFontEditPannelWidget::maxRecentFontCount() const
+{
+	return d->mMaxRecentFontCount;
+}
+
+/**
+ * @brief 注入最近字体列表
+ * @param families 最近 → 最旧；空串丢弃、保序去重、按上限截断
+ */
+void DAFontEditPannelWidget::setRecentFontFamilies(const QStringList& families)
+{
+	d->mRecentFontFamilies.clear();
+	for (const QString& raw : families) {
+		const QString family = raw.trimmed();
+		if (family.isEmpty() || d->mRecentFontFamilies.contains(family))
+			continue;
+		d->mRecentFontFamilies << family;
+		if (d->mRecentFontFamilies.size() >= d->mMaxRecentFontCount)
+			break;
+	}
+	d->syncRecentMenu();
+}
+
+/** @brief 当前最近字体列表（最近优先） */
+QStringList DAFontEditPannelWidget::recentFontFamilies() const
+{
+	return d->mRecentFontFamilies;
+}
+
 void DAFontEditPannelWidget::onComboBoxFontSizeTextChanged(const QString& t)
 {
 	bool isok;
@@ -8372,6 +11249,8 @@ void DAFontEditPannelWidget::signalEmitFontChanged()
 {
 	QFont f = getCurrentFont();
 	Q_EMIT currentFontChanged(f);
+	if (d->mFontPreviewEnabled)
+		d->syncPreviewFont();
 }
 }  // namespace DA
 
@@ -8535,20 +11414,32 @@ void DAShapeEditPannelWidget::setBorderPen(const QPen& v)
 // ---- Item Selection & Preview 条目选择与预览家族 ----
 
 /*** Start of inlined file: DAItemListEditWidget.cpp ***/
-#include <QVBoxLayout>
+#include <QApplication>
+#include <QDrag>
+#include <QDragEnterEvent>
+#include <QDragLeaveEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
+#include <QFrame>
 #include <QHBoxLayout>
-#include <QListWidget>
-#include <QToolButton>
-#include <QPushButton>
 #include <QLabel>
+#include <QLineEdit>
+#include <QListWidget>
 #include <QMenu>
 #include <QMessageBox>
+#include <QMimeData>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QPushButton>
 #include <QStyle>
+#include <QTimer>
+#include <QToolButton>
+#include <QVBoxLayout>
+#include <functional>
 #include <utility>
 
 namespace DA
 {
-
 bool DAItemEntry::operator==(const DAItemEntry& o) const
 {
 	if (data.isValid() || o.data.isValid()) {
@@ -8561,6 +11452,190 @@ bool DAItemEntry::operator!=(const DAItemEntry& o) const
 {
 	return !(*this == o);
 }
+
+namespace
+{
+/// 拖拽 MIME 类型：只传源行号，不序列化条目（行控件与 data 都不能走 Qt 的 InternalMove）
+const char kRowMime[] = "application/x-dawidgets-itemlist-row";
+
+QString rowMimeType()
+{
+	return QString::fromLatin1(kRowMime);
+}
+
+/**
+ * @brief 行首 6 点拖拽手柄（文件内私有，不带 Q_OBJECT）
+ * @details 行控件会吃掉鼠标事件，不能依赖 QListWidget::startDrag；
+ *          手柄自己发起 QDrag，列表只当落点（DropOnly）。
+ */
+class RowHandle : public QWidget
+{
+public:
+	RowHandle(QListWidget* list, QListWidgetItem* item, QWidget* parent)
+		: QWidget(parent), mList(list), mItem(item)
+	{
+		setObjectName(QStringLiteral("rowHandle"));
+		setFixedSize(14, 26);
+		setCursor(Qt::OpenHandCursor);
+		setToolTip(QObject::tr("Drag to reorder"));  //cn:拖动排序
+	}
+
+protected:
+	void paintEvent(QPaintEvent*) override
+	{
+		QPainter p(this);
+		p.setRenderHint(QPainter::Antialiasing, true);
+		p.setPen(Qt::NoPen);
+		p.setBrush(underMouse() ? QColor(0x90, 0x93, 0x99) : QColor(0xC0, 0xC4, 0xCC));
+		for (int col = 0; col < 2; ++col) {
+			for (int row = 0; row < 3; ++row)
+				p.drawEllipse(QPointF(4.5 + col * 5.0, 7.0 + row * 6.0), 1.3, 1.3);
+		}
+	}
+
+	bool event(QEvent* e) override
+	{
+		if (e->type() == QEvent::Enter || e->type() == QEvent::Leave)
+			update();
+		return QWidget::event(e);
+	}
+
+	void mousePressEvent(QMouseEvent* e) override
+	{
+		if (e->button() == Qt::LeftButton) {
+			mPress   = e->pos();
+			mPressed = true;
+			e->accept();
+			return;
+		}
+		QWidget::mousePressEvent(e);
+	}
+
+	void mouseMoveEvent(QMouseEvent* e) override
+	{
+		if (!mPressed || !(e->buttons() & Qt::LeftButton))
+			return;
+		if ((e->pos() - mPress).manhattanLength() < QApplication::startDragDistance())
+			return;
+		mPressed = false;
+		QWidget* row = parentWidget();
+		const int src = mList->row(mItem);
+		if (!row || src < 0)
+			return;
+		auto* mime = new QMimeData;
+		mime->setData(rowMimeType(), QByteArray::number(src));
+		auto* drag = new QDrag(this);
+		drag->setMimeData(mime);
+		// 拖动影像是行控件当前外观，必须在任何半透明 effect 之前抓
+		drag->setPixmap(row->grab());
+		drag->exec(Qt::MoveAction);
+	}
+
+	void mouseReleaseEvent(QMouseEvent* e) override
+	{
+		mPressed = false;
+		QWidget::mouseReleaseEvent(e);
+	}
+
+private:
+	QListWidget* mList { nullptr };
+	QListWidgetItem* mItem { nullptr };
+	QPoint mPress;
+	bool mPressed { false };
+};
+
+/**
+ * @brief 只当落点的列表（文件内私有，不带 Q_OBJECT）
+ * @details 接受自定义 MIME 时显示 2px 插入线，落位回调宿主 PrivateData::moveRow，
+ *          因此 data 与行控件都不会丢。
+ */
+class ItemListWidget : public QListWidget
+{
+public:
+	ItemListWidget(QWidget* parent, std::function< void(int, int) > moveRow)
+		: QListWidget(parent), mMoveRow(std::move(moveRow))
+	{
+		mIndicator = new QFrame(viewport());
+		mIndicator->setObjectName(QStringLiteral("dropIndicator"));
+		mIndicator->setStyleSheet(QStringLiteral("background:#409eff;"));
+		mIndicator->hide();
+	}
+
+protected:
+	void dragEnterEvent(QDragEnterEvent* e) override
+	{
+		if (e->mimeData()->hasFormat(rowMimeType())) {
+			e->acceptProposedAction();
+			return;
+		}
+		// 外部拖入（文件 URL 等）一律放行给父控件
+		e->ignore();
+	}
+
+	void dragMoveEvent(QDragMoveEvent* e) override
+	{
+		if (!e->mimeData()->hasFormat(rowMimeType())) {
+			e->ignore();
+			return;
+		}
+		updateIndicator(Qt5Qt6Compat_QXXEvent_Pos(e));
+		e->acceptProposedAction();
+	}
+
+	void dragLeaveEvent(QDragLeaveEvent* e) override
+	{
+		mIndicator->hide();
+		QListWidget::dragLeaveEvent(e);
+	}
+
+	void dropEvent(QDropEvent* e) override
+	{
+		mIndicator->hide();
+		if (!e->mimeData()->hasFormat(rowMimeType())) {
+			e->ignore();
+			return;
+		}
+		bool ok = false;
+		const int src = e->mimeData()->data(rowMimeType()).toInt(&ok);
+		if (!ok) {
+			e->ignore();
+			return;
+		}
+		const QPoint vp = Qt5Qt6Compat_QXXEvent_Pos(e);
+		const QModelIndex idx = indexAt(vp);
+		int insertAt = count();
+		if (idx.isValid()) {
+			const QRect r = visualRect(idx);
+			insertAt = idx.row() + ((vp.y() > r.center().y()) ? 1 : 0);
+		}
+		if (src < insertAt)
+			--insertAt;
+		if (insertAt == src || insertAt < 0 || insertAt >= count()) {
+			e->ignore();
+			return;
+		}
+		mMoveRow(src, insertAt);
+		e->acceptProposedAction();
+	}
+
+private:
+	void updateIndicator(const QPoint& vp)
+	{
+		const QModelIndex idx = indexAt(vp);
+		int y = viewport()->height() - 2;
+		if (idx.isValid()) {
+			const QRect r = visualRect(idx);
+			y = (vp.y() > r.center().y()) ? r.bottom() : r.top() - 1;
+		}
+		mIndicator->setGeometry(0, y, viewport()->width(), 2);
+		mIndicator->show();
+		mIndicator->raise();
+	}
+
+	QFrame* mIndicator { nullptr };
+	std::function< void(int, int) > mMoveRow;
+};
+}  // namespace
 
 class DAItemListEditWidget::PrivateData
 {
@@ -8582,21 +11657,41 @@ public:
 	void onRemoveAllClicked();
 	// 当前行上移/下移（按钮点击）
 	void moveCurrent(int offset);
+	// 把 from 行移动到 to（最终索引），只发 orderChanged
+	void moveRow(int from, int to);
 	// 刷新 Up/Down 按钮的显隐与可用状态
 	void updateReorderButtons();
+	// 过滤：只改行的隐藏状态
+	void applyFilter(const QString& key);
+	// 空态与列表互斥显隐
+	void updateEmptyState();
+	// 拖拽手柄增删
+	void updateRowDecorations(int row);
+	// 还原「再次点击清空」的按钮文案与武装状态
+	void disarmClear();
 
-	QListWidget* mList { nullptr };
+	ItemListWidget* mList { nullptr };
 	QToolButton* mAddButton { nullptr };
 	QMenu* mAddMenu { nullptr };
 	QPushButton* mUpButton { nullptr };
 	QPushButton* mDownButton { nullptr };
 	QPushButton* mRemoveAllButton { nullptr };
+	QLineEdit* mFilter { nullptr };
+	QLabel* mEmpty { nullptr };
 	bool mReorderEnabled { false };      ///< 是否显示 Up/Down 按钮
+	bool mDragReorderEnabled { false };  ///< 是否启用手柄拖拽
+	bool mFilterVisible { false };       ///< 是否显示过滤框
 	QVector< DAItemEntry > mAvailable;  ///< 候选条目
 	QString mAddText;                  ///< 添加按钮文案
 	QString mRemoveAllText;            ///< 移除所有按钮文案
 	QString mConfirmTitle;             ///< 二次确认标题
 	QString mConfirmText;              ///< 二次确认正文
+	QString mEmptyText;                ///< 空态文案
+	bool mConfirmClearEnabled { false };
+	int mConfirmClearInterval { 2500 };
+	QString mConfirmClearText;
+	QTimer mArmTimer;
+	bool mArmed { false };
 };
 
 DAItemListEditWidget::PrivateData::PrivateData(DAItemListEditWidget* p) : q_ptr(p)
@@ -8606,16 +11701,45 @@ DAItemListEditWidget::PrivateData::PrivateData(DAItemListEditWidget* p) : q_ptr(
 void DAItemListEditWidget::PrivateData::init()
 {
 	DA_Q(DAItemListEditWidget, q);
-	mAddText       = q->tr("Add");       // cn:添加
-	mRemoveAllText = q->tr("Remove All");  // cn:移除所有
-	mConfirmTitle  = q->tr("Remove All");  // cn:移除所有
-	mConfirmText   = q->tr("Remove all selected items?");  // cn:确定移除所有已选条目吗？
+	mAddText          = q->tr("Add");                           // cn:添加
+	mRemoveAllText    = q->tr("Remove All");                    // cn:移除所有
+	mConfirmTitle     = q->tr("Remove All");                    // cn:移除所有
+	mConfirmText      = q->tr("Remove all selected items?");    // cn:确定移除所有已选条目吗？
+	mEmptyText        = q->tr("No matching items");             // cn:没有匹配的条目
+	mConfirmClearText = q->tr("Click again to clear");          // cn:再次点击清空
+
+	mArmTimer.setSingleShot(true);
+	QObject::connect(&mArmTimer, &QTimer::timeout, q, [ this ]() { disarmClear(); });
 
 	QVBoxLayout* root = new QVBoxLayout(q);
 	root->setContentsMargins(0, 0, 0, 0);
-	mList = new QListWidget(q);
+
+	// 过滤框（默认隐藏，setFilterVisible 打开）
+	mFilter = new QLineEdit(q);
+	mFilter->setObjectName(QStringLiteral("filterEdit"));
+	mFilter->setPlaceholderText(q->tr("Filter..."));  // cn:过滤...
+	mFilter->setClearButtonEnabled(true);
+	mFilter->setVisible(false);
+	root->insertWidget(0, mFilter);
+	QObject::connect(mFilter, &QLineEdit::textChanged, q, [ this ](const QString& text) { applyFilter(text); });
+
+	// 空态标签与列表互斥显隐（不插占位 item）
+	mEmpty = new QLabel(mEmptyText, q);
+	mEmpty->setObjectName(QStringLiteral("emptyLabel"));
+	mEmpty->setAlignment(Qt::AlignCenter);
+	mEmpty->setWordWrap(true);
+	mEmpty->setVisible(false);
+	root->insertWidget(1, mEmpty, 1);
+
+	mList = new ItemListWidget(q, [ this ](int from, int to) { moveRow(from, to); });
 	mList->setObjectName(QStringLiteral("itemList"));
 	mList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+	// 行文本由 setItemWidget 的行控件显示；delegate 再画一遍会在手柄把 label 挤右后透出重影，
+	// 这里把 item 文字色设为透明（item->text() 仍保留，selectedItems()/过滤继续读它）
+	QPalette listPalette = mList->palette();
+	listPalette.setColor(QPalette::Text, Qt::transparent);
+	listPalette.setColor(QPalette::HighlightedText, Qt::transparent);
+	mList->setPalette(listPalette);
 	root->addWidget(mList, 1);
 
 	QHBoxLayout* bar = new QHBoxLayout();
@@ -8639,12 +11763,14 @@ void DAItemListEditWidget::PrivateData::init()
 	QObject::connect(mDownButton, &QPushButton::clicked, q, [ this ]() { moveCurrent(1); });
 	bar->addWidget(mDownButton);
 	mRemoveAllButton = new QPushButton(mRemoveAllText, q);
+	mRemoveAllButton->setObjectName(QStringLiteral("removeAllButton"));
 	QObject::connect(mRemoveAllButton, &QPushButton::clicked, q, [ this ]() { onRemoveAllClicked(); });
 	bar->addWidget(mRemoveAllButton);
 	bar->addStretch(1);
 	root->addLayout(bar);
 	QObject::connect(mList, &QListWidget::currentRowChanged, q, [ this ](int) { updateReorderButtons(); });
 	updateReorderButtons();
+	updateEmptyState();
 }
 
 void DAItemListEditWidget::PrivateData::appendRow(const DAItemEntry& entry)
@@ -8678,6 +11804,8 @@ void DAItemListEditWidget::PrivateData::appendRow(const DAItemEntry& entry)
 	rl->addWidget(close);
 	mList->addItem(item);
 	mList->setItemWidget(item, row);
+	updateRowDecorations(mList->row(item));
+	applyFilter(mFilter->text());
 	updateReorderButtons();
 }
 
@@ -8693,6 +11821,7 @@ void DAItemListEditWidget::PrivateData::removeRow(int row)
 	if (w) {
 		w->deleteLater();
 	}
+	applyFilter(mFilter->text());
 	updateReorderButtons();
 }
 
@@ -8704,22 +11833,108 @@ void DAItemListEditWidget::PrivateData::moveCurrent(int offset)
 	if (row < 0 || dst < 0 || dst >= mList->count()) {
 		return;
 	}
-	QListWidgetItem* item = mList->takeItem(row);
-	if (!item) {
+	moveRow(row, dst);
+	mList->setCurrentRow(dst);
+	updateReorderButtons();
+	Q_EMIT q->selectedItemsChanged();
+}
+
+/**
+ * @brief 把 from 行的 item（连带行控件）移动到 to
+ * @param from 源行
+ * @param to 目标最终索引
+ * @details 顺序照抄旧 moveCurrent：takeItem 之后仍能取到 itemWidget；重插后挂回。
+ *          不发 selectedItemsChanged，只发 orderChanged。
+ */
+void DAItemListEditWidget::PrivateData::moveRow(int from, int to)
+{
+	DA_Q(DAItemListEditWidget, q);
+	if (from < 0 || from >= mList->count() || to < 0 || to >= mList->count() || from == to)
 		return;
-	}
+	QListWidgetItem* item = mList->takeItem(from);
+	if (!item)
+		return;
 	// takeItem 会解除 itemWidget 关联，重插后需重新挂回行控件
 	QWidget* w = mList->itemWidget(item);
 	if (w) {
 		mList->removeItemWidget(item);
 	}
-	mList->insertItem(dst, item);
+	mList->insertItem(to, item);
 	if (w) {
 		mList->setItemWidget(item, w);
 	}
-	mList->setCurrentRow(dst);
-	updateReorderButtons();
-	Q_EMIT q->selectedItemsChanged();
+	// 行号已变化，隐藏状态必须按当前过滤词重算
+	applyFilter(mFilter->text());
+	Q_EMIT q->orderChanged(q->selectedItems());
+}
+
+/**
+ * @brief 过滤：只设置行的隐藏状态，不改已选集合
+ * @param key 过滤文本（去首尾空白，大小写不敏感，子串匹配）
+ */
+void DAItemListEditWidget::PrivateData::applyFilter(const QString& key)
+{
+	const QString k = key.trimmed();
+	for (int i = 0; i < mList->count(); ++i) {
+		QListWidgetItem* item = mList->item(i);
+		const bool hit = k.isEmpty()
+						 || DAStringFilterProxyModel::matchesText(item->text(), k, Qt::CaseInsensitive);
+		mList->setRowHidden(i, !hit);
+	}
+	updateEmptyState();
+}
+
+/** @brief 空态与列表互斥显隐（0 条已选或过滤无命中） */
+void DAItemListEditWidget::PrivateData::updateEmptyState()
+{
+	int visible = 0;
+	for (int i = 0; i < mList->count(); ++i) {
+		if (!mList->isRowHidden(i) && !mList->item(i)->isHidden())
+			++visible;
+	}
+	const bool empty = visible == 0;
+	if (mEmpty) {
+		mEmpty->setText(mEmptyText);
+		mEmpty->setVisible(empty);
+	}
+	mList->setVisible(!empty);
+}
+
+/**
+ * @brief 按 mDragReorderEnabled 给行增删手柄
+ * @param row 行号
+ */
+void DAItemListEditWidget::PrivateData::updateRowDecorations(int row)
+{
+	QListWidgetItem* item = mList->item(row);
+	if (!item)
+		return;
+	QWidget* rowWidget = mList->itemWidget(item);
+	if (!rowWidget)
+		return;
+	// RowHandle 没有 Q_OBJECT，不能用 findChild<RowHandle*>（会被当成 QWidget 匹配）；
+	// 用 objectName + 直接子控件过滤
+	QWidget* handle = rowWidget->findChild< QWidget* >(QStringLiteral("rowHandle"), Qt::FindDirectChildrenOnly);
+	if (mDragReorderEnabled && !handle) {
+		if (auto* lay = qobject_cast< QHBoxLayout* >(rowWidget->layout())) {
+			auto* h = new RowHandle(mList, item, rowWidget);
+			lay->insertWidget(0, h);
+		}
+	} else if (!mDragReorderEnabled && handle) {
+		handle->hide();
+		delete handle;
+	}
+}
+
+/** @brief 还原「再次点击清空」的按钮文案与武装状态 */
+void DAItemListEditWidget::PrivateData::disarmClear()
+{
+	if (mArmTimer.isActive())
+		mArmTimer.stop();
+	if (mArmed) {
+		mArmed = false;
+		mRemoveAllButton->setText(mRemoveAllText);
+	}
 }
 
 void DAItemListEditWidget::PrivateData::updateReorderButtons()
@@ -8802,10 +12017,29 @@ void DAItemListEditWidget::PrivateData::onRemoveAllClicked()
 	if (mList->count() == 0) {
 		return;
 	}
-	if (QMessageBox::Yes != QMessageBox::question(q, mConfirmTitle, mConfirmText, QMessageBox::Yes | QMessageBox::No,
-												  QMessageBox::No)) {
+	if (!mConfirmClearEnabled) {
+		// 原有模态确认路径，一字不改
+		if (QMessageBox::Yes
+			!= QMessageBox::question(q, mConfirmTitle, mConfirmText, QMessageBox::Yes | QMessageBox::No,
+									 QMessageBox::No)) {
+			return;
+		}
+		while (mList->count() > 0) {
+			removeRow(0);
+		}
+		Q_EMIT q->selectedItemsChanged();
 		return;
 	}
+	if (!mArmed) {
+		// 首次点击只武装：换文案 + 起定时器，不发信号
+		mArmed = true;
+		mRemoveAllButton->setText(mConfirmClearText);
+		mArmTimer.start(mConfirmClearInterval);
+		return;
+	}
+	mArmTimer.stop();
+	mArmed = false;
+	mRemoveAllButton->setText(mRemoveAllText);
 	while (mList->count() > 0) {
 		removeRow(0);
 	}
@@ -8814,12 +12048,20 @@ void DAItemListEditWidget::PrivateData::onRemoveAllClicked()
 
 DAItemListEditWidget::DAItemListEditWidget(QWidget* parent) : QWidget(parent), DA_PIMPL_CONSTRUCT
 {
+	// 信号参数是自定义类型：注册一次，QSignalSpy / 队列连接才能解析。
+	// Qt5 的 moc 在命名空间内把签名记成 "QVector<DAItemEntry>"，Qt6 记全限定名，
+	// 两个名字都注册到同一 id，跨版本才都能按签名查到。
+	static const int entryVectorTypeId = qRegisterMetaType< QVector< DAItemEntry > >("QVector<DA::DAItemEntry>");
+	qRegisterMetaType< QVector< DAItemEntry > >("QVector<DAItemEntry>");
+	Q_UNUSED(entryVectorTypeId);
 	DA_D(d);
 	d->init();
 }
 
 DAItemListEditWidget::~DAItemListEditWidget()
 {
+	DA_D(d);
+	d->disarmClear();
 }
 
 void DAItemListEditWidget::setAvailableItems(const QVector< DAItemEntry >& items)
@@ -8837,12 +12079,14 @@ QVector< DAItemEntry > DAItemListEditWidget::availableItems() const
 void DAItemListEditWidget::setSelectedItems(const QVector< DAItemEntry >& items)
 {
 	DA_D(d);
+	d->disarmClear();
 	while (d->mList->count() > 0) {
 		d->removeRow(0);
 	}
 	for (const DAItemEntry& e : items) {
 		d->appendRow(e);
 	}
+	d->applyFilter(d->mFilter->text());
 }
 
 QVector< DAItemEntry > DAItemListEditWidget::selectedItems() const
@@ -8857,7 +12101,7 @@ QVector< DAItemEntry > DAItemListEditWidget::selectedItems() const
 }
 
 /**
- * @brief 显示 Up/Down 按钮（按钮移动当前行，不使用拖拽）
+ * @brief 显示 Up/Down 按钮（按钮移动当前行；与手柄拖拽互不依赖）
  * @param on 是否启用排序
  */
 void DAItemListEditWidget::setReorderEnabled(bool on)
@@ -8888,7 +12132,9 @@ void DAItemListEditWidget::setRemoveAllButtonText(const QString& t)
 {
 	DA_D(d);
 	d->mRemoveAllText = t;
-	d->mRemoveAllButton->setText(t);
+	// 武装态显示的是「再次点击清空」，基础文案等 disarm 后再生效
+	if (!d->mArmed)
+		d->mRemoveAllButton->setText(t);
 }
 
 void DAItemListEditWidget::setRemoveAllConfirmText(const QString& title, const QString& text)
@@ -8896,6 +12142,123 @@ void DAItemListEditWidget::setRemoveAllConfirmText(const QString& title, const Q
 	DA_D(d);
 	d->mConfirmTitle = title;
 	d->mConfirmText  = text;
+}
+
+/**
+ * @brief 打开/关闭行首手柄拖拽排序
+ * @param on 是否启用（默认 false）
+ * @details 只把列表设为 DropOnly（当落点），拖源是手柄自己发起的 QDrag
+ */
+void DAItemListEditWidget::setDragReorderEnabled(bool on)
+{
+	DA_D(d);
+	if (d->mDragReorderEnabled == on)
+		return;
+	d->mDragReorderEnabled = on;
+	d->mList->setDragDropMode(on ? QAbstractItemView::DropOnly : QAbstractItemView::NoDragDrop);
+	for (int i = 0; i < d->mList->count(); ++i)
+		d->updateRowDecorations(i);
+}
+
+/** @brief 是否启用行首手柄拖拽 */
+bool DAItemListEditWidget::isDragReorderEnabled() const
+{
+	DA_DC(d);
+	return d->mDragReorderEnabled;
+}
+
+/**
+ * @brief 显示/隐藏顶部过滤框
+ * @param on 是否显示（默认 false）
+ * @details 关闭时清空过滤文本并恢复全部行
+ */
+void DAItemListEditWidget::setFilterVisible(bool on)
+{
+	DA_D(d);
+	if (d->mFilterVisible == on)
+		return;
+	d->mFilterVisible = on;
+	if (!on)
+		d->mFilter->clear();  // 触发 applyFilter("")
+	d->mFilter->setVisible(on);
+	d->applyFilter(on ? d->mFilter->text() : QString());
+}
+
+/** @brief 过滤框是否显示 */
+bool DAItemListEditWidget::isFilterVisible() const
+{
+	DA_DC(d);
+	return d->mFilterVisible;
+}
+
+/**
+ * @brief 设置空态文案
+ * @param text 文案
+ */
+void DAItemListEditWidget::setEmptyText(const QString& text)
+{
+	DA_D(d);
+	d->mEmptyText = text;
+	d->updateEmptyState();
+}
+
+/** @brief 获取空态文案 */
+QString DAItemListEditWidget::emptyText() const
+{
+	DA_DC(d);
+	return d->mEmptyText;
+}
+
+/**
+ * @brief 打开/关闭「再次点击清空」
+ * @param on 是否启用（默认 false = 保持原有 QMessageBox）
+ */
+void DAItemListEditWidget::setConfirmClearEnabled(bool on)
+{
+	DA_D(d);
+	if (d->mConfirmClearEnabled == on)
+		return;
+	d->mConfirmClearEnabled = on;
+	if (!on)
+		d->disarmClear();
+}
+
+/** @brief 是否启用「再次点击清空」 */
+bool DAItemListEditWidget::isConfirmClearEnabled() const
+{
+	DA_DC(d);
+	return d->mConfirmClearEnabled;
+}
+
+/**
+ * @brief 设置武装态自动还原时间
+ * @param ms 毫秒，最小 200
+ */
+void DAItemListEditWidget::setConfirmClearInterval(int ms)
+{
+	DA_D(d);
+	d->mConfirmClearInterval = qMax(200, ms);
+	if (d->mArmed)
+		d->mArmTimer.start(d->mConfirmClearInterval);
+}
+
+/** @brief 获取武装态自动还原时间（毫秒） */
+int DAItemListEditWidget::confirmClearInterval() const
+{
+	DA_DC(d);
+	return d->mConfirmClearInterval;
+}
+
+/**
+ * @brief 设置武装态按钮文案
+ * @param text 文案（i18n 覆盖用）
+ */
+void DAItemListEditWidget::setConfirmClearText(const QString& text)
+{
+	DA_D(d);
+	d->mConfirmClearText = text;
+	if (d->mArmed)
+		d->mRemoveAllButton->setText(text);
 }
 
 }  // namespace DA
@@ -9007,7 +12370,9 @@ void DAItemListPickDialog::setSearchPlaceholderText(const QString& t)
 #include <QHBoxLayout>
 #include <QLineEdit>
 #include <QListView>
+#include <QMouseEvent>
 #include <QPushButton>
+#include <QShortcut>
 #include <QStandardItem>
 #include <QStandardItemModel>
 #include <QVBoxLayout>
@@ -9041,6 +12406,9 @@ public:
 	void selectAllVisible();
 	void invertVisible();
 	void onItemChanged(QStandardItem* item);
+	// 键盘连选
+	int proxyRowOf(const QStandardItem* item) const;
+	void applyRangeTo(int fromProxyRow, int toProxyRow, bool targetChecked);
 
 	QLineEdit* mSearch { nullptr };
 	QListView* mList { nullptr };
@@ -9049,6 +12417,9 @@ public:
 	QPushButton* mSelectAll { nullptr };
 	QPushButton* mInvert { nullptr };
 	bool mUpdating { false };  ///< 程序化改动期间屏蔽 itemChanged 回环
+	bool mKeyboardSelection { false };
+	int mAnchorProxyRow { -1 };
+	QShortcut* mSelectAllShortcut { nullptr };
 };
 
 DACheckListWidget::PrivateData::PrivateData(DACheckListWidget* p) : q_ptr(p)
@@ -9076,6 +12447,7 @@ void DACheckListWidget::PrivateData::init()
 	mList->setModel(mProxy);
 	// 勾选即选择，避免选中态干扰
 	mList->setSelectionMode(QAbstractItemView::NoSelection);
+	mList->viewport()->installEventFilter(q);
 	root->addWidget(mList, 1);
 
 	QHBoxLayout* btnRow = new QHBoxLayout();
@@ -9098,6 +12470,8 @@ void DACheckListWidget::PrivateData::init()
 void DACheckListWidget::PrivateData::applyFilter(const QString& key)
 {
 	mProxy->setFilterText(key.trimmed());
+	// 代理行号会重排，旧锚点不再指向同一条目
+	mAnchorProxyRow = -1;
 }
 
 QStandardItem* DACheckListWidget::PrivateData::findItem(const DAItemEntry& e) const
@@ -9201,7 +12575,47 @@ void DACheckListWidget::PrivateData::onItemChanged(QStandardItem* item)
 		setCheckedSilently(item, false);
 		return;
 	}
+	// 锚点只能记录在 forced/不可勾选守卫之后：否则会把强制行当成"取消"意图
+	if (mKeyboardSelection)
+		mAnchorProxyRow = proxyRowOf(item);
 	Q_EMIT q->checkedEntriesChanged();
+}
+
+int DACheckListWidget::PrivateData::proxyRowOf(const QStandardItem* item) const
+{
+	if (!item)
+		return -1;
+	const QModelIndex src = mModel->indexFromItem(item);
+	if (!src.isValid())
+		return -1;
+	return mProxy->mapFromSource(src).row();
+}
+
+/**
+ * @brief 把代理行区间内可操作的条目套用同一勾选状态
+ * @details 跳过 forced / 无复选框 / 不可用条目；整段只发一次信号
+ */
+void DACheckListWidget::PrivateData::applyRangeTo(int fromProxyRow, int toProxyRow, bool targetChecked)
+{
+	DA_Q(DACheckListWidget, q);
+	if (fromProxyRow > toProxyRow) {
+		const int tmp = fromProxyRow;
+		fromProxyRow = toProxyRow;
+		toProxyRow   = tmp;
+	}
+	bool changed = false;
+	for (int i = fromProxyRow; i <= toProxyRow; ++i) {
+		QStandardItem* item = mModel->itemFromIndex(mProxy->mapToSource(mProxy->index(i, 0)));
+		if (!item || itemForced(item) || !itemCheckable(item) || !itemUsable(item))
+			continue;
+		const Qt::CheckState target = targetChecked ? Qt::Checked : Qt::Unchecked;
+		if (item->checkState() != target) {
+			setCheckedSilently(item, targetChecked);
+			changed = true;
+		}
+	}
+	if (changed)
+		Q_EMIT q->checkedEntriesChanged();
 }
 
 //===============================================================
@@ -9419,6 +12833,78 @@ void DACheckListWidget::setInvertVisible(bool on)
 {
 	DA_D(d);
 	d->mInvert->setVisible(on);
+}
+
+/**
+ * @brief 打开/关闭键盘批量勾选
+ * @param on 是否启用：Shift+点击区间连选、Ctrl+A 全选当前可见（默认 false）
+ */
+void DACheckListWidget::setKeyboardSelectionEnabled(bool on)
+{
+	DA_D(d);
+	if (d->mKeyboardSelection == on)
+		return;
+	d->mKeyboardSelection = on;
+	if (on) {
+		if (!d->mSelectAllShortcut) {
+			d->mSelectAllShortcut = new QShortcut(QKeySequence::SelectAll, d->mList);
+			d->mSelectAllShortcut->setContext(Qt::WidgetWithChildrenShortcut);
+			QObject::connect(d->mSelectAllShortcut, &QShortcut::activated, this, [ this ]() {
+				DA_D(d);
+				d->selectAllVisible();
+			});
+		}
+	} else {
+		d->mAnchorProxyRow = -1;
+		if (d->mSelectAllShortcut) {
+			d->mSelectAllShortcut->deleteLater();
+			d->mSelectAllShortcut = nullptr;
+		}
+	}
+}
+
+/** @brief 键盘批量勾选是否启用 */
+bool DACheckListWidget::keyboardSelectionEnabled() const
+{
+	DA_DC(d);
+	return d->mKeyboardSelection;
+}
+
+/**
+ * @brief 视图事件过滤：Shift+左键按下套用区间并吞掉事件
+ * @details 只处理 press 与 dblclick；普通点击完全放行
+ */
+bool DACheckListWidget::eventFilter(QObject* watched, QEvent* event)
+{
+	DA_D(d);
+	if (watched != d->mList->viewport() || !d->mKeyboardSelection)
+		return QWidget::eventFilter(watched, event);
+	if (event->type() == QEvent::MouseButtonDblClick) {
+		auto* me = static_cast< QMouseEvent* >(event);
+		if (me->button() == Qt::LeftButton)
+			return true;  // 双击不再叠加一次翻转
+		return QWidget::eventFilter(watched, event);
+	}
+	if (event->type() != QEvent::MouseButtonPress)
+		return QWidget::eventFilter(watched, event);
+	auto* me = static_cast< QMouseEvent* >(event);
+	if (me->button() != Qt::LeftButton || !(me->modifiers() & Qt::ShiftModifier))
+		return QWidget::eventFilter(watched, event);
+	if (d->mAnchorProxyRow < 0)
+		return QWidget::eventFilter(watched, event);
+	const QModelIndex target = d->mList->indexAt(me->pos());
+	if (!target.isValid())
+		return QWidget::eventFilter(watched, event);
+	const QStandardItem* anchorItem =
+		d->mModel->itemFromIndex(d->mProxy->mapToSource(d->mProxy->index(d->mAnchorProxyRow, 0)));
+	if (!anchorItem)
+		return QWidget::eventFilter(watched, event);
+	const bool targetChecked = (anchorItem->checkState() == Qt::Checked);
+	const int targetRow      = target.row();
+	d->applyRangeTo(d->mAnchorProxyRow, targetRow, targetChecked);
+	d->mAnchorProxyRow = targetRow;
+	d->mList->viewport()->update();
+	return true;
 }
 
 /**
@@ -10091,6 +13577,46 @@ bool DAStringFilterProxyModel::matchesText(const QString& text, const QString& f
 		return true;
 	}
 	return text.contains(filter, cs);
+}
+
+/**
+ * @brief 纯文本的命中区间
+ * @param text 文本
+ * @param filter 过滤词；空串返回空数组（与 matchesText 返回 true 不对称）
+ * @param cs 大小写
+ * @return (start, length) 列表，UTF-16 下标、从左到右、互不重叠
+ */
+QVector< QPair< int, int > > DAStringFilterProxyModel::matchRangesIn(const QString& text,
+																	 const QString& filter,
+																	 Qt::CaseSensitivity cs)
+{
+	QVector< QPair< int, int > > out;
+	if (filter.isEmpty())
+		return out;
+	int from = 0;
+	int pos = 0;
+	while ((pos = text.indexOf(filter, from, cs)) >= 0) {
+		out.append(qMakePair(pos, static_cast< int >(filter.size())));
+		from = pos + filter.size();
+	}
+	return out;
+}
+
+/**
+ * @brief 单个代理单元格的命中区间
+ * @param proxyIndex 代理索引
+ * @return (start, length) 列表；无效索引/不参与的列/空过滤返回空
+ */
+QVector< QPair< int, int > > DAStringFilterProxyModel::matchRanges(const QModelIndex& proxyIndex) const
+{
+	const QModelIndex src = mapToSource(proxyIndex);
+	if (!src.isValid())
+		return {};
+	if (mFilterText.isEmpty())
+		return {};
+	if (mFilterColumn >= 0 && src.column() != mFilterColumn)
+		return {};
+	return matchRangesIn(src.data(mFilterRole).toString(), mFilterText, filterCaseSensitivity());
 }
 
 bool DAStringFilterProxyModel::filterAcceptsRow(int source_row, const QModelIndex& source_parent) const
@@ -11552,82 +15078,82 @@ static const unsigned char qt_resource_struct[] = {
 0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,
   // :/DAWidgetsIcons/AligmentCenter.svg
   0x0,0x0,0x0,0xec,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0x12,0x15,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x49,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xe1,
   // :/DAWidgetsIcons/AligmentHCenter.svg
   0x0,0x0,0x1,0x88,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0x1e,0x7f,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x49,
+0x0,0x0,0x1,0xa2,0x6,0x83,0xae,0xef,
   // :/DAWidgetsIcons/AligmentBottom.svg
   0x0,0x0,0x2,0x22,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0x2d,0x89,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x49,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xe1,
   // :/DAWidgetsIcons/font-size-sub.svg
   0x0,0x0,0x3,0xe,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0x3d,0xf0,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x4e,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xe8,
   // :/DAWidgetsIcons/text-underline.svg
   0x0,0x0,0x0,0x22,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0x0,0x0,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x50,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xeb,
   // :/DAWidgetsIcons/topRight.svg
   0x0,0x0,0x2,0xa8,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0x37,0xe0,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x51,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xec,
   // :/DAWidgetsIcons/text-bold.svg
   0x0,0x0,0x0,0xcc,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0xe,0xce,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x4f,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xea,
   // :/DAWidgetsIcons/AligmentTop.svg
   0x0,0x0,0x2,0xea,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0x3b,0xe0,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x4b,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xe3,
   // :/DAWidgetsIcons/arrow-down.svg
   0x0,0x0,0x2,0x72,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0x31,0xa9,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x4b,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xe3,
   // :/DAWidgetsIcons/bottomLeft.svg
   0x0,0x0,0x1,0x48,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0x19,0x49,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x4d,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xe5,
   // :/DAWidgetsIcons/open.svg
   0x0,0x0,0x1,0xca,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0x22,0xa6,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x4f,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xe8,
   // :/DAWidgetsIcons/AligmentLeft.svg
   0x0,0x0,0x2,0x4c,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0x2f,0x99,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x4a,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xe2,
   // :/DAWidgetsIcons/arrow-left.svg
   0x0,0x0,0x3,0x5a,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0x44,0x39,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x4b,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xe3,
   // :/DAWidgetsIcons/error.svg
   0x0,0x0,0x0,0x8c,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0x6,0xd6,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x4e,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xe7,
   // :/DAWidgetsIcons/arrow-up.svg
   0x0,0x0,0x1,0x6a,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0x1b,0x8f,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x4c,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xe4,
   // :/DAWidgetsIcons/bottomRight.svg
   0x0,0x0,0x0,0x4c,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0x2,0x4b,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x4d,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xe6,
   // :/DAWidgetsIcons/center.svg
   0x0,0x0,0x1,0x2e,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0x16,0x80,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x4d,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xe6,
   // :/DAWidgetsIcons/topleft.svg
   0x0,0x0,0x0,0x70,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0x4,0x95,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x51,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xec,
   // :/DAWidgetsIcons/bottom.svg
   0x0,0x0,0x2,0x8,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0x2b,0x2f,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x4c,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xe5,
   // :/DAWidgetsIcons/AligmentRight.svg
   0x0,0x0,0x0,0xa4,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0xc,0xbe,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x4a,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xe2,
   // :/DAWidgetsIcons/top.svg
   0x0,0x0,0x2,0x94,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0x35,0x8b,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x50,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xeb,
   // :/DAWidgetsIcons/left.svg
   0x0,0x0,0x1,0xb4,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0x20,0x51,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x4f,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xe8,
   // :/DAWidgetsIcons/text-italic.svg
   0x0,0x0,0x2,0xc6,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0x3a,0x23,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x50,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xea,
   // :/DAWidgetsIcons/right.svg
   0x0,0x0,0x1,0x16,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0x14,0x26,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x4f,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xea,
   // :/DAWidgetsIcons/arrow-right.svg
   0x0,0x0,0x3,0x36,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0x40,0x4d,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x4c,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xe4,
   // :/DAWidgetsIcons/font-size-add.svg
   0x0,0x0,0x1,0xe0,0x0,0x0,0x0,0x0,0x0,0x1,0x0,0x0,0x28,0xc8,
-0x0,0x0,0x1,0xa2,0x7,0x0,0xbf,0x4e,
+0x0,0x0,0x1,0x9f,0x10,0xce,0xf,0xe7,
 
 };
 

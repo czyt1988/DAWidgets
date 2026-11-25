@@ -413,6 +413,12 @@ public:
 	// 设置是否显示关闭按钮
 	void setClosable(bool on);
 
+	// 最大宽度（像素）。0 = 不省略（默认）；> 0 时超长文本以…结尾，全文进 tooltip，
+	// text() 始终返回全文
+	void setElideWidth(int px);
+	// 获取最大宽度限制
+	int elideWidth() const;
+
 Q_SIGNALS:
 	/**
 	 * @brief 关闭按钮被点击时发射
@@ -438,6 +444,8 @@ protected:
 
 private:
 	void init();
+	// 按 elideWidth 重新计算 label 显示文本与 tooltip
+	void applyElide();
 };
 }  // namespace DA
 
@@ -457,6 +465,8 @@ private:
 
 class QLineEdit;
 class QKeyEvent;
+class QLabel;
+class QResizeEvent;
 class QRegularExpression;
 
 namespace DA
@@ -533,6 +543,24 @@ public:
 	// 设置是否允许重复标签
 	void setAllowDuplicate(bool on);
 
+	// 粘贴批量拆分：打开后 Ctrl+V / Shift+Insert 按分隔符集合一次生成多个标签（默认 false）
+	void setPasteSplitEnabled(bool on);
+	// 粘贴批量拆分是否开启
+	bool isPasteSplitEnabled() const;
+	// 粘贴的唯一入口：快捷键、单测、demo 的"模拟粘贴"都走这里。
+	// 关闭拆分开关时等价于把 text 插入内嵌输入框（不改变旧行为）。
+	void pasteText(const QString &text);
+
+	// chip 最大宽度（像素）。0 = 不省略（默认）；> 0 时超长文本以…结尾，全文进 tooltip
+	void setTagElideWidth(int px);
+	// 获取 chip 最大宽度
+	int tagElideWidth() const;
+
+	// 右下角显示 "n / maxCount"；maxCount == -1 时只显示 n（默认 false）
+	void setShowCount(bool on);
+	// 是否显示数量计数
+	bool showCount() const;
+
 	// 获取标签数量上限，-1 表示无限制
 	int maxCount() const;
 	// 设置标签数量上限，-1 表示无限制
@@ -586,10 +614,15 @@ Q_SIGNALS:
 	void inputFocusChanged(bool focused);
 	/// 按键事件拦截：外部可将 *handled 置 true 阻止 DAChipsEdit 默认处理。
 	void inputKeyEvent(QKeyEvent *event, bool *handled);
+	/// 粘贴拆分完成（去重与 maxCount 过滤之前），一次粘贴发一次
+	void pasteSplit(const QStringList &tokens);
+	/// 粘贴被拒：reason 为稳定 key，"maxCount" 表示上限打满，"clipboard" 表示取不到文本
+	void pasteRejected(const QString &reason);
 
 protected:
 	bool eventFilter(QObject *watched, QEvent *event) override;
 	void focusInEvent(QFocusEvent *event) override;
+	void resizeEvent(QResizeEvent *event) override;
 
 private:
 	void rebuildChips();
@@ -598,6 +631,10 @@ private:
 	void onInputEdited(const QString &text);
 	QSet<QChar> separatorChars() const;
 	QRegularExpression separatorRegex() const;
+	QStringList splitForPaste(const QString &text) const;
+	void applyPastedTokens(const QStringList &tokens);
+	void updateCountLabel();
+	void positionCountLabel();
 };
 }  // namespace DA
 
@@ -612,6 +649,7 @@ private:
 
 #include <QComboBox>
 #include <QStringList>
+#include <QVector>
 
 class QListWidget;
 class QListWidgetItem;
@@ -621,6 +659,15 @@ class QWidget;
 namespace DA
 {
 class DAChipsEdit;
+
+/**
+ * @brief 分组候选:title 为空串表示「无标题组」
+ */
+struct DAWIDGETS_EXPORT DASelectGroup
+{
+	QString title;        ///< 分组标题
+	QStringList options;  ///< 组内候选
+};
 
 /**
  * @brief 多标签选择下拉框，对标 Element UI el-select 的
@@ -660,8 +707,40 @@ public:
 
 	// 获取候选选项列表
 	QStringList options() const;
-	// 设置候选选项列表，替换当前所有选项
+	// 设置候选选项列表，替换当前所有选项（同时清空分组）
 	void setOptions(const QStringList &options);
+
+	// 分组候选：内部扁平化为 options()，与 setOptions() 互斥
+	void setGroupedOptions(const QVector< DASelectGroup > &groups);
+	// 获取分组候选（副本）
+	QVector< DASelectGroup > groupedOptions() const;
+
+	// 无匹配时保持弹层打开并显示空态面板（默认关闭）
+	void setEmptyStateEnabled(bool on);
+	// 空态面板是否启用
+	bool isEmptyStateEnabled() const;
+	// 空态主文案，默认 tr("No matching items")
+	void setNoMatchText(const QString &text);
+	// 获取空态主文案
+	QString noMatchText() const;
+	// 自定义空态控件：接管所有权，替换内置面板；仅在开关为 true 时生效
+	void setEmptyWidget(QWidget *w);
+	// 获取自定义空态控件
+	QWidget *emptyWidget() const;
+
+	// 编辑区右侧 ×，悬停出现，一次清空全部（默认关闭）
+	void setClearable(bool on);
+	// 是否启用清空按钮
+	bool isClearable() const;
+
+	// 已选标签折叠：超出 count 个且未聚焦时显示 +N（默认关闭）
+	void setCollapseTags(bool on);
+	// 是否启用已选标签折叠
+	bool collapseTags() const;
+	// 折叠后保留的标签数（最小 1）
+	void setCollapseTagCount(int count);
+	// 折叠后保留的标签数
+	int collapseTagCount() const;
 
 	// 获取已选标签列表
 	QStringList tags() const;
@@ -714,6 +793,10 @@ Q_SIGNALS:
 	 * @param text 新创建标签的文本
 	 */
 	void created(const QString &text);
+	/**
+	 * @brief 点击清空按钮清空全部标签后发射一次（此时 tagsChanged 已先发过）
+	 */
+	void clearClicked();
 
 protected:
 	void resizeEvent(QResizeEvent *event) override;
@@ -731,6 +814,16 @@ private:
 	void onInputFocusChanged(bool focused);
 	void onInputKey(QKeyEvent *event, bool *handled);
 	void onPopupItemClicked(QListWidgetItem *item);
+	// 回车与空态「创建」按钮共用的创建入口
+	void activateByInput();
+	// 空态覆盖层显隐与几何
+	void updateEmptyOverlay();
+	// × 与 +N 的几何（唯一来源是 style()->subControlRect）
+	void updateOverlayGeometry();
+	// 按 collapseTags 状态隐藏/显示 chip 与 +N 摘要
+	void updateTagCollapse();
+	// 综合刷新悬停态、× 与折叠摘要
+	void updateEditOverlays();
 };
 }  // namespace DA
 
@@ -822,11 +915,11 @@ namespace DA
  * qss 定制示例:
  * ```css
  * DA--DACollapseItem { border:1px solid #ebeef5; border-radius:4px; }
- * DA--DACollapseItem::header { background:#fafafa; }
- * DA--DACollapseItem::header:hover { background:#f5f7fa; }
+ * DA--DACollapseItem #header { background:#fafafa; }
+ * DA--DACollapseItem #header:hover { background:#f5f7fa; }
  * QLabel#DACollapseItemArrow { color:#909399; }
  * QLabel#DACollapseItemTitle { color:#303133; font-weight:bold; }
- * DA--DACollapseItem[disabled="true"]::header { color:#c0c4cc; }
+ * DA--DACollapseItem[disabled="true"] #header { color:#c0c4cc; }
  * ```
  *
  * 对应 Element UI:
@@ -881,6 +974,13 @@ public:
 	// 获取自定义标题控件(未设置时返回 nullptr)
 	QWidget *titleWidget() const;
 
+	// 标题栏控件(键盘导航与自定义样式用;当前实现是内部按钮)
+	QWidget *headerWidget() const;
+
+	// 内容高度重算:展开态下更新 maximumHeight(动画中则更新动画终点)。
+	// 异步加载内容的宿主在 setContentWidget() 之后调用它。
+	void refreshContentHeight();
+
 	// 设置内容控件(取代默认内容布局)
 	void setContentWidget(QWidget *widget);
 	// 获取内容控件(未设置时返回 nullptr)
@@ -918,11 +1018,16 @@ Q_SIGNALS:
 	 * @param on 是否启用动画
 	 */
 	void animationEnabledChanged(bool on);
+	/**
+	 * @brief 首次展开且内容区为空时、动画开始前发射(每个条目只发一次)
+	 */
+	void contentRequested();
 
 protected:
 	bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
+	friend class DACollapseWidget;  // 仅用于下发变体的间距/留白
 	void init();
 	void updateArrow();
 	void updateHeaderVisualState();
@@ -930,6 +1035,8 @@ private:
 	void doExpand(bool on);
 	void onHeaderClicked();
 	void onAnimationFinished();
+	// 按 daVariant 动态属性重设标题/内容留白
+	void applyVariantChrome();
 };
 }  // namespace DA
 
@@ -964,7 +1071,7 @@ class DACollapseLayout;
  *
  * 用法:
  * ```cpp
- * auto *c = new DA::DACollapse;
+ * auto *c = new DA::DACollapseWidget;
  * c->addItem(QStringLiteral("一致性"), QStringLiteral("1"));
  * c->addItem(QStringLiteral("反馈"), QStringLiteral("2"));
  * c->setActiveNames({ QStringLiteral("1") });
@@ -977,6 +1084,14 @@ class DAWIDGETS_EXPORT DACollapseWidget : public QWidget
 	Q_PROPERTY(QStringList activeNames READ activeNames WRITE setActiveNames NOTIFY activeNamesChanged)
 	DA_DECLARE_PRIVATE(DACollapseWidget)
 public:
+	/// 外观变体。Default 与加入枚举前逐像素一致。
+	enum class Variant {
+		Default,    ///< 现状:无内置装饰,间距 0,内留白 12
+		Borderless, ///< 无框 + 贴边:标题内留白 0/8,内容内留白 0/4/0/8
+		Card        ///< 卡片间距:条目间距 8;边框由调用方用 [daVariant="card"] qss 提供
+	};
+	Q_ENUM(Variant)
+
 	// 构造折叠面板容器
 	explicit DACollapseWidget(QWidget* parent = nullptr);
 	// 析构,释放内部条目与布局
@@ -986,6 +1101,16 @@ public:
 	bool accordion() const;
 	// 启用/禁用手风琴模式
 	void setAccordion(bool on);
+
+	// 键盘导航:Tab 聚焦标题、↑/↓ 移动焦点、Enter/Space 开合(默认 false)
+	void setKeyboardNavigation(bool on);
+	// 键盘导航是否开启
+	bool isKeyboardNavigation() const;
+
+	// 外观变体(默认 Variant::Default)
+	void setVariant(Variant variant);
+	// 当前外观变体
+	Variant variant() const;
 
 	// 获取当前激活(展开)面板的 name 列表
 	QStringList activeNames() const;
@@ -1030,11 +1155,21 @@ Q_SIGNALS:
 	 * @param activeNames 当前激活面板的 name 列表
 	 */
 	void activeNamesChanged(const QStringList& activeNames);
+	/**
+	 * @brief 首次展开且内容区为空时,在展开动画开始前发射;宿主可在槽里 setContentWidget()
+	 * @param name 触发条目的 name
+	 */
+	void expandRequested(const QString& name);
+
+protected:
+	bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
 	void init();
 	void activate(DACollapseItem* item, bool on);
 	void onItemExpandChanged();
+	// 把当前变体下发给单个条目
+	void applyVariantToItem(DACollapseItem* item);
 };
 }  // namespace DA
 
@@ -1235,8 +1370,11 @@ private:
 #ifndef DAUNDOHISTORYWIDGET_H
 #define DAUNDOHISTORYWIDGET_H
 #include <QWidget>
+#include <QDateTime>
+#include <QVector>
 
 class QUndoGroup;
+class QUndoStack;
 class QUndoView;
 class QSpinBox;
 
@@ -1270,14 +1408,42 @@ public:
 	int undoLimit() const;
 	void setUndoLimit(int limit);
 
+	// 每行右侧显示命令入栈时刻（默认 false）
+	void setTimestampsVisible(bool on);
+	bool timestampsVisible() const;
+
+	// 每行左侧显示状态点：已应用=实心、可重做=空心（默认 false）
+	void setIconsVisible(bool on);
+	bool iconsVisible() const;
+
+	// 隐藏文本为空的命令行（默认 false）
+	void setEmptyCommandFilterEnabled(bool on);
+	bool isEmptyCommandFilterEnabled() const;
+
+	// 激活栈中第 index 个命令的入栈时刻；未记录或越界返回无效 QDateTime
+	QDateTime commandTimestamp(int index) const;
+
 Q_SIGNALS:
 	// 用户在面板调整了撤销深度（APP 接线：写回配置并施加到全部数据页撤销栈）
 	void undoLimitChangeRequested(int limit);
 
 private:
+	// 行号 → 命令下标（首行初始状态返回 -1；所有行相关逻辑都走这里）
+	int rowToCommandIndex(int row) const;
+	bool isRowApplied(int row) const;
+	void attachStack(QUndoStack* stack);
+	void noteStackChange(int count);
+	void refilterRows();
+
+private:
 	QUndoView* mView { nullptr };
 	QSpinBox* mSpinLimit { nullptr };
 	bool mUpdatingLimit { false };  ///< setUndoLimit 期间屏蔽 valueChanged 回环
+	bool mTimestampsVisible { false };
+	bool mIconsVisible { false };
+	bool mEmptyFilterEnabled { false };
+	QVector< QDateTime > mStamps;       ///< 与激活栈命令下标平行的时间戳
+	QUndoStack* mWatchedStack { nullptr };
 };
 }  // end of namespace DA
 #endif  // DAUNDOHISTORYWIDGET_H
@@ -1589,6 +1755,10 @@ namespace Ui
 class DAFilePathEditWidget;
 }
 
+class QDragEnterEvent;
+class QDragLeaveEvent;
+class QDropEvent;
+
 namespace DA
 {
 
@@ -1645,6 +1815,21 @@ public:
 	void setFilePath(const QString& v);
 	// 文本框占位提示
 	void setPlaceholderText(const QString& t);
+
+	// 拖放：默认关闭。开启后接受文件/目录 URL，落点填入并校验
+	void setDropEnabled(bool on = true);
+	bool isDropEnabled() const;
+
+	// 路径校验：默认关闭。关闭时状态行隐藏、失焦不校验
+	void setValidationEnabled(bool on = true);
+	bool isValidationEnabled() const;
+	// 立即校验并返回是否合法（空路径返回 false 且不发信号、不显示状态行）
+	bool validateNow();
+
+	// 最近路径：入参按“最近 → 最旧”，去重 + 截断到 5；非空时右侧出现“最近”按钮
+	void setRecentPaths(const QStringList& paths);
+	QStringList recentPaths() const;
+
 Q_SIGNALS:
 	/**
 	 * @brief 选中路径后会发射此信号
@@ -1656,12 +1841,33 @@ Q_SIGNALS:
 	 * @param p 当前文本
 	 */
 	void pathChanged(const QString& p);
+	/**
+	 * @brief 校验结果变化时发射；同一结果连续校验只发一次，空路径不发射
+	 */
+	void validationChanged(bool valid);
+	/**
+	 * @brief 最近路径被选中时发射（随后仍会发 selectedPath）
+	 */
+	void recentPathActivated(const QString& path);
+
 private Q_SLOTS:
 	void onToolButtonOpenClicked();
 	void onLineEditEditingFinished();
 
 protected:
 	void changeEvent(QEvent* e);
+	void dragEnterEvent(QDragEnterEvent* e) override;
+	void dragLeaveEvent(QDragLeaveEvent* e) override;
+	void dropEvent(QDropEvent* e) override;
+	bool eventFilter(QObject* watched, QEvent* event) override;
+
+private:
+	// 统一收尾：设文本 → （启用时）校验，浏览与拖放共用
+	void setPathAndValidate(const QString& path);
+	void onRecentPathActivated(const QString& path);
+	void refreshValidationVisual(bool valid);
+	void rebuildRecentMenu();
+	void resetDragActive();
 
 private:
 	Ui::DAFilePathEditWidget* ui;
@@ -1728,6 +1934,26 @@ public:
 	bool isToolbarVisible() const;
 	// 注入工具动作（加入工具条后由调用方负责生命周期）
 	void addToolAction(QAction* action);
+
+	// 左侧行号栏（默认 false）
+	void setLineNumbersVisible(bool on);
+	bool lineNumbersVisible() const;
+
+	// 启用 Ctrl+F 打开查找条（默认 false；与"查找条是否可见"分开）
+	void setFindEnabled(bool on);
+	bool findEnabled() const;
+
+	// 查找条显隐
+	void setFindBarVisible(bool on);
+	bool findBarVisible() const;
+
+	// 打开查找条并可选地预填关键词（会聚焦输入框并选中已有文本）
+	void showFindBar(const QString& initialText = QString());
+	void hideFindBar();
+
+	// 查找是否区分大小写（默认 false）
+	void setFindCaseSensitive(bool on);
+	bool findCaseSensitive() const;
 
 Q_SIGNALS:
 	/**
@@ -1977,6 +2203,11 @@ public:
 	// 遍历所有色块按钮并执行回调函数
 	void iterationColorBtns(FunColorBtn fn);
 
+	// 键盘导航（默认关闭）：开启后色块可聚焦，方向键 ±1/±列数，Enter 取色
+	void setKeyboardNavigationEnabled(bool on = true);
+	// 棋盘格底（默认关闭）：半透明色先铺 8×8 棋盘格再叠色
+	void setAlphaBackgroundEnabled(bool on = false);
+
 	// 设置指定行的最小高度
 	void setRowMinimumHeight(int row, int minSize);
 	// 在右侧添加水平弹簧，使色块左对齐
@@ -2012,6 +2243,15 @@ private:
 	void updateGridColor(bool isRemoveSpacer = false);
 	void setColorAt(const QColor& clr, int r, int c);
 	static QIcon makeColorIcon(const QColor& clr, const QSize& size);
+	// columnCount()==0 时的"单行"规则
+	int effectiveColumns() const;
+	// 开启键盘导航时：首块 StrongFocus、其余 ClickFocus；关闭时恢复默认
+	void applyFocusPolicies();
+	// 棋盘格底 + 颜色
+	QIcon makeColorIconWithAlpha(const QColor& clr, const QSize& size) const;
+
+protected:
+	bool eventFilter(QObject* watched, QEvent* event) override;
 };
 }  // namespace DA
 
@@ -2071,6 +2311,9 @@ public:
 	void setColorCheckable(bool on = true);
 	// 返回色块是否可选中
 	bool isColorCheckable() const;
+
+	// 转发给内部两个网格（默认关闭）
+	void setKeyboardNavigationEnabled(bool on = true);
 
 Q_SIGNALS:
 	/**
@@ -2147,6 +2390,21 @@ public:
 	// 获取"无颜色"Action
 	QAction* noneColorAction() const;
 
+	// 透明度：默认关闭。关闭时不插滑杆，selectedColor 的颜色不做任何 alpha 改写
+	void setAlphaEnabled(bool on = true);
+	bool isAlphaEnabled() const;
+	// 当前 alpha（0–255），默认 255；仅在 setAlphaEnabled(true) 时作用于选中的颜色
+	int alpha() const;
+	void setAlpha(int alpha);
+
+	// 最近色（最近优先）。调用即把"自定义色记录"切换为"最近 5 色、置顶、去重"策略
+	void setRecentColors(const QList<QColor>& colors);
+	QList<QColor> recentColors() const;
+
+	// 「恢复默认」：传入无效色表示移除该入口（默认无效 => 默认不出现）
+	void setDefaultColor(const QColor& color);
+	QColor defaultColor() const;
+
 public Q_SLOTS:
 	// 发射 selectedColor 信号并隐藏菜单
 	void emitSelectedColor(const QColor& c);
@@ -2157,6 +2415,10 @@ Q_SIGNALS:
 	 * @param c 选中的颜色，无效颜色表示"无颜色"
 	 */
 	void selectedColor(const QColor& c);
+	/**
+	 * @brief 拖动 alpha 滑杆时发射（0–255，随拖动高频发射）
+	 */
+	void alphaChanged(int alpha);
 
 private:
 	void init(const QList<QColor>& themeCls);
@@ -2165,6 +2427,14 @@ private:
 	QColor getColorByDialog();
 	void recordCustomColor(const QColor& c);
 	static QIcon createNoneColorIcon();
+	// alpha 行
+	void buildAlphaRow();
+	void updateAlphaPreview();
+	// 最近色与恢复默认
+	void recordRecentColor(const QColor& c);
+	void refreshRecordGrid();
+	// 统一选色出口：recordToRecent=true 时记录最近色并应用 alpha
+	void selectColor(const QColor& c, bool recordToRecent);
 };
 }  // namespace DA
 
@@ -2421,6 +2691,7 @@ private:
 #include <QWidget>
 #include <QColor>
 #include <QFont>
+#include <QStringList>
 
 namespace DA
 {
@@ -2468,6 +2739,19 @@ public:
 	void setFontWeight(int w);
 	// 获取字体粗细
 	int getFontWeight() const;
+
+	// 每项用自身字体族 + 面板当前字号/字重/斜体/下划线渲染（默认关闭）
+	void setFontPreviewEnabled(bool on);
+	bool isFontPreviewEnabled() const;
+
+	// 最近字体条数上限（默认 5，取值域 1–20）
+	void setMaxRecentFontCount(int n);
+	int maxRecentFontCount() const;
+
+	// 注入最近字体列表：入参按「最近 → 最旧」解释，内部去重 + 按上限截断；
+	// 非空时字体下拉右侧出现入口按钮，空列表即隐藏（= 默认状态）
+	void setRecentFontFamilies(const QStringList& families);
+	QStringList recentFontFamilies() const;
 
 private Q_SLOTS:
 	void onComboBoxFontSizeTextChanged(const QString& t);
@@ -2594,9 +2878,11 @@ struct DAWIDGETS_EXPORT DAItemEntry
  *   （候选 = availableItems 中尚未选中者，可由调用方设定哪些条目出现），
  *   单击按钮主体弹出 DAItemListPickDialog（可搜索、可多选一次性添加）；
  * - 「移除所有」按钮清空列表，带二次确认。
+ * - 可选：行首手柄拖拽排序（`setDragReorderEnabled`）、顶部过滤框（`setFilterVisible`）、
+ *   「再次点击清空」（`setConfirmClearEnabled`）。三项默认关闭，不打开时行为与旧版一致。
  *
  * 控件只认 DAItemEntry（text + data），不绑定任何业务语义，列选择/字段选择等
- * 场景均可复用；条目变化统一发 selectedItemsChanged()。
+ * 场景均可复用；条目变化统一发 selectedItemsChanged()，仅顺序变化发 orderChanged()。
  */
 class DAWIDGETS_EXPORT DAItemListEditWidget : public QWidget
 {
@@ -2616,9 +2902,30 @@ public:
 	// 获取已选条目（列表顺序 = 添加顺序）
 	QVector< DAItemEntry > selectedItems() const;
 
-	// 显示 Up/Down 按钮（按钮移动当前行，不使用拖拽；默认关闭）
+	// 显示 Up/Down 按钮（按钮移动当前行；与手柄拖拽并存、互不依赖；默认关闭）
 	void setReorderEnabled(bool on);
 	bool isReorderEnabled() const;
+
+	// 行首手柄拖拽排序（默认关闭）
+	void setDragReorderEnabled(bool on);
+	bool isDragReorderEnabled() const;
+
+	// 顶部过滤框（默认关闭）；只隐藏行，不改已选集合
+	void setFilterVisible(bool on);
+	bool isFilterVisible() const;
+
+	// 空态文案（列表为空或过滤无命中时显示）
+	void setEmptyText(const QString& text);
+	QString emptyText() const;
+
+	// 「再次点击清空」替代模态确认框（默认关闭 = 保持现有 QMessageBox）
+	void setConfirmClearEnabled(bool on);
+	bool isConfirmClearEnabled() const;
+	// 武装态自动还原时间（毫秒，默认 2500）
+	void setConfirmClearInterval(int ms);
+	int confirmClearInterval() const;
+	// 武装态按钮文案（i18n 覆盖用）
+	void setConfirmClearText(const QString& text);
 
 	// 覆盖默认文案（集成侧 i18n 用；默认为英文 tr 文本）
 	void setAddButtonText(const QString& t);
@@ -2631,11 +2938,19 @@ Q_SIGNALS:
 	 * @brief 已选条目变化（增/删/清空均发射；setSelectedItems 不发射）
 	 */
 	void selectedItemsChanged();
+	/**
+	 * @brief 顺序变化（Up/Down 与拖拽都发）；集合增删仍只走 selectedItemsChanged
+	 * @param items 当前完整顺序
+	 */
+	void orderChanged(const QVector< DAItemEntry >& items);
 
 private:
 	Q_DISABLE_COPY(DAItemListEditWidget)
 };
 }  // namespace DA
+
+Q_DECLARE_METATYPE(DA::DAItemEntry)
+Q_DECLARE_METATYPE(QVector< DA::DAItemEntry >)
 
 #endif  // DAITEMLISTEDITWIDGET_H
 
@@ -2744,6 +3059,10 @@ public:
 	void setSelectAllVisible(bool on);
 	void setInvertVisible(bool on);
 
+	// 键盘批量勾选：Shift+点击区间连选 + Ctrl+A 全选当前可见（默认 false）
+	void setKeyboardSelectionEnabled(bool on);
+	bool keyboardSelectionEnabled() const;
+
 	// 条目总数 / 勾选总数
 	int itemCount() const;
 	int checkedCount() const;
@@ -2752,6 +3071,9 @@ Q_SIGNALS:
 	 * @brief 用户操作导致勾选变化（全选/反选合并为一次）
 	 */
 	void checkedEntriesChanged();
+
+protected:
+	bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
 	Q_DISABLE_COPY(DACheckListWidget)
@@ -2919,7 +3241,9 @@ private:
 #define DASTRINGFILTERPROXYMODEL_H
 
 #include <QSortFilterProxyModel>
+#include <QPair>
 #include <QString>
+#include <QVector>
 
 namespace DA
 {
@@ -2962,6 +3286,17 @@ public:
 
 	// 单段文本的匹配语义（空过滤恒为 true）；供不能挂代理的视图复用同一实现
 	static bool matchesText(const QString& text, const QString& filter, Qt::CaseSensitivity cs);
+
+	// 单个单元格的命中区间：按当前过滤设置计算，元素为 (start, length)，UTF-16 下标。
+	// 空过滤 / 该列不参与匹配 / 索引无效 / 索引不属于本代理 → 返回空数组。
+	// 区间从左到右、互不重叠；父节点仅因子节点命中被放行时，其自身区间为空。
+	QVector< QPair< int, int > > matchRanges(const QModelIndex& proxyIndex) const;
+
+	// 纯文本版本：与 matchesText() 同一套语义。
+	// 注意：空过滤返回空数组，而 matchesText() 对空过滤返回 true（放行 ≠ 高亮）。
+	static QVector< QPair< int, int > > matchRangesIn(const QString& text,
+													  const QString& filter,
+													  Qt::CaseSensitivity cs);
 
 protected:
 	bool filterAcceptsRow(int source_row, const QModelIndex& source_parent) const override;
