@@ -246,6 +246,9 @@ int DAFlowLayout::doLayout(const QRect &rect, bool testOnly) const
 
     for (int i = 0; i < n; ++i) {
         QLayoutItem *item = d->items.at(i);
+        // 隐藏控件(例如折叠的标签 chip)不占位,也不吃水平/垂直间距
+        if (item->isEmpty())
+            continue;
         const bool trailing = d->trailingExpanding && (i == n - 1);
 
         if (trailing) {

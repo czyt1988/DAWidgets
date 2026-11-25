@@ -1,22 +1,31 @@
 #include "DASelectComboBox.h"
 
+#include "DAChip.h"
 #include "DAChipsEdit.h"
 
 #include <QApplication>
+#include <QIcon>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QListWidgetItem>
+#include <QPainter>
+#include <QPointer>
+#include <QPushButton>
 #include <QResizeEvent>
 #include <QScrollArea>
 #include <QStyle>
 #include <QStyleOptionComboBox>
 #include <QTimer>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 namespace DA
 {
 namespace {
+constexpr int kGroupRole = Qt::UserRole + 1;
+
 // 隐形占位 QLineEdit：QComboBox editable 模式需要一个 lineEdit，这里让它透明、
 // 不绘制、不接收鼠标、不参与焦点，编辑区完全交给覆盖在上层的 DAChipsEdit。
 class HiddenLineEdit : public QLineEdit
@@ -33,6 +42,97 @@ public:
 protected:
     void paintEvent(QPaintEvent *) override {}
 };
+
+// 空态面板：叠在弹层 viewport 上的覆盖控件（不插占位 item，popup->clear() 不会波及）
+class EmptyPanel : public QWidget
+{
+public:
+    explicit EmptyPanel(QWidget *parent = nullptr) : QWidget(parent)
+    {
+        setObjectName(QStringLiteral("DASelectEmptyPanel"));
+        auto *lay = new QVBoxLayout(this);
+        lay->setContentsMargins(8, 8, 8, 8);
+        lay->setSpacing(8);
+        lay->addStretch(1);
+
+        m_text = new QLabel(this);
+        m_text->setObjectName(QStringLiteral("DASelectEmptyText"));
+        m_text->setAlignment(Qt::AlignCenter);
+        m_text->setWordWrap(true);
+        lay->addWidget(m_text);
+
+        m_create = new QPushButton(this);
+        m_create->setObjectName(QStringLiteral("DASelectCreateButton"));
+        m_create->setCursor(Qt::PointingHandCursor);
+        m_create->hide();
+        lay->addWidget(m_create, 0, Qt::AlignHCenter);
+        lay->addStretch(1);
+
+        setStyleSheet(QStringLiteral(
+            "QLabel#DASelectEmptyText { color:#909399; }"
+            "QPushButton#DASelectCreateButton { color:#409eff; border:1px solid #d9ecff;"
+            " border-radius:4px; padding:2px 10px; background:#ecf5ff; }"
+            "QPushButton#DASelectCreateButton:hover { background:#d9ecff; }"));
+    }
+
+    void setText(const QString &text) { m_text->setText(text); }
+    void setCreateText(const QString &text) { m_create->setText(text); }
+    void setCreateVisible(bool on) { m_create->setVisible(on); }
+    QPushButton *createButton() const { return m_create; }
+
+private:
+    QLabel *m_text { nullptr };
+    QPushButton *m_create { nullptr };
+};
+
+QPixmap makeClearPixmap(const QColor &color)
+{
+    QPixmap pm(12, 12);
+    pm.fill(Qt::transparent);
+    QPainter p(&pm);
+    p.setRenderHint(QPainter::Antialiasing, true);
+    p.setPen(QPen(color, 1.6, Qt::SolidLine, Qt::RoundCap));
+    p.drawLine(QPointF(3.5, 3.5), QPointF(8.5, 8.5));
+    p.drawLine(QPointF(8.5, 3.5), QPointF(3.5, 8.5));
+    p.end();
+    return pm;
+}
+
+bool isGroupHeader(const QListWidgetItem *item)
+{
+    return item && item->data(kGroupRole).isValid();
+}bool isActionable(const QListWidgetItem *item)
+{
+    return item && (item->flags() & Qt::ItemIsSelectable);
+}
+
+int nextActionableRow(QListWidget *popup, int from, int step)
+{
+    if (!popup || step == 0)
+        return -1;
+    int i = from;
+    if (i < 0) {
+        if (step < 0)
+            return -1;
+        i = -1;
+    }
+    for (i += step; i >= 0 && i < popup->count(); i += step) {
+        if (isActionable(popup->item(i)))
+            return i;
+    }
+    return -1;
+}
+
+int firstActionableRow(QListWidget *popup)
+{
+    if (!popup)
+        return -1;
+    for (int i = 0; i < popup->count(); ++i) {
+        if (isActionable(popup->item(i)))
+            return i;
+    }
+    return -1;
+}
 }  // namespace
 
 class DASelectComboBox::PrivateData
@@ -44,11 +144,24 @@ public:
     QScrollArea *scroll { nullptr };
     QListWidget *popup { nullptr };
     QStringList options;
+    QVector< DASelectGroup > groups;
     bool allowCreate { true };
     bool filterable { true };
     HeightMode heightMode { HeightMode::GrowWithTags };
     int fixedRowCount { 1 };
     bool popupVisible { false };
+
+    bool emptyStateEnabled { false };
+    QString noMatchText;
+    EmptyPanel *emptyPanel { nullptr };
+    QPointer< QWidget > emptyWidget;
+
+    bool clearable { false };
+    bool collapseTags { false };
+    int collapseTagCount { 2 };
+    QToolButton *clearButton { nullptr };
+    QLabel *collapseLabel { nullptr };
+    bool hovered { false };
 };
 
 /**
@@ -94,6 +207,12 @@ DASelectComboBox::DASelectComboBox(QWidget *parent) : QComboBox(parent), DA_PIMP
     d->popup->setMinimumHeight(40);
     d->popup->hide();
 
+    // 空态面板是弹层 viewport 上的覆盖控件:popup->clear() 不会销毁它
+    d->emptyPanel = new EmptyPanel(d->popup);
+    d->emptyPanel->hide();
+    d->noMatchText = tr("No matching items");  //cn:没有匹配项
+    connect(d->emptyPanel->createButton(), &QPushButton::clicked, this, [this] { activateByInput(); });
+
     connect(d->chips, &DAChipsEdit::inputTextChanged, this, &DASelectComboBox::onInputTextChanged);
     connect(d->chips, &DAChipsEdit::inputFocusChanged, this, &DASelectComboBox::onInputFocusChanged);
     connect(d->chips, &DAChipsEdit::inputKeyEvent, this, &DASelectComboBox::onInputKey);
@@ -103,6 +222,7 @@ DASelectComboBox::DASelectComboBox(QWidget *parent) : QComboBox(parent), DA_PIMP
             updateGeometry();
     });
     connect(d->chips, &DAChipsEdit::tagsChanged, this, &DASelectComboBox::tagsChanged);
+    connect(d->chips, &DAChipsEdit::tagsChanged, this, [this] { updateEditOverlays(); });
     connect(d->popup, &QListWidget::itemClicked, this, &DASelectComboBox::onPopupItemClicked);
 
     // 监听全局鼠标按下：popup 可见时点击外部（非 combobox、非 popup 自身）应关闭。
@@ -116,9 +236,22 @@ DASelectComboBox::DASelectComboBox(QWidget *parent) : QComboBox(parent), DA_PIMP
 
 /**
  * @brief 析构
- * @details PIMPL 指针由 DA_PIMPL_CONSTRUCT 宏自动释放
+ * @details 弹层是无父顶层窗口，必须显式删除；PIMPL 指针由宏自动释放
  */
-DASelectComboBox::~DASelectComboBox() = default;
+DASelectComboBox::~DASelectComboBox()
+{
+    DA_D(d);
+    // 先断开子控件的信号与全局过滤器：~QWidget 删除子控件时会触发焦点变化，
+    // 此时本对象的 d_ptr 已释放，槽里再访问私有数据就是 use-after-free
+    qApp->removeEventFilter(this);
+    if (d->chips)
+        d->chips->disconnect(this);
+    if (d->popup) {
+        d->popup->hide();
+        delete d->popup;
+        d->popup = nullptr;
+    }
+}
 
 /**
  * @brief 应用默认现代化样式
@@ -176,9 +309,36 @@ QStringList DASelectComboBox::options() const
 void DASelectComboBox::setOptions(const QStringList &options)
 {
     DA_D(d);
+    d->groups.clear();
     d->options = options;
     if (d->popupVisible)
         refreshPopup(d->chips->inputText());
+}
+
+/**
+ * @brief 设置分组候选
+ * @param groups 分组列表，title 为空串表示无标题组
+ * @details 同时把组内候选按「组顺序 + 组内顺序」扁平化到 options()，弹层可见时立即刷新
+ */
+void DASelectComboBox::setGroupedOptions(const QVector< DASelectGroup > &groups)
+{
+    DA_D(d);
+    d->groups = groups;
+    d->options.clear();
+    for (const DASelectGroup &g : groups)
+        d->options.append(g.options);
+    if (d->popupVisible)
+        refreshPopup(d->chips->inputText());
+}
+
+/**
+ * @brief 获取分组候选
+ * @return 分组列表副本
+ */
+QVector< DASelectGroup > DASelectComboBox::groupedOptions() const
+{
+    DA_DC(d);
+    return d->groups;
 }
 
 /**
@@ -203,8 +363,8 @@ void DASelectComboBox::setTags(const QStringList &tags)
 }
 
 /**
- * @brief 清空所有已选标签与候选选项
- * @details 同时清空 DAChipsEdit 标签与输入框，并关闭弹出框
+ * @brief 清空所有已选标签与输入文本
+ * @details 不修改候选选项；清空后关闭弹层（保持旧行为）
  */
 void DASelectComboBox::clear()
 {
@@ -212,6 +372,7 @@ void DASelectComboBox::clear()
     d->chips->clear();
     d->chips->clearInput();
     hideCustomPopup();
+    updateEditOverlays();
 }
 
 /**
@@ -323,6 +484,183 @@ void DASelectComboBox::setFixedRowCount(int rows)
 }
 
 /**
+ * @brief 打开/关闭空态面板
+ * @param on 是否启用（默认 false）
+ * @details 关闭时保持旧行为：无匹配立即关闭弹层
+ */
+void DASelectComboBox::setEmptyStateEnabled(bool on)
+{
+    DA_D(d);
+    if (d->emptyStateEnabled == on)
+        return;
+    d->emptyStateEnabled = on;
+    if (d->popupVisible) {
+        refreshPopup(d->chips->inputText());
+        if (!on && firstActionableRow(d->popup) < 0)
+            hideCustomPopup();
+    }
+    updateEmptyOverlay();
+}
+
+/** @brief 空态面板是否启用 */
+bool DASelectComboBox::isEmptyStateEnabled() const
+{
+    DA_DC(d);
+    return d->emptyStateEnabled;
+}
+
+/**
+ * @brief 设置空态主文案
+ * @param text 文案
+ */
+void DASelectComboBox::setNoMatchText(const QString &text)
+{
+    DA_D(d);
+    d->noMatchText = text;
+    updateEmptyOverlay();
+}
+
+/** @brief 获取空态主文案 */
+QString DASelectComboBox::noMatchText() const
+{
+    DA_DC(d);
+    return d->noMatchText;
+}
+
+/**
+ * @brief 设置自定义空态控件
+ * @param w 控件（接管所有权，随弹层析构）；nullptr 还原内置面板
+ */
+void DASelectComboBox::setEmptyWidget(QWidget *w)
+{
+    DA_D(d);
+    if (d->emptyWidget == w)
+        return;
+    if (d->emptyWidget) {
+        d->emptyWidget->hide();
+        d->emptyWidget->deleteLater();
+    }
+    d->emptyWidget = w;
+    if (w) {
+        w->setParent(d->popup);
+        w->hide();
+    }
+    updateEmptyOverlay();
+}
+
+/** @brief 获取自定义空态控件 */
+QWidget *DASelectComboBox::emptyWidget() const
+{
+    DA_DC(d);
+    return d->emptyWidget.data();
+}
+
+/**
+ * @brief 打开/关闭编辑区清空按钮
+ * @param on 是否启用（默认 false）
+ * @details 关闭时销毁按钮子控件，保持默认视觉与旧行为一致
+ */
+void DASelectComboBox::setClearable(bool on)
+{
+    DA_D(d);
+    if (d->clearable == on)
+        return;
+    d->clearable = on;
+    if (on && !d->clearButton) {
+        d->clearButton = new QToolButton(this);
+        d->clearButton->setObjectName(QStringLiteral("DASelectClearButton"));
+        // 用绘制的图标而不是文本 ×：不依赖平台字体，跨平台像素断言才稳定
+        QIcon icon;
+        icon.addPixmap(makeClearPixmap(QColor(0xC0, 0xC4, 0xCC)), QIcon::Normal);
+        icon.addPixmap(makeClearPixmap(QColor(0x90, 0x93, 0x99)), QIcon::Active);
+        d->clearButton->setIcon(icon);
+        d->clearButton->setIconSize(QSize(10, 10));
+        d->clearButton->setAccessibleName(tr("Clear all"));  //cn:清空全部
+        d->clearButton->setAutoRaise(true);
+        d->clearButton->setFocusPolicy(Qt::NoFocus);
+        d->clearButton->setCursor(Qt::ArrowCursor);
+        d->clearButton->setFixedSize(20, 20);
+        d->clearButton->setStyleSheet(QStringLiteral(
+            "QToolButton#DASelectClearButton { border:none; background:transparent; padding:0; }"));
+        d->clearButton->hide();
+        connect(d->clearButton, &QToolButton::clicked, this, [this] {
+            DA_D(d);
+            d->chips->clear();
+            d->chips->clearInput();
+            if (d->popupVisible)
+                refreshPopup(QString());
+            updateEditOverlays();
+            Q_EMIT clearClicked();
+        });
+    }
+    if (!on && d->clearButton) {
+        d->clearButton->hide();
+        d->clearButton->deleteLater();
+        d->clearButton = nullptr;
+    }
+    updateEditOverlays();
+}
+
+/** @brief 是否启用清空按钮 */
+bool DASelectComboBox::isClearable() const
+{
+    DA_DC(d);
+    return d->clearable;
+}
+
+/**
+ * @brief 打开/关闭已选标签折叠
+ * @param on 是否启用（默认 false）
+ */
+void DASelectComboBox::setCollapseTags(bool on)
+{
+    DA_D(d);
+    if (d->collapseTags == on)
+        return;
+    d->collapseTags = on;
+    if (on && !d->collapseLabel) {
+        d->collapseLabel = new QLabel(this);
+        d->collapseLabel->setObjectName(QStringLiteral("DASelectTagSummary"));
+        d->collapseLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+        d->collapseLabel->setStyleSheet(QStringLiteral(
+            "QLabel#DASelectTagSummary { color:#909399; background:#f4f4f5; border-radius:8px;"
+            " padding:1px 6px; }"));
+        d->collapseLabel->hide();
+    }
+    if (!on && d->collapseLabel) {
+        d->collapseLabel->hide();
+        d->collapseLabel->deleteLater();
+        d->collapseLabel = nullptr;
+    }
+    updateEditOverlays();
+}
+
+/** @brief 是否启用已选标签折叠 */
+bool DASelectComboBox::collapseTags() const
+{
+    DA_DC(d);
+    return d->collapseTags;
+}
+
+/**
+ * @brief 设置折叠后保留的标签数
+ * @param count 保留数，小于 1 时按 1 处理
+ */
+void DASelectComboBox::setCollapseTagCount(int count)
+{
+    DA_D(d);
+    d->collapseTagCount = qMax(1, count);
+    updateEditOverlays();
+}
+
+/** @brief 折叠后保留的标签数 */
+int DASelectComboBox::collapseTagCount() const
+{
+    DA_DC(d);
+    return d->collapseTagCount;
+}
+
+/**
  * @brief 计算推荐尺寸
  * @return 推荐的 QSize
  * @details GrowWithTags 模式下用 layout()->heightForWidth 计算换行高度，
@@ -397,11 +735,7 @@ QSize DASelectComboBox::minimumSizeHint() const
 void DASelectComboBox::resizeEvent(QResizeEvent *event)
 {
     QComboBox::resizeEvent(event);
-    DA_D(d);
-    QStyleOptionComboBox opt;
-    initStyleOption(&opt);
-    const QRect field = style()->subControlRect(QStyle::CC_ComboBox, &opt, QStyle::SC_ComboBoxEditField, this);
-    d->container->setGeometry(field);
+    updateOverlayGeometry();
 }
 
 /**
@@ -423,20 +757,31 @@ void DASelectComboBox::showPopup()
  * @param watched 被监听的对象
  * @param event 事件
  * @return 是否拦截事件
- * @details popup 可见时，外部鼠标按下关闭下拉（点 popup 内部由 itemClicked 处理），
- *          Tab/Backtab 焦点切换也关闭下拉
+ * @details popup 可见时，外部鼠标按下关闭下拉（点 popup 内部与自身覆盖层除外），
+ *          Tab/Backtab 焦点切换也关闭下拉；Enter/Leave 维护清空按钮的悬停显隐
  */
 bool DASelectComboBox::eventFilter(QObject *watched, QEvent *event)
 {
     DA_D(d);
+    if (event->type() == QEvent::Enter) {
+        if (watched == this || (d->clearButton && watched == d->clearButton)) {
+            d->hovered = true;
+            updateEditOverlays();
+        }
+    } else if (event->type() == QEvent::Leave) {
+        if (watched == this || (d->clearButton && watched == d->clearButton)) {
+            d->hovered = false;
+            updateEditOverlays();
+        }
+    }
     if (d->popupVisible) {
         switch (event->type()) {
         case QEvent::MouseButtonPress: {
             // 任何鼠标按下都关闭，除非点在 popup 内部（由 itemClicked 处理选中）。
-            // 点在 combobox 上时，showPopup 的 toggle 逻辑会接管开关，这里也关闭，
-            // 随后 QComboBox 触发的 showPopup 会重新打开——实现"点箭头不闪、点其它关闭"。
+            // × 与 +N 是本控件的覆盖层，点它们时不能把弹层关掉（否则“清空后保持打开”做不到）。
             auto *w = qobject_cast< QWidget * >(watched);
-            if (w && w != d->popup && !d->popup->isAncestorOf(w))
+            const bool ownOverlay = (w && (w == d->clearButton || w == d->collapseLabel));
+            if (w && w != d->popup && !d->popup->isAncestorOf(w) && !ownOverlay)
                 hideCustomPopup();
             break;
         }
@@ -482,6 +827,9 @@ void DASelectComboBox::onInputTextChanged(const QString &text)
  */
 void DASelectComboBox::onInputFocusChanged(bool focused)
 {
+    // 控件析构时子控件删除会引发焦点变化，此时 d_ptr 可能已释放
+    if (!d_func())
+        return;
     DA_D(d);
     if (focused) {
         if (d->filterable && !d->options.isEmpty())
@@ -489,6 +837,7 @@ void DASelectComboBox::onInputFocusChanged(bool focused)
     }
     // 失焦时不主动关闭：Qt::Popup 在外部点击时自动关闭，选中/Esc 会显式关闭，
     // 避免与 popup itemClicked 的点击事件竞争导致误关。
+    updateEditOverlays();
 }
 
 /**
@@ -503,29 +852,23 @@ void DASelectComboBox::onInputKey(QKeyEvent *event, bool *handled)
     DA_D(d);
     const int key = event->key();
     if (key == Qt::Key_Return || key == Qt::Key_Enter) {
-        if (d->popupVisible && d->popup->currentItem()) {
+        QListWidgetItem *current = d->popup->currentItem();
+        if (d->popupVisible && current && isActionable(current)) {
             pickCurrent();
             *handled = true;
         } else if (d->allowCreate && !d->chips->inputText().trimmed().isEmpty()) {
-            const QString text = d->chips->inputText().trimmed();
-            d->chips->appendTag(text);
-            Q_EMIT created(text);
-            d->chips->clearInput();
+            activateByInput();
             *handled = true;
         }
         return;
     }
     if (!d->popupVisible)
         return;
-    if (key == Qt::Key_Down) {
-        const int r = d->popup->currentRow();
-        if (r < d->popup->count() - 1)
-            d->popup->setCurrentRow(r + 1);
-        *handled = true;
-    } else if (key == Qt::Key_Up) {
-        const int r = d->popup->currentRow();
-        if (r > 0)
-            d->popup->setCurrentRow(r - 1);
+    if (key == Qt::Key_Down || key == Qt::Key_Up) {
+        const int step = (key == Qt::Key_Down) ? 1 : -1;
+        const int row  = nextActionableRow(d->popup, d->popup->currentRow(), step);
+        if (row >= 0)
+            d->popup->setCurrentRow(row);
         *handled = true;
     } else if (key == Qt::Key_Escape) {
         hideCustomPopup();
@@ -537,12 +880,12 @@ void DASelectComboBox::onInputKey(QKeyEvent *event, bool *handled)
 /**
  * @brief 点击弹出列表项时选中该项
  * @param item 被点击的列表项
- * @details 将项文本追加为标签并发射 optionSelected，清空输入框并刷新候选列表
+ * @details 组标题不可选；候选追加为标签并发射 optionSelected
  */
 void DASelectComboBox::onPopupItemClicked(QListWidgetItem *item)
 {
     DA_D(d);
-    if (!item)
+    if (!isActionable(item))
         return;
     d->chips->appendTag(item->text());
     Q_EMIT optionSelected(item->text());
@@ -584,7 +927,8 @@ void DASelectComboBox::applyHeightMode()
 
 /**
  * @brief 显示自定义候选弹出框
- * @details 刷新候选列表后定位到 combobox 正下方，设置默认选中第一项（default-first-option）
+ * @details 刷新候选列表后定位到 combobox 正下方；default-first-option 取首个可选行；
+ *          空态开启时即使没有候选也保持弹层并显示覆盖面板
  */
 void DASelectComboBox::showCustomPopup()
 {
@@ -592,21 +936,33 @@ void DASelectComboBox::showCustomPopup()
     if (d->popupVisible)
         return;
     refreshPopup(d->chips->inputText());
-    if (d->popup->count() == 0)
+    if (d->popup->count() == 0 && !d->emptyStateEnabled)
         return;
     d->popup->setFixedWidth(width());
-    const int h = qMin(d->popup->sizeHintForRow(0) * d->popup->count() + 6, 220);
-    d->popup->setFixedHeight(h);
+    int h = 0;
+    if (d->popup->count() == 0) {
+        // 空态：按面板/自定义控件的高度给一个不低于最小高度的弹层
+        QWidget *w = d->emptyWidget ? d->emptyWidget.data() : d->emptyPanel;
+        h = qMax(w ? w->sizeHint().height() + 6 : 0, 40);
+    } else {
+        int contentH = 0;
+        for (int i = 0; i < d->popup->count(); ++i)
+            contentH += d->popup->sizeHintForRow(i);
+        h = qMin(contentH + 6, 220);
+    }
+    d->popup->setFixedHeight(qMax(h, 40));
     d->popup->move(mapToGlobal(QPoint(0, height())));
     d->popup->show();
     d->popup->raise();
-    d->popup->setCurrentRow(0);  // default-first-option
+    const int first = firstActionableRow(d->popup);
+    if (first >= 0)
+        d->popup->setCurrentRow(first);  // default-first-option
     d->popupVisible = true;
+    updateEmptyOverlay();
+    updateEditOverlays();
 }
 
-/**
- * @brief 隐藏自定义候选弹出框
- */
+/** @brief 隐藏自定义候选弹出框并收起空态面板 */
 void DASelectComboBox::hideCustomPopup()
 {
     DA_D(d);
@@ -614,46 +970,208 @@ void DASelectComboBox::hideCustomPopup()
         return;
     d->popup->hide();
     d->popupVisible = false;
+    updateEmptyOverlay();
+    updateEditOverlays();
 }
 
 /**
  * @brief 刷新弹出框候选列表
  * @param filter 过滤文本，空字符串表示显示全部
- * @details 排除已选标签，按过滤文本模糊匹配；无匹配项时自动关闭弹出框
+ * @details 无分组时保持原扁平路径；有分组时插入不可选组标题，
+ *          组内无命中则整组隐藏。无匹配且未开空态时关闭弹层。
  */
 void DASelectComboBox::refreshPopup(const QString &filter)
 {
     DA_D(d);
     d->popup->clear();
     const QStringList selected = d->chips->tags();
-    for (const QString &opt : d->options) {
-        if (selected.contains(opt))
-            continue;
-        if (filter.isEmpty() || opt.contains(filter, Qt::CaseInsensitive))
-            d->popup->addItem(opt);
+    if (d->groups.isEmpty()) {
+        // 默认路径：与加入分组前逐项一致
+        for (const QString &opt : d->options) {
+            if (selected.contains(opt))
+                continue;
+            if (filter.isEmpty() || opt.contains(filter, Qt::CaseInsensitive))
+                d->popup->addItem(opt);
+        }
+    } else {
+        for (int gi = 0; gi < d->groups.size(); ++gi) {
+            const DASelectGroup &group = d->groups.at(gi);
+            QStringList hits;
+            for (const QString &opt : group.options) {
+                if (selected.contains(opt))
+                    continue;
+                if (filter.isEmpty() || opt.contains(filter, Qt::CaseInsensitive))
+                    hits << opt;
+            }
+            if (hits.isEmpty())
+                continue;
+            if (!group.title.isEmpty()) {
+                auto *header = new QListWidgetItem(group.title, d->popup);
+                header->setFlags(header->flags() & ~Qt::ItemIsSelectable & ~Qt::ItemIsEnabled);
+                header->setData(kGroupRole, gi);
+                header->setSizeHint(QSize(0, 22));
+            }
+            for (const QString &opt : hits)
+                d->popup->addItem(opt);
+        }
     }
-    if (d->popup->count() == 0 && d->popupVisible) {
-        hideCustomPopup();
-        return;
+
+    const int first = firstActionableRow(d->popup);
+    if (first < 0) {
+        if (d->popupVisible && !d->emptyStateEnabled) {
+            hideCustomPopup();
+            return;
+        }
+    } else {
+        d->popup->setCurrentRow(first);
     }
-    if (d->popup->count() > 0)
-        d->popup->setCurrentRow(0);
+    updateEmptyOverlay();
 }
 
 /**
  * @brief 选中当前高亮的候选项
- * @details 将当前项文本追加为标签并发射 optionSelected，清空输入框并刷新候选列表
+ * @details 组标题不可选；候选追加为标签并发射 optionSelected
  */
 void DASelectComboBox::pickCurrent()
 {
     DA_D(d);
     QListWidgetItem *item = d->popup->currentItem();
-    if (!item)
+    if (!isActionable(item))
         return;
     d->chips->appendTag(item->text());
     Q_EMIT optionSelected(item->text());
     d->chips->clearInput();
     if (d->popupVisible)
         refreshPopup(QString());
+}
+
+/** @brief 回车与空态「创建」按钮共用的创建入口 */
+void DASelectComboBox::activateByInput()
+{
+    DA_D(d);
+    const QString text = d->chips->inputText().trimmed();
+    if (text.isEmpty())
+        return;
+    d->chips->appendTag(text);
+    Q_EMIT created(text);
+    d->chips->clearInput();
+    if (d->popupVisible)
+        refreshPopup(QString());
+}
+
+/**
+ * @brief 刷新空态覆盖层
+ * @details 只在「开关打开 + 弹层可见 + 没有任何可选候选行」时显示；
+ *          面板不是 item，popup->clear() 不会销毁它
+ */
+void DASelectComboBox::updateEmptyOverlay()
+{
+    DA_D(d);
+    if (!d->emptyPanel)
+        return;
+    const bool show = d->emptyStateEnabled && d->popupVisible && firstActionableRow(d->popup) < 0;
+    if (!show) {
+        d->emptyPanel->hide();
+        if (d->emptyWidget)
+            d->emptyWidget->hide();
+        return;
+    }
+    QWidget *w = d->emptyWidget ? d->emptyWidget.data() : d->emptyPanel;
+    if (w == d->emptyPanel) {
+        d->emptyPanel->setText(d->noMatchText);
+        const QString input  = d->chips->inputText().trimmed();
+        const bool canCreate = d->allowCreate && !input.isEmpty();
+        d->emptyPanel->setCreateVisible(canCreate);
+        if (canCreate)
+            d->emptyPanel->setCreateText(tr("Create \"%1\"").arg(input));  //cn:创建“%1”
+    }
+    const QRect viewportRect = d->popup->viewport()->geometry();
+    w->setGeometry(viewportRect);
+    w->show();
+    w->raise();
+    if (w != d->emptyPanel)
+        d->emptyPanel->hide();
+}
+
+/**
+ * @brief 刷新 × 与 +N 的几何
+ * @details 唯一度量来源是 style()->subControlRect(SC_ComboBoxEditField)
+ */
+void DASelectComboBox::updateOverlayGeometry()
+{
+    if (!d_func())
+        return;
+    DA_D(d);
+    if (!d->container)
+        return;
+    QStyleOptionComboBox opt;
+    initStyleOption(&opt);
+    const QRect field = style()->subControlRect(QStyle::CC_ComboBox, &opt, QStyle::SC_ComboBoxEditField, this);
+
+    QRect containerRect = field;
+    if (d->clearable && !tags().isEmpty())
+        containerRect.adjust(0, 0, -24, 0);
+    d->container->setGeometry(containerRect);
+
+    const int rowH = d->chips->rowHeightHint();
+    if (d->clearButton) {
+        const int b = 20;
+        const int y = field.top() + qMax(0, (rowH - b) / 2);
+        d->clearButton->setGeometry(field.right() - b + 1, y, b, b);
+    }
+    if (d->collapseLabel) {
+        const QSize hint = d->collapseLabel->sizeHint();
+        int right        = field.right();
+        if (d->clearButton && d->clearButton->isVisible())
+            right = d->clearButton->geometry().left() - 4;
+        const int y = field.top() + qMax(0, (rowH - hint.height()) / 2);
+        d->collapseLabel->setGeometry(right - hint.width(), y, hint.width(), hint.height());
+    }
+}
+
+/**
+ * @brief 按折叠状态隐藏/显示 chip 与 +N 摘要
+ * @details 只切可见性，不改写 tags()；聚焦或弹层展开时恢复全部
+ */
+void DASelectComboBox::updateTagCollapse()
+{
+    DA_D(d);
+    QList< DAChip * > chips;
+    if (auto *lay = d->chips->layout()) {
+        for (int i = 0; i < lay->count(); ++i) {
+            if (auto *chip = qobject_cast< DAChip * >(lay->itemAt(i)->widget()))
+                chips << chip;
+        }
+    }
+    const int n     = d->chips->tags().size();
+    const int keep  = qMax(1, d->collapseTagCount);
+    const bool collapse = d->collapseTags && n > keep;
+    QWidget *focus      = QApplication::focusWidget();
+    const bool focused  = d->chips->hasFocus() || (focus && d->chips->isAncestorOf(focus));
+    const bool showAll  = !collapse || focused || d->popupVisible;
+    for (int i = 0; i < chips.size(); ++i)
+        chips[i]->setVisible(showAll || i < keep);
+    if (d->collapseLabel) {
+        d->collapseLabel->setText(QStringLiteral("+%1").arg(n - keep));
+        d->collapseLabel->setVisible(collapse && !showAll);
+    }
+    if (auto *lay = d->chips->layout())
+        lay->invalidate();
+    d->chips->updateGeometry();
+    updateGeometry();
+}
+
+/** @brief 综合刷新悬停态、× 与折叠摘要 */
+void DASelectComboBox::updateEditOverlays()
+{
+    if (!d_func())
+        return;
+    DA_D(d);
+    if (d->clearButton) {
+        const bool show = d->clearable && d->hovered && !tags().isEmpty() && isEnabled();
+        d->clearButton->setVisible(show);
+    }
+    updateTagCollapse();
+    updateOverlayGeometry();
 }
 }  // namespace DA

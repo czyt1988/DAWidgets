@@ -241,6 +241,73 @@ static QWidget *createSelectComboBoxContent(QWidget *parent)
 }
 
 // ============================================================
+// DASelectComboBox —— 分组 / 空态 / 清空 / 折叠标签
+// ============================================================
+static QWidget *createSelectComboBoxAdvancedContent(QWidget *parent)
+{
+    auto *w = new QWidget(parent);
+    auto *v = new QVBoxLayout(w);
+    v->setContentsMargins(8, 4, 8, 4);
+
+    auto *desc = new QLabel(
+        QStringLiteral("四项默认关闭的能力在此显式打开：分组候选（组标题不可选）、无匹配空态 + 创建按钮、"
+                       "悬停出现的清空 ×、超出 2 个后折叠为 +N。\n"
+                       "输入列表里没有的文字可看到空态与「创建」入口；清空后弹层保持打开。"), w);
+    desc->setWordWrap(true);
+    v->addWidget(desc);
+
+    auto *cb = new DA::DASelectComboBox(w);
+    cb->setPlaceholder(QStringLiteral("选择大区/渠道，或输入后创建"));
+    cb->setGroupedOptions({
+        DA::DASelectGroup{ QStringLiteral("大区"),
+                           { QStringLiteral("华北"), QStringLiteral("华东"),
+                             QStringLiteral("华南"), QStringLiteral("西南") } },
+        DA::DASelectGroup{ QStringLiteral("渠道"),
+                           { QStringLiteral("直营"), QStringLiteral("经销"), QStringLiteral("电商") } },
+    });
+    cb->setAllowCreate(true);
+    cb->setEmptyStateEnabled(true);
+    cb->setNoMatchText(QStringLiteral("没有匹配项"));
+    cb->setClearable(true);
+    cb->setCollapseTags(true);
+    cb->setCollapseTagCount(2);
+    cb->setTags({ QStringLiteral("华北"), QStringLiteral("华东"), QStringLiteral("华南") });
+    v->addWidget(cb);
+
+    auto *row = new QHBoxLayout;
+    auto *lbl = new QLabel(QStringLiteral("tags: 华北, 华东, 华南"), w);
+    auto *fiveBtn = new QPushButton(QStringLiteral("选中 5 项（看折叠）"), w);
+    auto *twoBtn = new QPushButton(QStringLiteral("恢复 2 项"), w);
+    row->addWidget(lbl, 1);
+    row->addWidget(fiveBtn);
+    row->addWidget(twoBtn);
+    v->addLayout(row);
+
+    auto *log = new QLabel(QStringLiteral("clearClicked / created: —"), w);
+    log->setStyleSheet(QStringLiteral("color:#909399;"));
+    v->addWidget(log);
+
+    QObject::connect(cb, &DA::DASelectComboBox::tagsChanged, [lbl](const QStringList &t) {
+        lbl->setText(QStringLiteral("tags: ") + t.join(QStringLiteral(", ")));
+    });
+    QObject::connect(cb, &DA::DASelectComboBox::clearClicked, [log]() {
+        log->setText(QStringLiteral("clearClicked: 已清空全部标签（弹层保持打开）"));
+    });
+    QObject::connect(cb, &DA::DASelectComboBox::created, [log](const QString &t) {
+        log->setText(QStringLiteral("created: ") + t);
+    });
+    QObject::connect(fiveBtn, &QPushButton::clicked, [cb]() {
+        cb->setTags({ QStringLiteral("华北"), QStringLiteral("华东"), QStringLiteral("华南"),
+                      QStringLiteral("西南"), QStringLiteral("直营") });
+    });
+    QObject::connect(twoBtn, &QPushButton::clicked, [cb]() {
+        cb->setTags({ QStringLiteral("华北"), QStringLiteral("华东") });
+    });
+
+    return w;
+}
+
+// ============================================================
 // 场景列表（tab 与截图导出共用）
 // ============================================================
 QVector< DemoScene > selectorScenes()
@@ -253,5 +320,8 @@ QVector< DemoScene > selectorScenes()
           createFlowLayoutContent, 0 },
         { QStringLiteral("select-combobox"), QStringLiteral("DASelectComboBox — 多标签下拉选择器"),
           createSelectComboBoxContent, 0 },
+        { QStringLiteral("select-combobox-advanced"),
+          QStringLiteral("DASelectComboBox — 分组 / 空态 / 清空 / 折叠标签"),
+          createSelectComboBoxAdvancedContent, 0 },
     };
 }

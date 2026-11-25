@@ -3,6 +3,7 @@
 
 #include <QComboBox>
 #include <QStringList>
+#include <QVector>
 #include "DAWidgetsGlobals.h"
 
 class QListWidget;
@@ -13,6 +14,15 @@ class QWidget;
 namespace DA
 {
 class DAChipsEdit;
+
+/**
+ * @brief 分组候选:title 为空串表示「无标题组」
+ */
+struct DAWIDGETS_EXPORT DASelectGroup
+{
+    QString title;        ///< 分组标题
+    QStringList options;  ///< 组内候选
+};
 
 /**
  * @brief 多标签选择下拉框，对标 Element UI el-select 的
@@ -52,8 +62,40 @@ public:
 
     // 获取候选选项列表
     QStringList options() const;
-    // 设置候选选项列表，替换当前所有选项
+    // 设置候选选项列表，替换当前所有选项（同时清空分组）
     void setOptions(const QStringList &options);
+
+    // 分组候选：内部扁平化为 options()，与 setOptions() 互斥
+    void setGroupedOptions(const QVector< DASelectGroup > &groups);
+    // 获取分组候选（副本）
+    QVector< DASelectGroup > groupedOptions() const;
+
+    // 无匹配时保持弹层打开并显示空态面板（默认关闭）
+    void setEmptyStateEnabled(bool on);
+    // 空态面板是否启用
+    bool isEmptyStateEnabled() const;
+    // 空态主文案，默认 tr("No matching items")
+    void setNoMatchText(const QString &text);
+    // 获取空态主文案
+    QString noMatchText() const;
+    // 自定义空态控件：接管所有权，替换内置面板；仅在开关为 true 时生效
+    void setEmptyWidget(QWidget *w);
+    // 获取自定义空态控件
+    QWidget *emptyWidget() const;
+
+    // 编辑区右侧 ×，悬停出现，一次清空全部（默认关闭）
+    void setClearable(bool on);
+    // 是否启用清空按钮
+    bool isClearable() const;
+
+    // 已选标签折叠：超出 count 个且未聚焦时显示 +N（默认关闭）
+    void setCollapseTags(bool on);
+    // 是否启用已选标签折叠
+    bool collapseTags() const;
+    // 折叠后保留的标签数（最小 1）
+    void setCollapseTagCount(int count);
+    // 折叠后保留的标签数
+    int collapseTagCount() const;
 
     // 获取已选标签列表
     QStringList tags() const;
@@ -106,6 +148,10 @@ Q_SIGNALS:
      * @param text 新创建标签的文本
      */
     void created(const QString &text);
+    /**
+     * @brief 点击清空按钮清空全部标签后发射一次（此时 tagsChanged 已先发过）
+     */
+    void clearClicked();
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
@@ -123,6 +169,16 @@ private:
     void onInputFocusChanged(bool focused);
     void onInputKey(QKeyEvent *event, bool *handled);
     void onPopupItemClicked(QListWidgetItem *item);
+    // 回车与空态「创建」按钮共用的创建入口
+    void activateByInput();
+    // 空态覆盖层显隐与几何
+    void updateEmptyOverlay();
+    // × 与 +N 的几何（唯一来源是 style()->subControlRect）
+    void updateOverlayGeometry();
+    // 按 collapseTags 状态隐藏/显示 chip 与 +N 摘要
+    void updateTagCollapse();
+    // 综合刷新悬停态、× 与折叠摘要
+    void updateEditOverlays();
 };
 }  // namespace DA
 
